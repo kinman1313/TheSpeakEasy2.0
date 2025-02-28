@@ -1,7 +1,7 @@
 "use client"
 
 import React from "react"
-import { Sidebar } from "./Sidebar"
+import { Sidebar } from "./sidebar"
 import ChatRoom from "./ChatRoom"
 
 const ChatApp = () => {
@@ -32,4 +32,3 @@ const ChatApp = () => {
 }
 
 export default ChatApp
-
