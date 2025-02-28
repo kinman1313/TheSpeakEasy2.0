@@ -1,18 +1,19 @@
-const withPWA = require('next-pwa')({
-    dest: 'public',
+const withPWA = require("next-pwa")({
+    dest: "public",
     register: true,
     skipWaiting: true,
-    disable: process.env.NODE_ENV === 'development'
+    disable: process.env.NODE_ENV === "development",
 })
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-    output: 'export', // Add this for Firebase hosting
+    // Remove the output: 'export' setting
     reactStrictMode: true,
     images: {
-        unoptimized: true, // Add this for static export
-        domains: ['firebasestorage.googleapis.com', 'lh3.googleusercontent.com'],
+        domains: ["firebasestorage.googleapis.com", "lh3.googleusercontent.com"],
+        // Remove unoptimized: true as we're not doing static export
     },
 }
 
 module.exports = withPWA(nextConfig)
+

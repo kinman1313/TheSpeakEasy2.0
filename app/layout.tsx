@@ -1,14 +1,30 @@
-// app/layout.tsx
-import './globals.css'
-import { Inter } from 'next/font/google'
-import { AuthProvider } from '@/components/AuthProvider'
-import { Toaster } from 'sonner' // Changed from '@/components/ui/toaster' to 'sonner'
+import type React from "react"
+import "./globals.css"
+import { Inter } from "next/font/google"
+import { AuthProvider } from "@/components/AuthProvider"
+import { Toaster } from "sonner"
+import type { Metadata } from "next"
+import { Analytics } from "@vercel/analytics/react" // Add Vercel Analytics
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ["latin"] })
 
-export const metadata = {
-    title: 'Neon Chat App',
-    description: 'A modern chat application with voice and video calls',
+export const metadata: Metadata = {
+    title: "Neon Chat App",
+    description: "A modern chat application with voice and video calls",
+    manifest: "/manifest.json",
+    icons: {
+        apple: [
+            { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
+            { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
+        ],
+    },
+    themeColor: "#000000",
+    viewport: {
+        width: "device-width",
+        initialScale: 1,
+        maximumScale: 1,
+        userScalable: false,
+    },
 }
 
 export default function RootLayout({
@@ -17,13 +33,15 @@ export default function RootLayout({
     children: React.ReactNode
 }) {
     return (
-        <html lang="en">
-            <body className={`${inter.className} dark bg-gradient-to-br from-gray-900 to-black min-h-screen`}>
+        <html lang="en" className="dark">
+            <body className={`${inter.className} bg-gradient-to-br from-gray-900 to-black min-h-screen antialiased`}>
                 <AuthProvider>
                     {children}
-                    <Toaster position="top-right" /> {/* Added position prop */}
+                    <Toaster position="top-right" theme="dark" closeButton richColors />
                 </AuthProvider>
+                <Analytics /> {/* Add Vercel Analytics component */}
             </body>
         </html>
     )
 }
+
