@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { auth, db } from "@/lib/firebase"
-import { doc, getDoc, updateDoc, deleteDoc, arrayUnion, arrayRemove, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, getDocs, addDoc, serverTimestamp } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
 
 const limiter = rateLimit({
@@ -8,11 +8,11 @@ const limiter = rateLimit({
   uniqueTokenPerInterval: 500,
 })
 
-// Get single room details
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+// List rooms
+export async function GET(request: NextRequest) {
   try {
     // Rate limiting
-    await limiter.check(request, 30, "GET_ROOM") // 30 requests per minute
+    await limiter.check(request, 30, "LIST_ROOMS") // 30 requests per minute
 
     const token = request.headers.get("Authorization")?.split("Bearer ")[1]
     if (!token) {
@@ -20,149 +20,64 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const decodedToken = await auth.verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
 
-    if (!roomSnap.exists()) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 })
+    // Query rooms where user is a member
+    const roomsRef = collection(db, "rooms")
+    const q = query(roomsRef, where("members", "array-contains", decodedToken.uid))
+    const snapshot = await getDocs(q)
+
+    const rooms = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+
+    return NextResponse.json({ rooms })
+  } catch (error) {
+    console.error("Rooms fetch error:", error)
+    return NextResponse.json({ error: "Failed to fetch rooms" }, { status: 500 })
+  }
+}
+
+// Create new room
+export async function POST(request: NextRequest) {
+  try {
+    // Rate limiting
+    await limiter.check(request, 10, "CREATE_ROOM") // 10 room creations per minute
+
+    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+    if (!token) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const roomData = roomSnap.data()
+    const decodedToken = await auth.verifyIdToken(token)
+    const { name, description, isPrivate = false } = await request.json()
 
-    // Check if user is a member of the room
-    if (!roomData.members.includes(decodedToken.uid)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    if (!name?.trim()) {
+      return NextResponse.json({ error: "Room name is required" }, { status: 400 })
     }
+
+    // Create room in Firestore
+    const roomsRef = collection(db, "rooms")
+    const newRoom = await addDoc(roomsRef, {
+      name: name.trim(),
+      description: description?.trim(),
+      isPrivate,
+      createdBy: decodedToken.uid,
+      members: [decodedToken.uid],
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    })
 
     return NextResponse.json({
-      id: roomSnap.id,
-      ...roomData,
+      id: newRoom.id,
+      name: name.trim(),
+      description: description?.trim(),
+      isPrivate,
+      createdBy: decodedToken.uid,
+      members: [decodedToken.uid]
     })
   } catch (error) {
-    console.error("Room fetch error:", error)
-    return NextResponse.json({ error: "Failed to fetch room" }, { status: 500 })
+    console.error("Room creation error:", error)
+    return NextResponse.json({ error: "Failed to create room" }, { status: 500 })
   }
 }
-
-// Update room settings
-export async function PATCH(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    // Rate limiting
-    await limiter.check(request, 20, "UPDATE_ROOM") // 20 updates per minute
-
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decodedToken = await auth.verifyIdToken(token)
-    const { name, isPrivate, description } = await request.json()
-
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 })
-    }
-
-    // Check if user is the room creator
-    if (roomSnap.data().createdBy !== decodedToken.uid) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
-    }
-
-    await updateDoc(roomRef, {
-      ...(name && { name: name.trim() }),
-      ...(typeof isPrivate === "boolean" && { isPrivate }),
-      ...(description && { description: description.trim() }),
-      updatedAt: serverTimestamp(),
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Room update error:", error)
-    return NextResponse.json({ error: "Failed to update room" }, { status: 500 })
-  }
-}
-
-// Delete room
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    // Rate limiting
-    await limiter.check(request, 10, "DELETE_ROOM") // 10 deletions per minute
-
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decodedToken = await auth.verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 })
-    }
-
-    // Check if user is the room creator
-    if (roomSnap.data().createdBy !== decodedToken.uid) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
-    }
-
-    await deleteDoc(roomRef)
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Room deletion error:", error)
-    return NextResponse.json({ error: "Failed to delete room" }, { status: 500 })
-  }
-}
-
-// Update room members
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    // Rate limiting
-    await limiter.check(request, 20, "UPDATE_MEMBERS") // 20 member updates per minute
-
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-
-    const decodedToken = await auth.verifyIdToken(token)
-    const { action, userId } = await request.json()
-
-    if (!["add", "remove"].includes(action) || !userId) {
-      return NextResponse.json({ error: "Invalid request parameters" }, { status: 400 })
-    }
-
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 })
-    }
-
-    const roomData = roomSnap.data()
-
-    // Check if user is the room creator or has admin rights
-    if (roomData.createdBy !== decodedToken.uid) {
-      return NextResponse.json({ error: "Permission denied" }, { status: 403 })
-    }
-
-    // Don't allow removing the room creator
-    if (action === "remove" && userId === roomData.createdBy) {
-      return NextResponse.json({ error: "Cannot remove room creator" }, { status: 400 })
-    }
-
-    await updateDoc(roomRef, {
-      members: action === "add" ? arrayUnion(userId) : arrayRemove(userId),
-      updatedAt: serverTimestamp(),
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Member update error:", error)
-    return NextResponse.json({ error: "Failed to update members" }, { status: 500 })
-  }
-}
-
