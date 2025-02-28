@@ -1,11 +1,12 @@
 {
-  "name": "Neon Chat",
+  "name": "Neon Chat App",
   "short_name": "NeonChat",
   "description": "A modern chat application with voice and video calls",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#000000",
-  "theme_color": "#00f3ff",
+  "theme_color": "#000000",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "/icons/icon-72x72.png",
@@ -35,8 +36,7 @@
     {
       "src": "/icons/icon-192x192.png",
       "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any maskable"
+      "type": "image/png"
     },
     {
       "src": "/icons/icon-384x384.png",

@@ -1,26 +1,14 @@
 {
-    "hosting": {
-        "source": ".",
-        "public": "out",
-        "ignore": [ "firebase.json", "**/.*", "**/node_modules/**" ],
-        "cleanUrls": true,
-        "rewrites": [
-            {
-                "source": "**",
-                "destination": "/index.html"
-            }
-        ],
-        "headers": [
-            {
-                "source": "/service-worker.js",
-                "headers": [
-                    {
-                        "key": "Cache-Control",
-                        "value": "no-cache"
-                    }
-                ]
-            }
-        ]
+  "hosting": {
+    "source": ".",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "frameworksBackend": {
+      "region": "us-central1"
     }
+  },
+  "functions": {
+    "source": ".",
+    "runtime": "nodejs18"
+  }
 }
 

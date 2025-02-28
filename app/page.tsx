@@ -1,42 +1,32 @@
-// app/page.tsx
-'use client'
+"use client"
 
-import { useEffect, useState } from 'react'
-import { useAuth } from '@/components/AuthProvider'
-import { LoginForm } from '@/components/LoginForm'
-import { ChatApp } from '@/components/ChatApp'
-import { requestNotificationPermission, registerServiceWorker } from '@/lib/notifications'
+import { useAuth } from "@/components/AuthProvider"
+import { useRouter } from "next/navigation"
+import { useEffect } from "react"
+import ChatApp from "@/components/ChatApp"
 
 export default function Home() {
-    const { user, loading } = useAuth()
-    const [notificationsInitialized, setNotificationsInitialized] = useState(false)
+  const { user, loading } = useAuth()
+  const router = useRouter()
 
-    useEffect(() => {
-        // Initialize notifications and service worker
-        if (user && !notificationsInitialized) {
-            const initNotifications = async () => {
-                await requestNotificationPermission()
-                await registerServiceWorker()
-                setNotificationsInitialized(true)
-            }
-
-            initNotifications()
-        }
-    }, [user, notificationsInitialized])
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-screen">
-                <div className="text-neon-blue text-2xl font-bold animate-pulse">
-                    Loading...
-                </div>
-            </div>
-        )
+  useEffect(() => {
+    if (!loading && !user) {
+      router.push("/login")
     }
+  }, [user, loading, router])
 
+  if (loading) {
     return (
-        <main className="min-h-screen">
-            {user ? <ChatApp /> : <LoginForm />}
-        </main>
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-black">
+        <div className="h-8 w-8 animate-spin rounded-full border-4 border-zinc-400 border-t-zinc-200" />
+      </div>
     )
+  }
+
+  if (!user) {
+    return null
+  }
+
+  return <ChatApp />
 }
+

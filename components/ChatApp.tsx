@@ -1,85 +1,35 @@
-// components/ChatApp.tsx
-'use client'
+"use client"
 
-import { useState, useEffect } from 'react'
-import { Sidebar } from './Sidebar'
-import { ChatRoom } from './ChatRoom'
-import { Dialog, DialogContent } from '@/components/ui/dialog'
-import { UserProfile } from './UserProfile'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, orderBy } from 'firebase/firestore'
-import { useAuth } from './AuthProvider'
+import React from "react"
+import { Sidebar } from "./Sidebar"
+import ChatRoom from "./ChatRoom"
 
-export function ChatApp() {
-    const { user } = useAuth()
-    const [rooms, setRooms] = useState([])
-    const [selectedRoom, setSelectedRoom] = useState(null)
-    const [showUserProfile, setShowUserProfile] = useState(false)
-    const [activeCall, setActiveCall] = useState(null)
+const ChatApp = () => {
+  const [selectedRoom, setSelectedRoom] = React.useState<string | null>(null)
 
-    useEffect(() => {
-        if (!user) return
-
-        // Fetch rooms the user is a member of
-        const roomsRef = collection(db, 'rooms')
-        const q = query(
-            roomsRef,
-            where('members', 'array-contains', user.uid),
-            orderBy('updatedAt', 'desc')
-        )
-
-        const unsubscribe = onSnapshot(q, (snapshot) => {
-            const roomsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data()
-            }))
-            setRooms(roomsData)
-
-            // Select the first room by default if none is selected
-            if (roomsData.length > 0 && !selectedRoom) {
-                setSelectedRoom(roomsData[0])
-            }
-        })
-
-        return () => unsubscribe()
-    }, [user, selectedRoom])
-
-    const handleRoomSelect = (room) => {
-        setSelectedRoom(room)
-    }
-
-    const handleCallStart = (callInfo) => {
-        setActiveCall(callInfo)
-    }
-
-    const handleCallEnd = () => {
-        setActiveCall(null)
-    }
-
-    return (
-        <div className="flex h-screen p-4 overflow-hidden">
-            <Sidebar
-                rooms={rooms}
-                selectedRoom={selectedRoom}
-                onRoomSelect={handleRoomSelect}
-                onShowUserProfile={() => setShowUserProfile(true)}
-                activeCall={activeCall}
-            />
-
-            {selectedRoom && (
-                <ChatRoom
-                    room={selectedRoom}
-                    onCallStart={handleCallStart}
-                    onCallEnd={handleCallEnd}
-                    activeCall={activeCall}
-                />
-            )}
-
-            <Dialog open={showUserProfile} onOpenChange={setShowUserProfile}>
-                <DialogContent className="bg-opacity-90 backdrop-filter backdrop-blur-lg border-neon-blue">
-                    <UserProfile onClose={() => setShowUserProfile(false)} />
-                </DialogContent>
-            </Dialog>
-        </div>
-    )
+  return (
+    <div className="flex h-screen relative frost-bg">
+      <div className="absolute inset-0 bg-gradient-to-b from-[#00C3FF]/5 to-transparent pointer-events-none" />
+      <div className="w-64 glass border-r border-white/[0.08]">
+        <Sidebar
+          rooms={[
+            { id: "1", name: "General", lastMessage: "Hello everyone!" },
+            { id: "2", name: "Random", lastMessage: "What's up?" },
+          ]}
+          selectedRoomId={selectedRoom}
+          onRoomSelect={setSelectedRoom}
+        />
+      </div>
+      <div className="flex-1 glass-darker">
+        {selectedRoom ? (
+          <ChatRoom roomId={selectedRoom} />
+        ) : (
+          <div className="flex items-center justify-center h-full text-zinc-400">Select a room to start chatting</div>
+        )}
+      </div>
+    </div>
+  )
 }
+
+export default ChatApp
+
