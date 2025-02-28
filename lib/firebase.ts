@@ -1,23 +1,29 @@
-import { LoginForm } from "@/components/LoginForm"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { initializeApp } from "firebase/app"
+import { getAuth, connectAuthEmulator } from "firebase/auth"
+import { getFirestore } from "firebase/firestore"
+import { getStorage } from "firebase/storage"
+import { getAnalytics, isSupported } from "firebase/analytics"
 
-export default function LoginPage() {
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-900 to-black p-4">
-      <Card className="w-full max-w-md border-none bg-black/50 backdrop-blur-xl">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl text-center font-bold tracking-tight text-white">
-            Welcome to NeonChat
-          </CardTitle>
-          <CardDescription className="text-center text-zinc-400">
-            Sign in to continue to your conversations
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <LoginForm />
-        </CardContent>
-      </Card>
-    </div>
-  )
+const firebaseConfig = {
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
+
+const app = initializeApp(firebaseConfig)
+export const auth = getAuth(app)
+export const db = getFirestore(app)
+export const storage = getStorage(app)
+
+// Connect to auth emulator in development
+if (process.env.NODE_ENV === "development") {
+  connectAuthEmulator(auth, "http://localhost:9099")
+}
+
+// Initialize Analytics and export it
+export const analytics = isSupported().then((yes) => (yes ? getAnalytics(app) : null))
 
