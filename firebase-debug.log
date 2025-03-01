@@ -1,0 +1,49 @@
+[debug] [2025-03-01T15:34:45.726Z] ----------------------------------------------------------------------
+[debug] [2025-03-01T15:34:45.730Z] Command:       C:\Program Files\nodejs\node.exe C:\Users\Kevin\AppData\Roaming\npm\node_modules\firebase-tools\lib\bin\firebase.js emulators:start
+[debug] [2025-03-01T15:34:45.730Z] CLI Version:   13.32.0
+[debug] [2025-03-01T15:34:45.731Z] Platform:      win32
+[debug] [2025-03-01T15:34:45.731Z] Node Version:  v20.17.0
+[debug] [2025-03-01T15:34:45.731Z] Time:          Sat Mar 01 2025 09:34:45 GMT-0600 (Central Standard Time)
+[debug] [2025-03-01T15:34:45.731Z] ----------------------------------------------------------------------
+[debug] 
+[debug] [2025-03-01T15:34:46.089Z] > command requires scopes: ["email","openid","https://www.googleapis.com/auth/cloudplatformprojects.readonly","https://www.googleapis.com/auth/firebase","https://www.googleapis.com/auth/cloud-platform"]
+[debug] [2025-03-01T15:34:46.091Z] > authorizing via signed-in user (kevin.inman@gmail.com)
+[info] i  emulators: Starting emulators: functions, hosting, extensions {"metadata":{"emulator":{"name":"hub"},"message":"Starting emulators: functions, hosting, extensions"}}
+[debug] [2025-03-01T15:34:46.097Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:46.097Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:46.099Z] >>> [apiv2][query] GET https://cloudresourcemanager.googleapis.com/v1/projects/thespeakeasy [none]
+[debug] [2025-03-01T15:34:46.278Z] <<< [apiv2][status] GET https://cloudresourcemanager.googleapis.com/v1/projects/thespeakeasy 200
+[debug] [2025-03-01T15:34:46.278Z] <<< [apiv2][body] GET https://cloudresourcemanager.googleapis.com/v1/projects/thespeakeasy {"projectNumber":"110418854675","projectId":"thespeakeasy","lifecycleState":"ACTIVE","name":"TheSpeakEasy","labels":{"firebase":"enabled","firebase-core":"disabled"},"createTime":"2025-02-26T12:25:57.850566Z"}
+[debug] [2025-03-01T15:34:46.300Z] [logging] Logging Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-03-01T15:34:46.300Z] [hosting] Hosting Emulator only supports listening on one address (127.0.0.1). Not listening on ::1
+[debug] [2025-03-01T15:34:46.300Z] assigned listening specs for emulators {"user":{"hub":[{"address":"127.0.0.1","family":"IPv4","port":4400},{"address":"::1","family":"IPv6","port":4400}],"ui":[{"address":"127.0.0.1","family":"IPv4","port":4000},{"address":"::1","family":"IPv6","port":4000}],"logging":[{"address":"127.0.0.1","family":"IPv4","port":4500}],"hosting":[{"address":"127.0.0.1","family":"IPv4","port":5000}]},"metadata":{"message":"assigned listening specs for emulators"}}
+[debug] [2025-03-01T15:34:46.310Z] [hub] writing locator at C:\Users\Kevin\AppData\Local\Temp\hub-thespeakeasy.json
+[debug] [2025-03-01T15:34:46.326Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:46.326Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:46.327Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/thespeakeasy [none]
+[debug] [2025-03-01T15:34:46.554Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/thespeakeasy 200
+[debug] [2025-03-01T15:34:46.554Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/thespeakeasy {"projectId":"thespeakeasy","projectNumber":"110418854675","displayName":"TheSpeakEasy","name":"projects/thespeakeasy","resources":{"hostingSite":"thespeakeasy"},"state":"ACTIVE","etag":"1_54e5d038-0b25-49cf-97e4-37ee9aa01127"}
+[debug] [2025-03-01T15:34:50.996Z] defaultcredentials: writing to file C:\Users\Kevin\AppData\Roaming\firebase\kevin_inman_gmail.com_application_default_credentials.json
+[debug] [2025-03-01T15:34:50.997Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:50.997Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:50.998Z] >>> [apiv2][query] GET https://firebasehosting.googleapis.com/v1beta1/projects/thespeakeasy/sites pageToken=&pageSize=10
+[debug] [2025-03-01T15:34:51.293Z] <<< [apiv2][status] GET https://firebasehosting.googleapis.com/v1beta1/projects/thespeakeasy/sites 200
+[debug] [2025-03-01T15:34:51.293Z] <<< [apiv2][body] GET https://firebasehosting.googleapis.com/v1beta1/projects/thespeakeasy/sites {"sites":[{"name":"projects/thespeakeasy/sites/thespeakeasy","defaultUrl":"https://thespeakeasy.web.app","appId":"1:110418854675:web:84f8b35e80a1fc3e5710e6","type":"DEFAULT_SITE"}]}
+[debug] [2025-03-01T15:34:51.293Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:51.293Z] Checked if tokens are valid: true, expires at: 1740845344683
+[debug] [2025-03-01T15:34:51.293Z] >>> [apiv2][query] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:110418854675:web:84f8b35e80a1fc3e5710e6/config [none]
+[debug] [2025-03-01T15:34:51.478Z] <<< [apiv2][status] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:110418854675:web:84f8b35e80a1fc3e5710e6/config 200
+[debug] [2025-03-01T15:34:51.478Z] <<< [apiv2][body] GET https://firebase.googleapis.com/v1beta1/projects/-/webApps/1:110418854675:web:84f8b35e80a1fc3e5710e6/config {"projectId":"thespeakeasy","appId":"1:110418854675:web:84f8b35e80a1fc3e5710e6","storageBucket":"thespeakeasy.firebasestorage.app","apiKey":"AIzaSyD_jQz3QQOQna_GBCa1dWo8rrNC5hSGXk8","authDomain":"thespeakeasy.firebaseapp.com","messagingSenderId":"110418854675","measurementId":"G-1FKC8VKHP6"}
+[info] 
+   Thank you for trying our early preview of Next.js support on Firebase Hosting.
+   During the preview, support is best-effort and breaking changes can be expected. Proceed with caution.
+
+   Documentation: https://firebase.google.com/docs/hosting/frameworks/nextjs
+   File a bug: https://github.com/firebase/firebase-tools/issues/new?template=bug_report.md
+   Submit a feature request: https://github.com/firebase/firebase-tools/issues/new?template=feature_request.md
+
+   We'd love to learn from you. Express your interest in helping us shape the future of Firebase Hosting: https://goo.gle/41enW5X
+
+[debug] [2025-03-01T15:35:03.684Z] Error: EPERM: operation not permitted, open 'C:\Users\Kevin\chat-app\.next\trace'
+[error] 
+[error] Error: An unexpected error has occurred.

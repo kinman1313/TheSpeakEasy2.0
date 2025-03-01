@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app"
-import { getAuth, connectAuthEmulator } from "firebase/auth"
+import { getAuth } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 import { getStorage } from "firebase/storage"
 import { getAnalytics, isSupported } from "firebase/analytics"
@@ -14,16 +14,24 @@ const firebaseConfig = {
   measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
 }
 
+// Initialize Firebase
 const app = initializeApp(firebaseConfig)
+
+// Initialize services
 export const auth = getAuth(app)
 export const db = getFirestore(app)
 export const storage = getStorage(app)
 
-// Connect to auth emulator in development
-if (process.env.NODE_ENV === "development") {
-  connectAuthEmulator(auth, "http://localhost:9099")
-}
-
-// Initialize Analytics and export it
-export const analytics = isSupported().then((yes) => (yes ? getAnalytics(app) : null))
+// Initialize Analytics only if API key is available and we're in the browser
+export const analytics =
+  typeof window !== "undefined"
+    ? isSupported()
+        .then((yes) => {
+          if (yes && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
+            return getAnalytics(app)
+          }
+          return null
+        })
+        .catch(() => null)
+    : Promise.resolve(null)
 

@@ -1,22 +1,29 @@
 "use client"
 
-import React from "react"
-import { Sidebar } from "./Sidebar" // Note the curly braces
-import ChatRoom from "./ChatRoom"
+import { useState } from "react"
+import { Sidebar } from "@/components/Sidebar"
+import ChatRoom from "@/components/ChatRoom"
+import { useAuth } from "@/components/AuthProvider"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
+import { UserProfile } from "@/components/UserProfile"
+import { RoomSettings } from "@/components/RoomSettings"
 
-const ChatApp = () => {
-  const [selectedRoom, setSelectedRoom] = React.useState<string | null>(null)
+export default function ChatApp() {
+  const { user } = useAuth()
+  const [selectedRoom, setSelectedRoom] = useState<string | null>(null)
+  const [isProfileOpen, setIsProfileOpen] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+
+  if (!user) return null
 
   return (
-    <div className="flex h-screen">
-      <div className="w-64 border-r">
+    <div className="flex h-screen bg-background">
+      <div className="w-64 border-r border-border">
         <Sidebar
-          rooms={[
-            { id: "1", name: "General", lastMessage: "Hello everyone!" },
-            { id: "2", name: "Random", lastMessage: "What's up?" },
-          ]}
-          selectedRoomId={selectedRoom}
+          onProfileClick={() => setIsProfileOpen(true)}
           onRoomSelect={setSelectedRoom}
+          selectedRoomId={selectedRoom}
+          onRoomSettingsClick={() => selectedRoom && setIsSettingsOpen(true)}
         />
       </div>
       <div className="flex-1">
@@ -28,9 +35,19 @@ const ChatApp = () => {
           </div>
         )}
       </div>
+
+      <Dialog open={isProfileOpen} onOpenChange={setIsProfileOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-background text-foreground">
+          <UserProfile onClose={() => setIsProfileOpen(false)} />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={isSettingsOpen} onOpenChange={setIsSettingsOpen}>
+        <DialogContent className="sm:max-w-[425px] bg-background text-foreground">
+          <RoomSettings roomId={selectedRoom!} onClose={() => setIsSettingsOpen(false)} />
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
-
-export default ChatApp
 

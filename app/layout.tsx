@@ -3,8 +3,8 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { AuthProvider } from "@/components/AuthProvider"
 import { Toaster } from "sonner"
-import type { Metadata } from "next"
-import { Analytics } from "@vercel/analytics/react" // Add Vercel Analytics
+import type { Metadata, Viewport } from "next"
+import { Analytics } from "@vercel/analytics/react"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -18,13 +18,14 @@ export const metadata: Metadata = {
       { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
     ],
   },
+}
+
+export const viewport: Viewport = {
   themeColor: "#000000",
-  viewport: {
-    width: "device-width",
-    initialScale: 1,
-    maximumScale: 1,
-    userScalable: false,
-  },
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -39,7 +40,7 @@ export default function RootLayout({
           {children}
           <Toaster position="top-right" theme="dark" closeButton richColors />
         </AuthProvider>
-        <Analytics /> {/* Add Vercel Analytics component */}
+        <Analytics />
       </body>
     </html>
   )

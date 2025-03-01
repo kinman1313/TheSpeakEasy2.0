@@ -25,8 +25,17 @@ export function PasswordResetForm() {
       toast.success("Password reset email sent! Check your inbox.")
       setEmail("")
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.message || "Failed to send reset email. Please try again.")
+      console.error("Password reset error:", error)
+      // More specific error messages
+      if (error.code === "auth/network-request-failed") {
+        toast.error("Network error. Please check your connection and make sure the Firebase emulator is running.")
+      } else if (error.code === "auth/user-not-found") {
+        toast.error("No account found with this email address.")
+      } else if (error.code === "auth/invalid-email") {
+        toast.error("Please enter a valid email address.")
+      } else {
+        toast.error(error.message || "Failed to send reset email. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
