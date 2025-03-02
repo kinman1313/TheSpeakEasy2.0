@@ -1,8 +1,10 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth, db } from "@/lib/firebase"
+import { getAuth } from "firebase-admin/auth"
+import { db } from "@/lib/firebase"
 import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
 import { MESSAGE_BATCH_SIZE } from "@/lib/constants"
+import { initAdmin } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
@@ -19,7 +21,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
+
+    // Use getAuth().verifyIdToken
+    const decodedToken = await getAuth().verifyIdToken(token)
     const { roomId, text, imageUrl, gifUrl, audioUrl, replyTo } = await request.json()
 
     if (!roomId) {
@@ -62,7 +68,11 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
+
+    // Use getAuth().verifyIdToken
+    const decodedToken = await getAuth().verifyIdToken(token)
     const { searchParams } = new URL(request.url)
     const roomId = searchParams.get("roomId")
     const before = searchParams.get("before")
@@ -97,3 +107,4 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
   }
 }
+

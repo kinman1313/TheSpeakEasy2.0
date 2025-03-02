@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState, useRef } from "react"
+import { useState, useRef, type FormEvent } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
@@ -24,7 +22,7 @@ export function MessageInput({ onSend, onSendGif, onSendAudio }: MessageInputPro
   const [isSearchingGifs, setIsSearchingGifs] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (message.trim()) {
       onSend(message)

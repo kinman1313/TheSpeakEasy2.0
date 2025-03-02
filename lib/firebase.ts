@@ -1,8 +1,7 @@
-import { initializeApp } from "firebase/app"
+import { initializeApp, getApps } from "firebase/app"
 import { getAuth } from "firebase/auth"
 import { getFirestore } from "firebase/firestore"
 import { getStorage } from "firebase/storage"
-import { getAnalytics, isSupported } from "firebase/analytics"
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
@@ -15,23 +14,10 @@ const firebaseConfig = {
 }
 
 // Initialize Firebase
-const app = initializeApp(firebaseConfig)
+const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig)
+const auth = getAuth(app)
+const db = getFirestore(app)
+const storage = getStorage(app)
 
-// Initialize services
-export const auth = getAuth(app)
-export const db = getFirestore(app)
-export const storage = getStorage(app)
-
-// Initialize Analytics only if API key is available and we're in the browser
-export const analytics =
-  typeof window !== "undefined"
-    ? isSupported()
-        .then((yes) => {
-          if (yes && process.env.NEXT_PUBLIC_FIREBASE_API_KEY) {
-            return getAnalytics(app)
-          }
-          return null
-        })
-        .catch(() => null)
-    : Promise.resolve(null)
+export { app, auth, db, storage }
 

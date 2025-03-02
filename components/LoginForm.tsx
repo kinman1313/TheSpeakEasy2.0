@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import { useState, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
   signInWithPopup,
@@ -86,7 +84,7 @@ export function LoginForm() {
     }
   }
 
-  async function onEmailRegister(e: React.FormEvent) {
+  async function onEmailRegister(e: FormEvent) {
     e.preventDefault()
     if (!email || !password) return
 
@@ -114,7 +112,7 @@ export function LoginForm() {
     }
   }
 
-  async function onEmailLogin(e: React.FormEvent) {
+  async function onEmailLogin(e: FormEvent) {
     e.preventDefault()
     if (!email || !password) return
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { type ReactElement, useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
 import { Play, Pause, Volume2, VolumeX } from "lucide-react"
@@ -10,7 +10,7 @@ interface AudioPlayerProps {
   onError?: () => void
 }
 
-export function AudioPlayer({ src, onError }: AudioPlayerProps) {
+export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
   const [isPlaying, setIsPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)

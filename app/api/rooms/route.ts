@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth, db } from "@/lib/firebase"
-import { collection, addDoc, getDocs, query, where, serverTimestamp } from "firebase/firestore"
+import { getAuth } from "firebase-admin/auth"
+import { db } from "@/lib/firebase"
+import { collection, addDoc, getDocs, query, where, orderBy } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
+import { initAdmin } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
@@ -10,15 +12,17 @@ const limiter = rateLimit({
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    await limiter.check(request, 10, "CREATE_ROOM") // 10 room creations per minute
+    await limiter.check(request, 30, "CREATE_ROOM") // 30 creations per minute
 
     const token = request.headers.get("Authorization")?.split("Bearer ")[1]
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
+
+    const decodedToken = await getAuth().verifyIdToken(token)
     const { name, isPrivate, members = [] } = await request.json()
 
     if (!name?.trim()) {
@@ -29,11 +33,11 @@ export async function POST(request: NextRequest) {
     const roomsRef = collection(db, "rooms")
     const newRoom = await addDoc(roomsRef, {
       name: name.trim(),
-      isPrivate: Boolean(isPrivate),
-      members: [decodedToken.uid, ...members],
-      createdBy: decodedToken.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
+      isPrivate: !!isPrivate,
+      ownerId: decodedToken.uid,
+      members: Array.from(new Set([...members, decodedToken.uid])), // Using Array.from instead of spread
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     })
 
     return NextResponse.json({ id: newRoom.id })
@@ -45,19 +49,23 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Rate limiting
-    await limiter.check(request, 30, "GET_ROOMS") // 30 requests per minute
+    await limiter.check(request, 60, "GET_ROOMS") // 60 requests per minute
 
     const token = request.headers.get("Authorization")?.split("Bearer ")[1]
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
-    const roomsRef = collection(db, "rooms")
-    const q = query(roomsRef, where("members", "array-contains", decodedToken.uid))
-    const snapshot = await getDocs(q)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
 
+    const decodedToken = await getAuth().verifyIdToken(token)
+
+    // Query rooms
+    const roomsRef = collection(db, "rooms")
+    const q = query(roomsRef, where("members", "array-contains", decodedToken.uid), orderBy("updatedAt", "desc"))
+
+    const snapshot = await getDocs(q)
     const rooms = snapshot.docs.map((doc) => ({
       id: doc.id,
       ...doc.data(),
@@ -65,7 +73,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ rooms })
   } catch (error) {
-    console.error("Room fetch error:", error)
+    console.error("Rooms fetch error:", error)
     return NextResponse.json({ error: "Failed to fetch rooms" }, { status: 500 })
   }
 }

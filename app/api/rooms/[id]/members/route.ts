@@ -1,25 +1,28 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth, db } from "@/lib/firebase"
-import { doc, getDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { getAuth } from "firebase-admin/auth"
+import { db } from "@/lib/firebase"
+import { doc, getDoc, arrayUnion, arrayRemove, updateDoc } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
+import { initAdmin } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
   uniqueTokenPerInterval: 500,
 })
 
-// Get room members with details
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
   try {
-    // Rate limiting
-    await limiter.check(request, 30, "GET_ROOM_MEMBERS") // 30 requests per minute
+    await limiter.check(request, 30, "MANAGE_ROOM_MEMBERS") // 30 operations per minute
 
     const token = request.headers.get("Authorization")?.split("Bearer ")[1]
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
+
+    const decodedToken = await getAuth().verifyIdToken(token)
     const roomRef = doc(db, "rooms", params.id)
     const roomSnap = await getDoc(roomRef)
 
@@ -28,29 +31,25 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     }
 
     const roomData = roomSnap.data()
-
-    // Check if user is a member of the room
-    if (!roomData.members.includes(decodedToken.uid)) {
-      return NextResponse.json({ error: "Access denied" }, { status: 403 })
+    if (roomData.ownerId !== decodedToken.uid) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Get member details
-    const usersRef = collection(db, "users")
-    const memberQuery = query(usersRef, where("uid", "in", roomData.members))
-    const memberSnap = await getDocs(memberQuery)
+    const { memberId, action } = await request.json()
 
-    const members = memberSnap.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-      // Filter out sensitive information
-      settings: undefined,
-      email: undefined,
-    }))
+    if (!memberId || !["add", "remove"].includes(action)) {
+      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
+    }
 
-    return NextResponse.json({ members })
+    // Update room members
+    await updateDoc(roomRef, {
+      members: action === "add" ? arrayUnion(memberId) : arrayRemove(memberId),
+    })
+
+    return NextResponse.json({ success: true })
   } catch (error) {
-    console.error("Members fetch error:", error)
-    return NextResponse.json({ error: "Failed to fetch members" }, { status: 500 })
+    console.error("Room members update error:", error)
+    return NextResponse.json({ error: "Failed to update room members" }, { status: 500 })
   }
 }
 

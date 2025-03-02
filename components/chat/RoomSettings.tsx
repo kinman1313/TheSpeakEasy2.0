@@ -9,7 +9,7 @@ import { Label } from '@/components/ui/label'
 import { DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Switch } from '@/components/ui/switch'
-import { useAuth } from './auth/AuthProvider'
+import { useAuth } from './AuthProvider'
 import { db } from '@/lib/firebase'
 import { doc, updateDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
 import { toast } from 'sonner' // Changed from useToast

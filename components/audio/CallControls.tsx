@@ -4,26 +4,50 @@
 import { useState, useEffect, useRef } from 'react'
 import { Button } from '@/components/ui/button'
 import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MonitorOff } from 'lucide-react'
-import { useAuth } from './AuthProvider'
+import { useAuth } from '@/components/auth/AuthProvider'
 import { db } from '@/lib/firebase'
-import { collection, doc, onSnapshot, setDoc, deleteDoc, updateDoc, addDoc } from 'firebase/firestore'
+import { collection, doc, onSnapshot, setDoc, deleteDoc, addDoc } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { toast } from 'sonner' // Updated to use sonner
+import { toast } from 'sonner'
+import { useCall } from '@/context/CallContext'
 
-export function CallControls({ isVideo, roomId, onEnd }) {
+interface CallControlsProps {
+    isVideo: boolean
+    roomId: string
+}
+
+interface Participant {
+    id: string
+    displayName: string
+    photoURL: string
+}
+
+interface Signal {
+    type: string
+    from: string
+    to: string
+    offer?: RTCSessionDescriptionInit
+    answer?: RTCSessionDescriptionInit
+    candidate?: RTCIceCandidateInit
+}
+
+export function CallControls({ isVideo, roomId }: CallControlsProps) {
     const { user } = useAuth()
+    const { endCall } = useCall()
     const [isMuted, setIsMuted] = useState(false)
     const [isVideoEnabled, setIsVideoEnabled] = useState(isVideo)
     const [isScreenSharing, setIsScreenSharing] = useState(false)
-    const [participants, setParticipants] = useState([])
-    const localVideoRef = useRef(null)
-    const screenShareRef = useRef(null)
-    const peerConnections = useRef({})
-    const localStream = useRef(null)
-    const screenStream = useRef(null)
-    const remoteStreams = useRef({})
+    const [participants, setParticipants] = useState<Participant[]>([])
+    const localVideoRef = useRef<HTMLVideoElement>(null)
+    const screenShareRef = useRef<HTMLVideoElement>(null)
+    const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
+    const localStream = useRef<MediaStream | null>(null)
+    const screenStream = useRef<MediaStream | null>(null)
+    const remoteStreams = useRef<{ [key: string]: MediaStream }>({})
 
     useEffect(() => {
+        if (!user) return
+
         startCall()
 
         // Set up call participants listener
@@ -35,7 +59,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
             const participantsData = snapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data()
-            }))
+            })) as Participant[]
             setParticipants(participantsData)
 
             // Handle new participants
@@ -64,7 +88,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
         const signalUnsubscribe = onSnapshot(signalRef, (snapshot) => {
             snapshot.docChanges().forEach(change => {
                 if (change.type === 'added') {
-                    const signal = change.doc.data()
+                    const signal = change.doc.data() as Signal
                     if (signal.to === user.uid) {
                         handleSignal(signal)
                     }
@@ -126,10 +150,10 @@ export function CallControls({ isVideo, roomId, onEnd }) {
         Object.values(peerConnections.current).forEach(pc => pc.close())
         peerConnections.current = {}
 
-        onEnd()
+        endCall()
     }
 
-    const createPeerConnection = async (participantId) => {
+    const createPeerConnection = async (participantId: string) => {
         const pc = new RTCPeerConnection({
             iceServers: [
                 { urls: 'stun:stun.l.google.com:19302' },
@@ -142,13 +166,13 @@ export function CallControls({ isVideo, roomId, onEnd }) {
         // Add local tracks to the connection
         if (localStream.current) {
             localStream.current.getTracks().forEach(track => {
-                pc.addTrack(track, localStream.current)
+                pc.addTrack(track, localStream.current!)
             })
         }
 
         if (screenStream.current) {
             screenStream.current.getTracks().forEach(track => {
-                pc.addTrack(track, screenStream.current)
+                pc.addTrack(track, screenStream.current!)
             })
         }
 
@@ -158,7 +182,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
                 sendSignal({
                     type: 'ice-candidate',
                     candidate: event.candidate,
-                    from: user.uid,
+                    from: user!.uid,
                     to: participantId
                 })
             }
@@ -178,7 +202,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
             })
 
             // Create or update video element for this participant
-            const videoElement = document.getElementById(`remote-video-${participantId}`)
+            const videoElement = document.getElementById(`remote-video-${participantId}`) as HTMLVideoElement
             if (videoElement) {
                 videoElement.srcObject = stream
             } else {
@@ -196,12 +220,16 @@ export function CallControls({ isVideo, roomId, onEnd }) {
             const offer = await pc.createOffer()
             await pc.setLocalDescription(offer)
 
-            sendSignal({
-                type: 'offer',
-                offer: pc.localDescription,
-                from: user.uid,
-                to: participantId
-            })
+            if (pc.localDescription) {
+                sendSignal({
+                    type: 'offer',
+                    offer: pc.localDescription,
+                    from: user!.uid,
+                    to: participantId
+                })
+            } else {
+                throw new Error('Local description is null')
+            }
         } catch (error) {
             console.error('Error creating offer:', error)
             toast.error('Error establishing connection')
@@ -210,7 +238,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
         return pc
     }
 
-    const handleSignal = async (signal) => {
+    const handleSignal = async (signal: Signal) => {
         const { type, from } = signal
 
         if (!peerConnections.current[from]) {
@@ -221,43 +249,53 @@ export function CallControls({ isVideo, roomId, onEnd }) {
 
         switch (type) {
             case 'offer':
-                try {
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.offer))
-                    const answer = await pc.createAnswer()
-                    await pc.setLocalDescription(answer)
+                if (signal.offer) {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(signal.offer))
+                        const answer = await pc.createAnswer()
+                        await pc.setLocalDescription(answer)
 
-                    sendSignal({
-                        type: 'answer',
-                        answer: pc.localDescription,
-                        from: user.uid,
-                        to: from
-                    })
-                } catch (error) {
-                    console.error('Error handling offer:', error)
-                    toast.error('Error connecting to peer')
+                        if (pc.localDescription) {
+                            sendSignal({
+                                type: 'answer',
+                                answer: pc.localDescription,
+                                from: user!.uid,
+                                to: from
+                            })
+                        } else {
+                            throw new Error('Local description is null')
+                        }
+                    } catch (error) {
+                        console.error('Error handling offer:', error)
+                        toast.error('Error connecting to peer')
+                    }
                 }
                 break
 
             case 'answer':
-                try {
-                    await pc.setRemoteDescription(new RTCSessionDescription(signal.answer))
-                } catch (error) {
-                    console.error('Error handling answer:', error)
-                    toast.error('Error establishing connection')
+                if (signal.answer) {
+                    try {
+                        await pc.setRemoteDescription(new RTCSessionDescription(signal.answer))
+                    } catch (error) {
+                        console.error('Error handling answer:', error)
+                        toast.error('Error establishing connection')
+                    }
                 }
                 break
 
             case 'ice-candidate':
-                try {
-                    await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
-                } catch (error) {
-                    console.error('Error handling ICE candidate:', error)
+                if (signal.candidate) {
+                    try {
+                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
+                    } catch (error) {
+                        console.error('Error handling ICE candidate:', error)
+                    }
                 }
                 break
         }
     }
 
-    const sendSignal = async (signal) => {
+    const sendSignal = async (signal: Signal) => {
         try {
             const callsRef = collection(db, 'calls')
             const roomCallsRef = doc(callsRef, roomId)
@@ -313,8 +351,8 @@ export function CallControls({ isVideo, roomId, onEnd }) {
 
                 // Add screen share tracks to all peer connections
                 Object.values(peerConnections.current).forEach(pc => {
-                    screenStream.current.getTracks().forEach(track => {
-                        pc.addTrack(track, screenStream.current)
+                    screenStream.current!.getTracks().forEach(track => {
+                        pc.addTrack(track, screenStream.current!)
                     })
                 })
 
@@ -341,7 +379,7 @@ export function CallControls({ isVideo, roomId, onEnd }) {
                                 <AvatarFallback>{participant.displayName?.[0] || '?'}</AvatarFallback>
                             </Avatar>
                             <span className="text-sm font-medium">
-                                {participant.id === user.uid ? 'You' : participant.displayName}
+                                {participant.id === user?.uid ? 'You' : participant.displayName}
                             </span>
                         </div>
                     ))}
@@ -414,3 +452,5 @@ export function CallControls({ isVideo, roomId, onEnd }) {
         </div>
     )
 }
+
+

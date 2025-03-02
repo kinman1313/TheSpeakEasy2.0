@@ -1,7 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { auth, db } from "@/lib/firebase"
-import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { getAuth } from "firebase-admin/auth"
+import { db } from "@/lib/firebase"
+import { doc, setDoc } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
+import { initAdmin } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
@@ -10,27 +12,33 @@ const limiter = rateLimit({
 
 export async function POST(request: NextRequest) {
   try {
-    // Rate limiting
-    await limiter.check(request, 60, "UPDATE_PRESENCE") // 60 updates per minute
+    await limiter.check(request, 30, "UPDATE_PRESENCE") // 30 updates per minute
 
     const token = request.headers.get("Authorization")?.split("Bearer ")[1]
     if (!token) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const decodedToken = await auth.verifyIdToken(token)
+    // Initialize Firebase Admin if not already initialized
+    initAdmin()
+
+    const decodedToken = await getAuth().verifyIdToken(token)
     const { status } = await request.json()
 
     if (!["online", "offline", "away"].includes(status)) {
       return NextResponse.json({ error: "Invalid status" }, { status: 400 })
     }
 
-    // Update user presence
-    const userRef = doc(db, "users", decodedToken.uid)
-    await updateDoc(userRef, {
-      status,
-      lastSeen: serverTimestamp(),
-    })
+    // Update presence in Firestore
+    const presenceRef = doc(db, "presence", decodedToken.uid)
+    await setDoc(
+      presenceRef,
+      {
+        status,
+        lastSeen: new Date().toISOString(),
+      },
+      { merge: true },
+    )
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -38,3 +46,4 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Failed to update presence" }, { status: 500 })
   }
 }
+

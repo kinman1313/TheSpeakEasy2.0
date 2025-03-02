@@ -1,48 +1,34 @@
 import type React from "react"
 import "./globals.css"
 import { Inter } from "next/font/google"
-import { AuthProvider } from "@/components/AuthProvider"
-import { Toaster } from "sonner"
-import type { Metadata, Viewport } from "next"
-import { Analytics } from "@vercel/analytics/react"
+import { ThemeProvider } from "next-themes"
+import { Toaster } from "@/components/ui/toaster"
+import { AuthProvider } from "@/components/auth/AuthProvider"
 
 const inter = Inter({ subsets: ["latin"] })
 
-export const metadata: Metadata = {
-  title: "Neon Chat App",
-  description: "A modern chat application with voice and video calls",
-  manifest: "/manifest.json",
-  icons: {
-    apple: [
-      { url: "/icons/icon-192x192.png", sizes: "192x192", type: "image/png" },
-      { url: "/icons/icon-512x512.png", sizes: "512x512", type: "image/png" },
-    ],
-  },
-}
-
-export const viewport: Viewport = {
-  themeColor: "#000000",
-  width: "device-width",
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+export const metadata = {
+    title: "Chat App",
+    description: "A real-time chat application built with Next.js and Firebase",
 }
 
 export default function RootLayout({
-  children,
+    children,
 }: {
-  children: React.ReactNode
+    children: React.ReactNode
 }) {
-  return (
-    <html lang="en" className="dark">
-      <body className={`${inter.className} bg-gradient-to-br from-gray-900 to-black min-h-screen antialiased`}>
-        <AuthProvider>
-          {children}
-          <Toaster position="top-right" theme="dark" closeButton richColors />
-        </AuthProvider>
-        <Analytics />
-      </body>
-    </html>
-  )
+    return (
+        <html lang="en" suppressHydrationWarning>
+            <body className={inter.className}>
+                <AuthProvider>
+                    <ThemeProvider attribute="class" defaultTheme="dark" enableSystem={false} disableTransitionOnChange>
+                        {children}
+                        <Toaster />
+                    </ThemeProvider>
+                </AuthProvider>
+            </body>
+        </html>
+    )
 }
+
 
