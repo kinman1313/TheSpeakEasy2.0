@@ -48,7 +48,7 @@
     "firebase-admin": "^11.8.0",
     "input-otp": "^1.0.1",
     "lucide-react": "^0.292.0",
-    "next": "^14.0.1",
+    "next": "^14.2.24",
     "next-pwa": "^5.6.0",
     "next-themes": "^0.2.1",
     "react": "^18.2.0",
