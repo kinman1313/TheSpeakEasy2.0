@@ -4,7 +4,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { Button } from '@/components/ui/button'
 import { Mic, MicOff, PhoneOff } from 'lucide-react'
-import { useAuth } from './AuthProvider'
+import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from '@/lib/firebase'
 import { collection, doc, onSnapshot, setDoc, deleteDoc, getDocs } from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'

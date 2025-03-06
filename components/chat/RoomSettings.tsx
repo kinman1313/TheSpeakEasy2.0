@@ -1,172 +1,113 @@
-// components/RoomSettings.tsx
-'use client'
-
-import { useState, useEffect } from 'react'
-import { collection, query, where, getDocs } from 'firebase/firestore'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { DialogHeader, DialogTitle } from '@/components/ui/dialog'
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { Switch } from '@/components/ui/switch'
-import { useAuth } from './AuthProvider'
+import React, { useState, useEffect } from 'react'
 import { db } from '@/lib/firebase'
-import { doc, updateDoc, getDoc, arrayUnion, arrayRemove } from 'firebase/firestore'
-import { toast } from 'sonner' // Changed from useToast
+import { doc, updateDoc, getDoc } from 'firebase/firestore'
+import { useAuth } from '@/components/auth/AuthProvider'
+import { Button } from '@/components/ui/button'
 import { UserPlus, UserMinus, Copy, Check } from 'lucide-react'
 
-export function RoomSettings({ room, onClose }) {
+interface Room {
+    id: string
+    name: string
+    members: string[]
+    isPrivate: boolean
+}
+
+interface RoomSettingsProps {
+    room: Room
+    onClose: () => void
+}
+
+export function RoomSettings({ room, onClose }: RoomSettingsProps) {
     const { user } = useAuth()
-    const [roomName, setRoomName] = useState('')
-    const [isPrivate, setIsPrivate] = useState(false)
-    const [inviteEmail, setInviteEmail] = useState('')
-    const [members, setMembers] = useState([])
-    const [isCreator, setIsCreator] = useState(false)
-    const [copied, setCopied] = useState(false)
+    const [roomName, setRoomName] = useState(room.name)
+    const [isPrivate, setIsPrivate] = useState(room.isPrivate)
+    const [members, setMembers] = useState<{ id: string, displayName: string, photoURL: string | null }[]>([])
 
     useEffect(() => {
-        if (room) {
-            setRoomName(room.name || '')
-            setIsPrivate(room.isPrivate || false)
-            setIsCreator(room.createdBy === user.uid)
+        const fetchMembers = async () => {
+            if (!user) return
 
-            // Fetch room members
-            const fetchMembers = async () => {
-                try {
-                    if (!room.members || room.members.length === 0) return
-
-                    const membersData = []
-
-                    for (const memberId of room.members) {
-                        const userRef = doc(db, 'users', memberId)
-                        const userSnap = await getDoc(userRef)
-
-                        if (userSnap.exists()) {
-                            membersData.push({
-                                id: memberId,
-                                ...userSnap.data()
-                            })
-                        } else {
-                            // Fallback if user document doesn't exist
-                            membersData.push({
-                                id: memberId,
-                                displayName: 'Unknown User',
-                                photoURL: null
-                            })
+            const membersData = await Promise.all(
+                room.members.map(async (memberId) => {
+                    const memberDoc = await getDoc(doc(db, 'users', memberId))
+                    if (memberDoc.exists()) {
+                        const member = memberDoc.data()
+                        return {
+                            id: memberId,
+                            displayName: member.displayName || 'Unknown',
+                            photoURL: member.photoURL || null
                         }
+                    } else {
+                        return { id: memberId, displayName: 'Unknown', photoURL: null }
                     }
+                })
+            )
 
-                    setMembers(membersData)
-                } catch (error) {
-                    console.error('Error fetching room members:', error)
-                    toast.error('Could not load room members')
-                }
-            }
-
-            fetchMembers()
+            setMembers(membersData)
         }
-    }, [room, user])
 
-    const updateRoom = async () => {
-        if (!roomName.trim()) {
-            toast.error('Room name cannot be empty')
-            return
-        }
+        fetchMembers()
+    }, [room.members, user])
+
+    const handleRemoveMember = async (memberId: string) => {
+        if (!user) return
 
         try {
-            const roomRef = doc(db, 'rooms', room.id)
-            await updateDoc(roomRef, {
-                name: roomName,
-                isPrivate: isPrivate,
-                updatedAt: new Date()
-            })
+            const updatedMembers = room.members.filter(id => id !== memberId)
+            await updateDoc(doc(db, 'rooms', room.id), { members: updatedMembers })
+            setMembers(prev => prev.filter(member => member.id !== memberId))
+        } catch (error) {
+            console.error('Error removing member:', error)
+        }
+    }
 
-            toast.success('Room settings have been updated successfully')
+    const handleSave = async () => {
+        if (!user) return
+
+        try {
+            await updateDoc(doc(db, 'rooms', room.id), {
+                name: roomName,
+                isPrivate
+            })
             onClose()
         } catch (error) {
-            console.error('Error updating room:', error)
-            toast.error('Could not update room settings. Please try again.')
+            console.error('Error saving room settings:', error)
         }
     }
 
-    const inviteUser = async () => {
-        if (!inviteEmail.trim()) return
-
-        try {
-            // Find user by email
-            const usersRef = collection(db, 'users')
-            const q = query(usersRef, where('email', '==', inviteEmail.trim()))
-            const querySnapshot = await getDocs(q)
-
-            if (querySnapshot.empty) {
-                toast.error('No user found with that email address')
-                return
-            }
-
-            const invitedUser = querySnapshot.docs[0]
-            const invitedUserId = invitedUser.id
-
-            // Check if user is already a member
-            if (room.members && room.members.includes(invitedUserId)) {
-                toast.error('This user is already a member of the room')
-                return
-            }
-
-            // Add user to room members
-            const roomRef = doc(db, 'rooms', room.id)
-            await updateDoc(roomRef, {
-                members: arrayUnion(invitedUserId),
-                updatedAt: new Date()
-            })
-
-            // Add the new member to the local state
-            const userRef = doc(db, 'users', invitedUserId)
-            const userSnap = await getDoc(userRef)
-
-            if (userSnap.exists()) {
-                setMembers(prev => [...prev, {
-                    id: invitedUserId,
-                    ...userSnap.data()
-                }])
-            }
-
-            setInviteEmail('')
-            toast.success('User has been added to the room')
-        } catch (error) {
-            console.error('Error inviting user:', error)
-            toast.error('Could not invite user. Please try again.')
-        }
-    }
-
-    const removeUser = async (memberId) => {
-        try {
-            const roomRef = doc(db, 'rooms', room.id)
-            await updateDoc(roomRef, {
-                members: arrayRemove(memberId),
-                updatedAt: new Date()
-            })
-
-            // Remove the member from the local state
-            setMembers(prev => prev.filter(member => member.id !== memberId))
-            toast.success('User has been removed from the room')
-        } catch (error) {
-            console.error('Error removing user:', error)
-            toast.error('Could not remove user. Please try again.')
-        }
-    }
-
-    const copyInviteLink = () => {
-        const inviteLink = `${window.location.origin}/invite/${room.id}`
-        navigator.clipboard.writeText(inviteLink)
-        setCopied(true)
-
-        setTimeout(() => {
-            setCopied(false)
-        }, 2000)
-
-        toast.success('Invite link copied to clipboard')
-    }
-
-    // ... rest of the JSX remains the same ...
-    // (The return JSX part is correct in your original code)
+    return (
+        <div className="room-settings">
+            <h2>Room Settings</h2>
+            <button onClick={onClose}>Close</button>
+            <div>
+                <label>Room Name</label>
+                <input
+                    type="text"
+                    value={roomName}
+                    onChange={(e) => setRoomName(e.target.value)}
+                />
+            </div>
+            <div>
+                <label>Private Room</label>
+                <input
+                    type="checkbox"
+                    checked={isPrivate}
+                    onChange={(e) => setIsPrivate(e.target.checked)}
+                />
+            </div>
+            <h3>Members</h3>
+            <ul>
+                {members.map(member => (
+                    <li key={member.id}>
+                        <span>{member.displayName}</span>
+                        <Button onClick={() => handleRemoveMember(member.id)}>Remove</Button>
+                    </li>
+                ))}
+            </ul>
+            <Button onClick={handleSave}>Save</Button>
+        </div>
+    )
 }
+
+export default RoomSettings
+

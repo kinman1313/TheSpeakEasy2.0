@@ -1,59 +1,60 @@
 "use client"
 
-import { useEffect, useRef } from "react"
+import React from "react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { MessageReactions } from "@/components/MessageReactions"
-import type { Message } from "@/lib/types"
-import type { User } from "firebase/auth"
+import { formatDistanceToNow } from "date-fns"
+import type { Message, SimpleUser } from "@/lib/types"
 
 interface MessageListProps {
   messages: Message[]
-  currentUser: User | null
+  currentUser: SimpleUser | null
 }
 
 export function MessageList({ messages, currentUser }: MessageListProps) {
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = React.useRef<HTMLDivElement>(null)
 
-  useEffect(() => {
+  React.useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [])
+  }
 
   return (
     <div className="flex-1 overflow-y-auto p-4 space-y-4">
-      {messages.map((message) => (
-        <div
-          key={message.id}
-          className={`flex items-start gap-2 ${message.uid === currentUser?.uid ? "flex-row-reverse" : ""}`}
-        >
-          <Avatar className="h-8 w-8">
-            <AvatarImage src={message.photoURL || `/api/avatar?name=${message.displayName}`} />
-            <AvatarFallback>{message.displayName?.[0]}</AvatarFallback>
-          </Avatar>
+      {messages.map((message) => {
+        // Get user info from the message or use defaults
+        const displayName = message.displayName || "Anonymous"
+        const photoURL = message.photoURL || ""
 
-          <div className={`flex flex-col ${message.uid === currentUser?.uid ? "items-end" : "items-start"}`}>
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-muted-foreground">{message.displayName}</span>
-              <span className="text-xs text-muted-foreground">{message.createdAt?.toDate().toLocaleTimeString()}</span>
-            </div>
-
+        return (
+          <div
+            key={message.id}
+            className={`flex ${message.uid === currentUser?.uid ? "justify-end" : "justify-start"}`}
+          >
             <div
-              className={`mt-1 rounded-lg p-2 ${
-                message.uid === currentUser?.uid ? "bg-primary text-primary-foreground" : "bg-muted"
-              }`}
+              className={`flex items-start gap-2 max-w-[80%] ${message.uid === currentUser?.uid ? "flex-row-reverse" : "flex-row"}`}
             >
-              {message.text}
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={photoURL} />
+                <AvatarFallback>{displayName[0] || message.uid[0] || "?"}</AvatarFallback>
+              </Avatar>
+              <div
+                className={`rounded-lg p-3 ${message.uid === currentUser?.uid ? "bg-primary text-primary-foreground" : "bg-muted"}`}
+              >
+                <div className="text-xs opacity-70 mb-1">
+                  {displayName} •{" "}
+                  {message.createdAt
+                    ? formatDistanceToNow(new Date(message.createdAt), { addSuffix: true })
+                    : "just now"}
+                </div>
+                <div>{message.text}</div>
+              </div>
             </div>
-
-            {message.gifUrl && (
-              <img src={message.gifUrl || "/placeholder.svg"} alt="GIF" className="mt-2 rounded-lg max-w-[200px]" />
-            )}
-
-            {message.audioUrl && <audio src={message.audioUrl} controls className="mt-2" />}
-
-            <MessageReactions message={message} />
           </div>
-        </div>
-      ))}
+        )
+      })}
       <div ref={messagesEndRef} />
     </div>
   )

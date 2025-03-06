@@ -1,4 +1,3 @@
-// components/CallControls.tsx
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
@@ -166,23 +165,27 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
         // Add local tracks to the connection
         if (localStream.current) {
             localStream.current.getTracks().forEach(track => {
-                pc.addTrack(track, localStream.current!)
+                if (localStream.current) {
+                    pc.addTrack(track, localStream.current)
+                }
             })
         }
 
         if (screenStream.current) {
             screenStream.current.getTracks().forEach(track => {
-                pc.addTrack(track, screenStream.current!)
+                if (screenStream.current) {
+                    pc.addTrack(track, screenStream.current)
+                }
             })
         }
 
         // Handle ICE candidates
         pc.onicecandidate = event => {
-            if (event.candidate) {
+            if (event.candidate && user) {
                 sendSignal({
                     type: 'ice-candidate',
-                    candidate: event.candidate,
-                    from: user!.uid,
+                    candidate: event.candidate.toJSON(),
+                    from: user.uid,
                     to: participantId
                 })
             }
@@ -220,15 +223,13 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
             const offer = await pc.createOffer()
             await pc.setLocalDescription(offer)
 
-            if (pc.localDescription) {
+            if (pc.localDescription && user) {
                 sendSignal({
                     type: 'offer',
                     offer: pc.localDescription,
-                    from: user!.uid,
+                    from: user.uid,
                     to: participantId
                 })
-            } else {
-                throw new Error('Local description is null')
             }
         } catch (error) {
             console.error('Error creating offer:', error)
@@ -247,11 +248,12 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
 
         const pc = peerConnections.current[from]
 
-        switch (type) {
-            case 'offer':
-                if (signal.offer) {
-                    try {
-                        await pc.setRemoteDescription(new RTCSessionDescription(signal.offer))
+        try {
+            switch (type) {
+                case 'offer':
+                    if (signal.offer && user) {
+                        const offerDescription = new RTCSessionDescription(signal.offer)
+                        await pc.setRemoteDescription(offerDescription)
                         const answer = await pc.createAnswer()
                         await pc.setLocalDescription(answer)
 
@@ -259,39 +261,30 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
                             sendSignal({
                                 type: 'answer',
                                 answer: pc.localDescription,
-                                from: user!.uid,
+                                from: user.uid,
                                 to: from
                             })
-                        } else {
-                            throw new Error('Local description is null')
                         }
-                    } catch (error) {
-                        console.error('Error handling offer:', error)
-                        toast.error('Error connecting to peer')
                     }
-                }
-                break
+                    break
 
-            case 'answer':
-                if (signal.answer) {
-                    try {
-                        await pc.setRemoteDescription(new RTCSessionDescription(signal.answer))
-                    } catch (error) {
-                        console.error('Error handling answer:', error)
-                        toast.error('Error establishing connection')
+                case 'answer':
+                    if (signal.answer) {
+                        const answerDescription = new RTCSessionDescription(signal.answer)
+                        await pc.setRemoteDescription(answerDescription)
                     }
-                }
-                break
+                    break
 
-            case 'ice-candidate':
-                if (signal.candidate) {
-                    try {
-                        await pc.addIceCandidate(new RTCIceCandidate(signal.candidate))
-                    } catch (error) {
-                        console.error('Error handling ICE candidate:', error)
+                case 'ice-candidate':
+                    if (signal.candidate) {
+                        const iceCandidate = new RTCIceCandidate(signal.candidate)
+                        await pc.addIceCandidate(iceCandidate)
                     }
-                }
-                break
+                    break
+            }
+        } catch (error) {
+            console.error('Error handling signal:', error)
+            toast.error('Error establishing connection')
         }
     }
 
@@ -351,9 +344,11 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
 
                 // Add screen share tracks to all peer connections
                 Object.values(peerConnections.current).forEach(pc => {
-                    screenStream.current!.getTracks().forEach(track => {
-                        pc.addTrack(track, screenStream.current!)
-                    })
+                    if (screenStream.current) {
+                        screenStream.current.getTracks().forEach(track => {
+                            pc.addTrack(track, screenStream.current!)
+                        })
+                    }
                 })
 
                 screenStream.current.getVideoTracks()[0].onended = () => {
@@ -452,5 +447,3 @@ export function CallControls({ isVideo, roomId }: CallControlsProps) {
         </div>
     )
 }
-
-

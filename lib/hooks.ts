@@ -3,11 +3,11 @@
 import { useState, useEffect, useCallback, useRef } from "react"
 import { doc, onSnapshot } from "firebase/firestore"
 import { db } from "./firebase"
-import type { User } from "./types"
+import type { UserStatus } from "./types"
 
 // Hook for real-time user status
 export function useUserStatus(userId: string) {
-  const [status, setStatus] = useState<User["status"]>("offline")
+  const [status, setStatus] = useState<UserStatus>("offline")
   const [lastSeen, setLastSeen] = useState<Date | null>(null)
 
   useEffect(() => {

@@ -2,6 +2,21 @@ import { db } from "./firebase"
 import { doc, getDoc } from "firebase/firestore"
 import type { User } from "./types"
 
+// Define a NotificationAction interface for the actions
+interface NotificationAction {
+  action: string
+  title: string
+  icon?: string
+}
+
+// Define an extended NotificationOptions interface to include vibrate and actions
+interface ExtendedNotificationOptions extends NotificationOptions {
+  vibrate?: number[]
+  actions?: NotificationAction[]
+  data?: any
+  requireInteraction?: boolean
+}
+
 async function requestNotificationPermission(): Promise<boolean> {
   if (!("Notification" in window)) {
     console.warn("This browser does not support notifications")
@@ -43,22 +58,32 @@ export async function setupNotifications() {
   }
 }
 
-export async function sendNotification(userId: string, title: string, options: NotificationOptions) {
+export async function sendNotification(userId: string, title: string, options: ExtendedNotificationOptions) {
   try {
     const userDoc = await getDoc(doc(db, "users", userId))
+
+    if (!userDoc.exists()) {
+      return
+    }
+
     const userData = userDoc.data() as User
 
-    if (!userData.settings.notificationsEnabled) {
+    // Add null checks here
+    if (!userData || !userData.settings || !userData.settings.notificationsEnabled) {
       return
     }
 
     const registration = await navigator.serviceWorker.ready
-    await registration.showNotification(title, {
+
+    // Merge the options with our default options
+    const notificationOptions = {
       ...options,
-      icon: "/icons/icon-192x192.png",
-      badge: "/icons/icon-72x72.png",
-      vibrate: [100, 50, 100],
-    })
+      icon: options.icon || "/icons/icon-192x192.png",
+      badge: options.badge || "/icons/icon-72x72.png",
+      vibrate: options.vibrate || [100, 50, 100],
+    }
+
+    await registration.showNotification(title, notificationOptions as NotificationOptions)
   } catch (error) {
     console.error("Error sending notification:", error)
   }
@@ -71,7 +96,7 @@ export function playNotificationSound(type: "message" | "call") {
 
 export async function sendCallNotification(userId: string, callerName: string, roomId: string, isVideo: boolean) {
   const title = `Incoming ${isVideo ? "Video" : "Voice"} Call`
-  const options: NotificationOptions = {
+  const options: ExtendedNotificationOptions = {
     body: `${callerName} is calling...`,
     data: {
       roomId,
@@ -96,7 +121,7 @@ export async function sendCallNotification(userId: string, callerName: string, r
 
 export async function sendMessageNotification(userId: string, senderName: string, message: string, roomId: string) {
   const title = senderName
-  const options: NotificationOptions = {
+  const options: ExtendedNotificationOptions = {
     body: message,
     data: {
       roomId,

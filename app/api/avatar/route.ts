@@ -1,3 +1,4 @@
+export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
 import { rateLimit } from "@/lib/rate-limit"
 

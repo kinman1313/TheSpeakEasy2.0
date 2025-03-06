@@ -3,23 +3,23 @@ import { logEvent as firebaseLogEvent } from "firebase/analytics"
 
 export async function logEvent(eventName: string, eventParams?: Record<string, any>) {
   try {
-    const analyticsInstance = await analytics
-    if (analyticsInstance) {
-      firebaseLogEvent(analyticsInstance, eventName, eventParams)
+    // Check if analytics is available
+    if (analytics) {
+      await firebaseLogEvent(analytics, eventName, eventParams)
+      console.log(`Event logged: ${eventName}`, eventParams)
+    } else {
+      // Analytics not available, log to console in development
+      if (process.env.NODE_ENV !== "production") {
+        console.log(`[Analytics Mock] Event: ${eventName}`, eventParams)
+      }
     }
   } catch (error) {
-    // Silently handle analytics errors in development
-    if (process.env.NODE_ENV !== "production") {
-      console.debug("Analytics event not logged:", error)
-    }
+    console.error(`Error logging event ${eventName}:`, error)
   }
 }
 
-export async function logPageView(page_path: string) {
-  await logEvent("page_view", {
-    page_path,
-    page_location: window.location.href,
-    page_title: document.title,
-  })
+export function initializeAnalytics(): boolean {
+  // This function can be called from _app.tsx or similar to ensure analytics is initialized
+  // It doesn't need to do anything as initialization happens in firebase.ts
+  return analytics !== null
 }
-

@@ -1,53 +1,59 @@
 "use client"
 
-import type React from "react"
+import { createContext, useContext, useState, type ReactNode } from "react"
 
-import { createContext, useContext, useEffect, useState } from "react"
-import type { MessageSettings } from "@/lib/types"
+interface Settings {
+  theme: string
+  // Add other settings as needed
+}
 
 interface SettingsContextType {
-  settings: MessageSettings
-  updateSettings: (settings: Partial<MessageSettings>) => void
+  settings: Settings
+  updateSettings: (newSettings: Partial<Settings>) => void
 }
 
-const SettingsContext = createContext<SettingsContextType>({
-  settings: {
-    vanishTimer: null,
-    soundEnabled: true,
-    notificationsEnabled: true,
-    notificationSound: "default",
-  },
-  updateSettings: () => {},
-})
-
-export function useSettings() {
-  return useContext(SettingsContext)
+const defaultSettings: Settings = {
+  theme: "system",
+  // Add other default settings
 }
 
-export function SettingsProvider({ children }: { children: React.ReactNode }) {
-  const [settings, setSettings] = useState<MessageSettings>(() => {
+const SettingsContext = createContext<SettingsContextType | undefined>(undefined)
+
+export function SettingsProvider({ children }: { children: ReactNode }) {
+  const [settings, setSettings] = useState<Settings>(() => {
+    // Try to load settings from localStorage on client side
     if (typeof window !== "undefined") {
-      const saved = localStorage.getItem("messageSettings")
-      if (saved) {
-        return JSON.parse(saved)
+      const savedSettings = localStorage.getItem("app-settings")
+      if (savedSettings) {
+        try {
+          return { ...defaultSettings, ...JSON.parse(savedSettings) }
+        } catch (e) {
+          console.error("Failed to parse saved settings:", e)
+        }
       }
     }
-    return {
-      vanishTimer: null,
-      soundEnabled: true,
-      notificationsEnabled: true,
-      notificationSound: "default",
-    }
+    return defaultSettings
   })
 
-  useEffect(() => {
-    localStorage.setItem("messageSettings", JSON.stringify(settings))
-  }, [settings])
-
-  const updateSettings = (newSettings: Partial<MessageSettings>) => {
-    setSettings((prev) => ({ ...prev, ...newSettings }))
+  const updateSettings = (newSettings: Partial<Settings>) => {
+    setSettings((prev) => {
+      const updated = { ...prev, ...newSettings }
+      // Save to localStorage
+      if (typeof window !== "undefined") {
+        localStorage.setItem("app-settings", JSON.stringify(updated))
+      }
+      return updated
+    })
   }
 
   return <SettingsContext.Provider value={{ settings, updateSettings }}>{children}</SettingsContext.Provider>
+}
+
+export function useSettings() {
+  const context = useContext(SettingsContext)
+  if (context === undefined) {
+    throw new Error("useSettings must be used within a SettingsProvider")
+  }
+  return context
 }
 

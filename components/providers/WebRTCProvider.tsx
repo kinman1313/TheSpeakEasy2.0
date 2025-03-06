@@ -5,7 +5,7 @@ import type React from "react"
 import { createContext, useContext, useEffect, useRef, useState, useCallback } from "react"
 import { db } from "@/lib/firebase"
 import { collection, doc, onSnapshot, setDoc, deleteDoc } from "firebase/firestore"
-import { useAuth } from "./AuthProvider"
+import { useAuth } from "@/components/auth/AuthProvider"
 
 interface WebRTCContextType {
   startCall: (roomId: string, isVideo: boolean) => Promise<void>
@@ -54,7 +54,8 @@ export function WebRTCProvider({ children }: { children: React.ReactNode }) {
 
     // Handle ICE candidates
     pc.onicecandidate = async (event) => {
-      if (event.candidate) {
+      if (event.candidate && currentRoomId.current) {
+        // Add null check here
         await setDoc(doc(db, "calls", currentRoomId.current, "candidates", `${user.uid}-${Date.now()}`), {
           candidate: event.candidate.toJSON(),
           peerId,

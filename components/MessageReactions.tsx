@@ -4,7 +4,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { SmilePlus } from "lucide-react"
-import { useAuth } from "./AuthProvider"
+import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
 import { doc, updateDoc } from "firebase/firestore"
 import { toast } from "sonner"
@@ -30,7 +30,7 @@ export function MessageReactions({ message }: { message: Message }) {
     setIsUpdating(true)
     try {
       const messageRef = doc(db, "messages", message.id)
-      const reactions = { ...message.reactions } || {}
+      const reactions = message.reactions ? { ...message.reactions } : {}
 
       // Check if user already reacted with this emoji
       const userReactions = Object.entries(reactions).find(([key, users]) => key === emoji && users.includes(user.uid))

@@ -3,11 +3,20 @@
 import type React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
-import { onAuthStateChanged, type User } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import { onAuthStateChanged, getAuth } from "firebase/auth"
+import { app } from "@/lib/firebase" // Assuming this is where your Firebase client init is
 
-interface AuthContextType {
-  user: User | null
+const auth = getAuth(app)
+
+type User = {
+  uid: string
+  email: string | null
+  displayName: string | null
+  photoURL: string | null
+} | null
+
+type AuthContextType = {
+  user: User
   loading: boolean
 }
 
@@ -17,12 +26,21 @@ const AuthContext = createContext<AuthContextType>({
 })
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<User>(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setUser(user)
+      if (user) {
+        setUser({
+          uid: user.uid,
+          email: user.email,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+        })
+      } else {
+        setUser(null)
+      }
       setLoading(false)
     })
 
@@ -32,11 +50,5 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   return <AuthContext.Provider value={{ user, loading }}>{children}</AuthContext.Provider>
 }
 
-export function useAuth() {
-  const context = useContext(AuthContext)
-  if (context === undefined) {
-    throw new Error("useAuth must be used within an AuthProvider")
-  }
-  return context
-}
+export const useAuth = () => useContext(AuthContext)
 
