@@ -9,3 +9,5 @@ A real-time chat application with voice and video capabilities.
 - User presence
 - Message reactions
 - Voice messages
+
+AND MORE TO COME!
