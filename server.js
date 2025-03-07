@@ -8,7 +8,11 @@ const dev = process.env.NODE_ENV !== "production"
 const port = process.env.PORT || 3001
 const hostname = dev ? "localhost" : "thespeakeasy.app"
 const app = next({ dev, hostname, port })
-const handle = app.getRequestHandler()
+const handle = app.getRequestHandler() 
+
+app.listen(port, () => {
+  console.log(`App listening on port: ${port}`);
+});
 
 app.prepare().then(() => {
   const server = createServer((req, res) => {
