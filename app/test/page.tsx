@@ -1,3 +1,5 @@
+'use client'
+
 import { TestConnection } from "@/components/TestConnection"
 
 export default function TestPage() {
@@ -7,4 +9,3 @@ export default function TestPage() {
     </div>
   )
 }
-
