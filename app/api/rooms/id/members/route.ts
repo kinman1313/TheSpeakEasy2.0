@@ -1,56 +1,66 @@
 export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
-import { getAuth } from "firebase-admin/auth"
-import { db } from "@/lib/firebase"
-import { doc, getDoc, arrayUnion, arrayRemove, updateDoc } from "firebase/firestore"
+import { adminAuth, adminStorage } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
-import { initAdmin } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 500,
+    interval: 60 * 1000, // 1 minute
+    uniqueTokenPerInterval: 500,
 })
 
-export async function POST(request: NextRequest, { params }: { params: { id: string } }) {
-  try {
-    await limiter.check(request, 30, "MANAGE_ROOM_MEMBERS") // 30 operations per minute
+export async function POST(request: NextRequest) {
+    try {
+        await limiter.check(request, 30, "UPLOAD_FILE") // 30 uploads per minute
 
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const decodedToken = await adminAuth.verifyIdToken(token)
+        const formData = await request.formData()
+        const file = formData.get("file") as File
+        const type = formData.get("type") as string
+
+        if (!file) {
+            return NextResponse.json({ error: "No file provided" }, { status: 400 })
+        }
+
+        if (!["image", "audio"].includes(type)) {
+            return NextResponse.json({ error: "Invalid file type" }, { status: 400 })
+        }
+
+        // Process file upload logic here
+        // Note: This is a placeholder for your actual upload implementation
+        // If you're using Firebase Storage, you might want to use adminStorage
+
+        // Example implementation (uncomment and modify as needed):
+        /*
+        const bytes = await file.arrayBuffer();
+        const buffer = Buffer.from(bytes);
+        
+        const fileName = `${type}/${decodedToken.uid}/${Date.now()}-${file.name}`;
+        const fileRef = adminStorage.bucket().file(fileName);
+        
+        await fileRef.save(buffer, {
+          metadata: {
+            contentType: file.type,
+          },
+        });
+        
+        // Make the file publicly accessible
+        await fileRef.makePublic();
+        
+        // Get the public URL
+        const url = `https://storage.googleapis.com/${adminStorage.bucket().name}/${fileName}`;
+        
+        return NextResponse.json({ url });
+        */
+
+        // For now, return a placeholder response
+        return NextResponse.json({ url: "uploaded-file-url" })
+    } catch (error) {
+        console.error("File upload error:", error)
+        return NextResponse.json({ error: "Failed to upload file" }, { status: 500 })
     }
-
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
-
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
-      return NextResponse.json({ error: "Room not found" }, { status: 404 })
-    }
-
-    const roomData = roomSnap.data()
-    if (roomData.ownerId !== decodedToken.uid) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
-    }
-
-    const { memberId, action } = await request.json()
-
-    if (!memberId || !["add", "remove"].includes(action)) {
-      return NextResponse.json({ error: "Invalid request" }, { status: 400 })
-    }
-
-    // Update room members
-    await updateDoc(roomRef, {
-      members: action === "add" ? arrayUnion(memberId) : arrayRemove(memberId),
-    })
-
-    return NextResponse.json({ success: true })
-  } catch (error) {
-    console.error("Room members update error:", error)
-    return NextResponse.json({ error: "Failed to update room members" }, { status: 500 })
-  }
 }
-

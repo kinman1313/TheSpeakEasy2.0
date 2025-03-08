@@ -1,10 +1,8 @@
 export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
-import { getAuth } from "firebase-admin/auth"
-import { db } from "@/lib/firebase"
-import { doc, getDoc, updateDoc, deleteDoc } from "firebase/firestore"
 import { rateLimit } from "@/lib/rate-limit"
-import { initAdmin } from "@/lib/firebase-admin"
+// Import the admin services directly
+import { adminDb, adminAuth } from "@/lib/firebase-admin"
 
 const limiter = rateLimit({
   interval: 60 * 1000, // 1 minute
@@ -20,26 +18,26 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
+    // Use adminAuth directly
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    
+    // Use adminDb with admin SDK methods
+    const roomRef = adminDb.collection("rooms").doc(params.id)
+    const roomSnap = await roomRef.get()
 
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
+    if (!roomSnap.exists) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 })
     }
 
     const roomData = roomSnap.data()
-    if (roomData.ownerId !== decodedToken.uid) {
+    if (roomData?.ownerId !== decodedToken.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
     const { name, description } = await request.json()
 
-    // Update room
-    await updateDoc(roomRef, {
+    // Update room using admin SDK
+    await roomRef.update({
       name,
       description,
       updatedAt: new Date().toISOString(),
@@ -61,24 +59,24 @@ export async function DELETE(request: NextRequest, { params }: { params: { id: s
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
+    // Use adminAuth directly
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    
+    // Use adminDb with admin SDK methods
+    const roomRef = adminDb.collection("rooms").doc(params.id)
+    const roomSnap = await roomRef.get()
 
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
+    if (!roomSnap.exists) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 })
     }
 
     const roomData = roomSnap.data()
-    if (roomData.ownerId !== decodedToken.uid) {
+    if (roomData?.ownerId !== decodedToken.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
-    // Delete room
-    await deleteDoc(roomRef)
+    // Delete room using admin SDK
+    await roomRef.delete()
 
     return NextResponse.json({ success: true })
   } catch (error) {
@@ -96,19 +94,19 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
+    // Use adminAuth directly
+    const decodedToken = await adminAuth.verifyIdToken(token)
+    
+    // Use adminDb with admin SDK methods
+    const roomRef = adminDb.collection("rooms").doc(params.id)
+    const roomSnap = await roomRef.get()
 
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const roomRef = doc(db, "rooms", params.id)
-    const roomSnap = await getDoc(roomRef)
-
-    if (!roomSnap.exists()) {
+    if (!roomSnap.exists) {
       return NextResponse.json({ error: "Room not found" }, { status: 404 })
     }
 
     const roomData = roomSnap.data()
-    if (!roomData.members?.includes(decodedToken.uid) && roomData.ownerId !== decodedToken.uid) {
+    if (!roomData?.members?.includes(decodedToken.uid) && roomData?.ownerId !== decodedToken.uid) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
     }
 
@@ -118,4 +116,3 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
     return NextResponse.json({ error: "Failed to fetch room" }, { status: 500 })
   }
 }
-
