@@ -1,111 +1,144 @@
 export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
-import { getAuth } from "firebase-admin/auth"
-import { db } from "@/lib/firebase"
-import { collection, addDoc, getDocs, query, where, orderBy, limit, serverTimestamp } from "firebase/firestore"
+import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
-import { MESSAGE_BATCH_SIZE } from "@/lib/constants"
-import { initAdmin } from "@/lib/firebase-admin"
+import { FieldValue } from "firebase-admin/firestore"
+
+// Add this interface to define the message data structure
+interface MessageData {
+    text: string;
+    senderId: string;
+    roomId: string;
+    createdAt: string;
+    [key: string]: any; // Allow other properties
+}
+
+// Add this interface to define the room data structure
+interface RoomData {
+    ownerId: string;
+    members: string[];
+    [key: string]: any; // Allow other properties
+}
 
 const limiter = rateLimit({
-  interval: 60 * 1000, // 1 minute
-  uniqueTokenPerInterval: 500,
+    interval: 60 * 1000, // 1 minute
+    uniqueTokenPerInterval: 500,
 })
 
 export async function POST(request: NextRequest) {
-  try {
-    // Rate limiting
-    await limiter.check(request, 120, "SEND_MESSAGE") // 120 messages per minute
+    try {
+        await limiter.check(request, 60, "SEND_MESSAGE") // 60 messages per minute
 
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const decodedToken = await adminAuth.verifyIdToken(token)
+        const { roomId, text, attachments = [] } = await request.json()
+
+        if (!roomId) {
+            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
+        }
+
+        if (!text?.trim() && attachments.length === 0) {
+            return NextResponse.json({ error: "Message content is required" }, { status: 400 })
+        }
+
+        // Check if user is a member of the room
+        const roomRef = adminDb.collection("rooms").doc(roomId)
+        const roomSnap = await roomRef.get()
+
+        if (!roomSnap.exists) {
+            return NextResponse.json({ error: "Room not found" }, { status: 404 })
+        }
+
+        const roomData = roomSnap.data() as RoomData;
+
+        if (!roomData.members.includes(decodedToken.uid)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+        }
+
+        // Create message in Firestore
+        const messagesRef = adminDb.collection("messages")
+        const newMessage = await messagesRef.add({
+            text: text?.trim() || "",
+            attachments,
+            senderId: decodedToken.uid,
+            roomId,
+            createdAt: new Date().toISOString(),
+        })
+
+        // Update room's updatedAt timestamp
+        await roomRef.update({
+            updatedAt: new Date().toISOString(),
+        })
+
+        return NextResponse.json({ id: newMessage.id })
+    } catch (error) {
+        console.error("Message creation error:", error)
+        return NextResponse.json({ error: "Failed to send message" }, { status: 500 })
     }
-
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
-
-    // Use getAuth().verifyIdToken
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const { roomId, text, imageUrl, gifUrl, audioUrl, replyTo } = await request.json()
-
-    if (!roomId) {
-      return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
-    }
-
-    if (!text && !imageUrl && !gifUrl && !audioUrl) {
-      return NextResponse.json({ error: "Message content is required" }, { status: 400 })
-    }
-
-    // Create message in Firestore
-    const messagesRef = collection(db, "messages")
-    const newMessage = await addDoc(messagesRef, {
-      roomId,
-      text,
-      imageUrl,
-      gifUrl,
-      audioUrl,
-      uid: decodedToken.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      readBy: [decodedToken.uid],
-      replyTo,
-    })
-
-    return NextResponse.json({ id: newMessage.id })
-  } catch (error) {
-    console.error("Message creation error:", error)
-    return NextResponse.json({ error: "Failed to send message" }, { status: 500 })
-  }
 }
 
 export async function GET(request: NextRequest) {
-  try {
-    // Rate limiting
-    await limiter.check(request, 30, "GET_MESSAGES") // 30 requests per minute
+    try {
+        await limiter.check(request, 60, "GET_MESSAGES") // 60 requests per minute
 
-    const token = request.headers.get("Authorization")?.split("Bearer ")[1]
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const decodedToken = await adminAuth.verifyIdToken(token)
+
+        // Get query parameters
+        const roomId = request.nextUrl.searchParams.get("roomId")
+
+        if (!roomId) {
+            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
+        }
+
+        // Check if user is a member of the room
+        const roomRef = adminDb.collection("rooms").doc(roomId)
+        const roomSnap = await roomRef.get()
+
+        if (!roomSnap.exists) {
+            return NextResponse.json({ error: "Room not found" }, { status: 404 })
+        }
+
+        const roomData = roomSnap.data() as RoomData;
+
+        if (!roomData.members.includes(decodedToken.uid)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+        }
+
+        const limit = parseInt(request.nextUrl.searchParams.get("limit") || "50", 10)
+        const before = request.nextUrl.searchParams.get("before")
+
+        // Query messages
+        let query = adminDb.collection("messages")
+            .where("roomId", "==", roomId)
+            .orderBy("createdAt", "desc")
+            .limit(limit)
+
+        if (before) {
+            // Get the message to use as a cursor
+            const cursorDoc = await adminDb.collection("messages").doc(before).get()
+            if (cursorDoc.exists) {
+                query = query.startAfter(cursorDoc)
+            }
+        }
+
+        const snapshot = await query.get()
+        const messages = snapshot.docs.map((doc) => ({
+            id: doc.id,
+            ...doc.data(),
+        }))
+
+        return NextResponse.json({ messages })
+    } catch (error) {
+        console.error("Messages fetch error:", error)
+        return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
     }
-
-    // Initialize Firebase Admin if not already initialized
-    initAdmin()
-
-    // Use getAuth().verifyIdToken
-    const decodedToken = await getAuth().verifyIdToken(token)
-    const { searchParams } = new URL(request.url)
-    const roomId = searchParams.get("roomId")
-    const before = searchParams.get("before")
-
-    if (!roomId) {
-      return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
-    }
-
-    // Query messages
-    const messagesRef = collection(db, "messages")
-    let q = query(messagesRef, where("roomId", "==", roomId), orderBy("createdAt", "desc"), limit(MESSAGE_BATCH_SIZE))
-
-    if (before) {
-      q = query(
-        messagesRef,
-        where("roomId", "==", roomId),
-        where("createdAt", "<", new Date(before)),
-        orderBy("createdAt", "desc"),
-        limit(MESSAGE_BATCH_SIZE),
-      )
-    }
-
-    const snapshot = await getDocs(q)
-    const messages = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }))
-
-    return NextResponse.json({ messages })
-  } catch (error) {
-    console.error("Message fetch error:", error)
-    return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
-  }
 }
-
