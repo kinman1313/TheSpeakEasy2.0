@@ -4,6 +4,15 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { FieldValue } from "firebase-admin/firestore"
 
+// Add this interface to define the room data structure
+interface RoomData {
+    ownerId: string;
+    members: string[];
+    name?: string;
+    isPrivate?: boolean;
+    [key: string]: any; // Allow other properties
+}
+
 const limiter = rateLimit({
     interval: 60 * 1000, // 1 minute
     uniqueTokenPerInterval: 500,
@@ -31,8 +40,10 @@ export async function POST(
             return NextResponse.json({ error: "Room not found" }, { status: 404 })
         }
 
-        const roomData = roomSnap.data()
-        if (roomData?.ownerId !== decodedToken.uid) {
+        // Add this type assertion to tell TypeScript about the structure
+        const roomData = roomSnap.data() as RoomData;
+
+        if (roomData.ownerId !== decodedToken.uid) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
         }
 

@@ -4,6 +4,17 @@ import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { FieldValue } from "firebase-admin/firestore"
 
+// Define types for our data structures
+interface PresenceData {
+    status: string;
+    lastSeen: any; // Using 'any' for FieldValue.serverTimestamp()
+}
+
+interface UserData {
+    presence?: PresenceData;
+    [key: string]: any; // Allow other properties
+}
+
 const limiter = rateLimit({
     interval: 60 * 1000, // 1 minute
     uniqueTokenPerInterval: 500,
@@ -62,10 +73,17 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "User not found" }, { status: 404 })
         }
 
-        const userData = userDoc.data()
+        // Cast the data to our UserData type
+        const userData = userDoc.data() as UserData;
+
+        // Default presence object
+        const defaultPresence: PresenceData = {
+            status: "offline",
+            lastSeen: null
+        };
 
         return NextResponse.json({
-            presence: userData?.presence || { status: "offline", lastSeen: null }
+            presence: userData?.presence || defaultPresence
         })
     } catch (error) {
         console.error("Presence fetch error:", error)
