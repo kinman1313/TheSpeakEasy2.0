@@ -11,7 +11,7 @@ const limiter = rateLimit({
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+    { params }: { params: { id: string } }
 ) {
     try {
         await limiter.check(request, 30, "MANAGE_ROOM_MEMBERS") // 30 operations per minute
@@ -21,7 +21,7 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id } = await params
+        const { id } = params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
         const roomRef = adminDb.collection("rooms").doc(id)
@@ -52,6 +52,15 @@ export async function POST(
         return NextResponse.json({ success: true })
     } catch (error) {
         console.error("Room members update error:", error)
+
+        // Provide more detailed error message for Firebase Admin initialization issues
+        if (error instanceof Error && error.message.includes("Firebase Admin not initialized")) {
+            return NextResponse.json({
+                error: "Server configuration error",
+                details: process.env.NODE_ENV === "development" ? error.message : undefined
+            }, { status: 500 })
+        }
+
         return NextResponse.json({ error: "Failed to update room members" }, { status: 500 })
     }
 }
