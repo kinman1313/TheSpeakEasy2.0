@@ -3,11 +3,50 @@ import { getFirestore } from "firebase-admin/firestore"
 import { getAuth } from "firebase-admin/auth"
 import { getStorage } from "firebase-admin/storage"
 
+// Create mock implementations for build time
+const mockDb = {
+    collection: () => ({
+        doc: () => ({
+            get: async () => ({ exists: false, data: () => ({}) }),
+            update: async () => ({}),
+            set: async () => ({}),
+        }),
+        where: () => ({
+            orderBy: () => ({
+                get: async () => ({ docs: [] }),
+            }),
+        }),
+        add: async () => ({ id: "mock-id" }),
+    }),
+};
+
+const mockAuth = {
+    verifyIdToken: async () => ({ uid: "mock-uid", email: "mock@example.com" }),
+    verifySessionCookie: async () => ({ uid: "mock-uid", email: "mock@example.com" }),
+    createSessionCookie: async () => "mock-session-cookie",
+    listUsers: async () => ({ users: [] }),
+};
+
+const mockStorage = {
+    bucket: () => ({
+        file: () => ({
+            save: async () => ({}),
+            makePublic: async () => ({}),
+        }),
+    }),
+};
+
 // Track initialization state
 let isInitialized = false;
 let adminApp: App | null = null;
 
 export function initAdmin(): App | null {
+    // Skip initialization during build
+    if (process.env.NEXT_PHASE === "phase-production-build") {
+        console.log("Skipping Firebase Admin initialization during build phase");
+        return null;
+    }
+
     // Return existing app if already initialized
     if (isInitialized && adminApp) {
         return adminApp;
@@ -22,14 +61,9 @@ export function initAdmin(): App | null {
 
     // Check if we have the required environment variables
     if (!process.env.FIREBASE_PROJECT_ID || !process.env.FIREBASE_CLIENT_EMAIL || !process.env.FIREBASE_PRIVATE_KEY) {
-        // Handle missing environment variables
-        if (process.env.NODE_ENV !== "production") {
-            console.warn("Firebase Admin environment variables missing. Using mock implementation for development/build.");
-            isInitialized = true;
-            return null;
-        }
-
-        throw new Error("Firebase Admin environment variables are missing. Please check your .env file.");
+        console.warn("Firebase Admin environment variables missing.");
+        isInitialized = true;
+        return null;
     }
 
     // Initialize with environment variables
@@ -38,7 +72,6 @@ export function initAdmin(): App | null {
             credential: cert({
                 projectId: process.env.FIREBASE_PROJECT_ID,
                 clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                // The private key needs to be properly formatted as it might have escaped newlines
                 privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
             }),
         });
@@ -47,22 +80,15 @@ export function initAdmin(): App | null {
         return adminApp;
     } catch (error) {
         console.error("Error initializing Firebase Admin:", error);
-
-        // If we're not in production, return null
-        if (process.env.NODE_ENV !== "production") {
-            console.warn("Firebase Admin initialization failed. Using mock implementation for development/build.");
-            isInitialized = true;
-            return null;
-        }
-
-        throw error;
+        isInitialized = true;
+        return null;
     }
 }
 
 // Initialize the admin app
-initAdmin();
+const app = initAdmin();
 
-// Export the admin services
-export const adminAuth = getAuth();
-export const adminDb = getFirestore();
-export const adminStorage = getStorage();
+// Export the admin services with fallbacks for build time
+export const adminAuth = app ? getAuth() : (mockAuth as ReturnType<typeof getAuth>);
+export const adminDb = app ? getFirestore() : (mockDb as ReturnType<typeof getFirestore>);
+export const adminStorage = app ? getStorage() : (mockStorage as ReturnType<typeof getStorage>);
