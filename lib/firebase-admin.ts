@@ -3,21 +3,20 @@ import { getFirestore } from "firebase-admin/firestore"
 import { getAuth } from "firebase-admin/auth"
 import { getStorage } from "firebase-admin/storage"
 
-// Initialize variables to hold our admin services
-let adminDb: ReturnType<typeof getFirestore> | null = null;
-let adminAuth: ReturnType<typeof getAuth> | null = null;
-let adminStorage: ReturnType<typeof getStorage> | null = null;
+// Track initialization state
+let isInitialized = false;
 let adminApp: App | null = null;
 
 export function initAdmin(): App | null {
     // Return existing app if already initialized
-    if (adminApp) {
+    if (isInitialized && adminApp) {
         return adminApp;
     }
 
-    const apps = getApps()
+    const apps = getApps();
     if (apps.length > 0) {
         adminApp = apps[0];
+        isInitialized = true;
         return adminApp;
     }
 
@@ -26,7 +25,7 @@ export function initAdmin(): App | null {
         // Handle missing environment variables
         if (process.env.NODE_ENV !== "production") {
             console.warn("Firebase Admin environment variables missing. Using mock implementation for development/build.");
-            // Return null to indicate initialization failed
+            isInitialized = true;
             return null;
         }
 
@@ -44,11 +43,7 @@ export function initAdmin(): App | null {
             }),
         });
 
-        // Initialize services only if app initialization succeeded
-        adminDb = getFirestore(adminApp);
-        adminAuth = getAuth(adminApp);
-        adminStorage = getStorage(adminApp);
-
+        isInitialized = true;
         return adminApp;
     } catch (error) {
         console.error("Error initializing Firebase Admin:", error);
@@ -56,6 +51,7 @@ export function initAdmin(): App | null {
         // If we're not in production, return null
         if (process.env.NODE_ENV !== "production") {
             console.warn("Firebase Admin initialization failed. Using mock implementation for development/build.");
+            isInitialized = true;
             return null;
         }
 
@@ -66,51 +62,7 @@ export function initAdmin(): App | null {
 // Initialize the admin app
 initAdmin();
 
-// Export the admin services with safety checks
-export const adminDb = {
-    collection: (path: string) => {
-        if (!adminDb) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminDb.collection(path);
-    },
-    // Add other methods you need
-};
-
-export const adminAuth = {
-    verifyIdToken: async (token: string) => {
-        if (!adminAuth) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminAuth.verifyIdToken(token);
-    },
-    verifySessionCookie: async (cookie: string, checkRevoked: boolean) => {
-        if (!adminAuth) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminAuth.verifySessionCookie(cookie, checkRevoked);
-    },
-    createSessionCookie: async (token: string, options: { expiresIn: number }) => {
-        if (!adminAuth) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminAuth.createSessionCookie(token, options);
-    },
-    listUsers: async (maxResults: number) => {
-        if (!adminAuth) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminAuth.listUsers(maxResults);
-    },
-    // Add other methods you need
-};
-
-export const adminStorage = {
-    bucket: () => {
-        if (!adminStorage) {
-            throw new Error("Firebase Admin not initialized. Check your environment variables.");
-        }
-        return adminStorage.bucket();
-    },
-    // Add other methods you need
-};
+// Export the admin services
+export const adminAuth = getAuth();
+export const adminDb = getFirestore();
+export const adminStorage = getStorage();
