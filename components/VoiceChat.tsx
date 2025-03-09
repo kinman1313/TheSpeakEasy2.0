@@ -1,4 +1,3 @@
-// components/VoiceChat.tsx
 'use client'
 
 import { useState, useEffect, useRef, useCallback } from 'react'
@@ -6,13 +5,22 @@ import { Button } from '@/components/ui/button'
 import { Mic, MicOff, PhoneOff } from 'lucide-react'
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from '@/lib/firebase'
-import { collection, doc, onSnapshot, setDoc, deleteDoc, getDocs } from 'firebase/firestore'
+import {
+    collection,
+    doc,
+    onSnapshot,
+    setDoc,
+    deleteDoc,
+    getDocs,
+    type Firestore
+} from 'firebase/firestore'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { toast } from 'sonner'
+import { useRouter } from 'next/navigation'
 
 interface VoiceChatProps {
     roomId: string
-    onEnd: () => void
+    redirectUrl?: string // URL to redirect to after ending the call
 }
 
 interface Participant {
@@ -21,12 +29,16 @@ interface Participant {
     photoURL: string
 }
 
-export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
+export function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps) {
     const { user } = useAuth()
+    const router = useRouter()
     const [isMuted, setIsMuted] = useState(false)
     const [participants, setParticipants] = useState<Participant[]>([])
     const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
     const localStream = useRef<MediaStream | null>(null)
+
+    // Check if Firebase is initialized
+    const isFirebaseReady = typeof window !== 'undefined' && !!db;
 
     const startVoiceChat = useCallback(async () => {
         try {
@@ -51,6 +63,10 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
         }
     }
 
+    const handleEndCall = () => {
+        router.push(redirectUrl);
+    }
+
     const stopVoiceChat = useCallback(() => {
         if (localStream.current) {
             localStream.current.getTracks().forEach((track) => {
@@ -61,17 +77,23 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
 
         // Clean up Firebase and Peer connections
         endCallProcedure()
-        onEnd()
-    }, [onEnd])
+        handleEndCall()
+    }, [redirectUrl, router])
 
     const endCallProcedure = async () => {
+        // Skip if Firebase is not initialized
+        if (!isFirebaseReady || !db) return;
+
         // Clean up Firebase and Peer connections
         try {
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
             // Remove the room document
-            await deleteDoc(doc(db, 'voiceChatRooms', roomId))
+            await deleteDoc(doc(firestore, 'voiceChatRooms', roomId))
 
             // Remove all participants from the participants collection
-            const participantsCollection = collection(db, 'voiceChatRooms', roomId, 'participants')
+            const participantsCollection = collection(firestore, 'voiceChatRooms', roomId, 'participants')
             const participantsSnapshot = await getDocs(participantsCollection)
             participantsSnapshot.forEach(async (doc) => {
                 await deleteDoc(doc.ref)
@@ -82,27 +104,31 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
     }
 
     useEffect(() => {
-        if (!user) return
+        if (!user || !isFirebaseReady || !db) return;
 
-        let unsubscribe: (() => void) | undefined
+        let unsubscribe: (() => void) | undefined;
 
-        const initializeVoiceChat = async () => {
+        // Use an IIFE to handle the async function
+        (async () => {
             try {
-                await setDoc(doc(db, 'voiceChatRooms', roomId), {
+                // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+                const firestore = db as Firestore;
+
+                await setDoc(doc(firestore, 'voiceChatRooms', roomId), {
                     initiatorId: user.uid,
                     createdAt: new Date(),
                 })
 
-                await setDoc(doc(db, 'voiceChatRooms', roomId, 'participants', user.uid), {
+                await setDoc(doc(firestore, 'voiceChatRooms', roomId, 'participants', user.uid), {
                     id: user.uid,
                     displayName: user.displayName,
                     photoURL: user.photoURL,
                     joinedAt: new Date(),
                 })
 
-                startVoiceChat()
+                await startVoiceChat();
 
-                const participantsCollection = collection(db, 'voiceChatRooms', roomId, 'participants')
+                const participantsCollection = collection(firestore, 'voiceChatRooms', roomId, 'participants')
 
                 unsubscribe = onSnapshot(participantsCollection, (snapshot) => {
                     const updatedParticipants = snapshot.docs.map((doc) => doc.data() as Participant)
@@ -110,10 +136,12 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
                 })
             } catch (error) {
                 console.error('Error initializing voice chat:', error)
+                toast.error('Failed to initialize voice chat')
             }
-        }
-
-        initializeVoiceChat()
+        })().catch(error => {
+            console.error('Error in voice chat initialization:', error)
+            toast.error('Failed to initialize voice chat')
+        });
 
         return () => {
             if (unsubscribe) {
@@ -121,7 +149,12 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
             }
             stopVoiceChat()
         }
-    }, [roomId, user, startVoiceChat, stopVoiceChat])
+    }, [roomId, user, startVoiceChat, stopVoiceChat, isFirebaseReady, db])
+
+    // Early return if not in browser
+    if (typeof window === 'undefined') {
+        return null;
+    }
 
     return (
         <div className="p-4 bg-opacity-20 backdrop-filter backdrop-blur-lg rounded-lg mb-4">
@@ -153,6 +186,7 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
                     size="icon"
                     onClick={toggleMute}
                     className={`${isMuted ? 'bg-neon-red bg-opacity-30 text-neon-red' : 'text-neon-white'}`}
+                    disabled={!isFirebaseReady}
                 >
                     {isMuted ? <MicOff className="h-5 w-5" /> : <Mic className="h-5 w-5" />}
                 </Button>
@@ -162,6 +196,7 @@ export function VoiceChat({ roomId, onEnd }: VoiceChatProps) {
                     size="icon"
                     className="bg-neon-red bg-opacity-30 text-neon-red"
                     onClick={stopVoiceChat}
+                    disabled={!isFirebaseReady}
                 >
                     <PhoneOff className="h-5 w-5" />
                 </Button>

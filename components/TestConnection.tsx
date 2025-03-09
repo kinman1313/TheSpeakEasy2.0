@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { CheckCircle, XCircle } from 'lucide-react'
-import { collection, getDocs } from "firebase/firestore"
+import { collection, getDocs, type Firestore } from "firebase/firestore"
 import { db } from "@/lib/firebase"
 
 export function TestConnection() {
@@ -15,6 +15,9 @@ export function TestConnection() {
         database: false,
     })
     const [isLoading, setIsLoading] = useState(false)
+
+    // Check if Firebase is initialized
+    const isFirebaseReady = typeof window !== 'undefined' && !!db;
 
     // Move the initial auth check to useEffect to ensure it only runs in the browser
     useEffect(() => {
@@ -26,8 +29,17 @@ export function TestConnection() {
     const testDatabase = async () => {
         setIsLoading(true)
         try {
+            // Skip if Firebase is not initialized
+            if (!isFirebaseReady || !db) {
+                setTestStatus((prev) => ({ ...prev, database: false }))
+                throw new Error("Firebase is not initialized");
+            }
+
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
             // Try to fetch a collection
-            const querySnapshot = await getDocs(collection(db, "test-collection"))
+            const querySnapshot = await getDocs(collection(firestore, "test-collection"))
             setTestStatus((prev) => ({ ...prev, database: true }))
         } catch (error) {
             console.error("Database test failed:", error)
@@ -48,6 +60,11 @@ export function TestConnection() {
         } finally {
             setIsLoading(false)
         }
+    }
+
+    // Early return if not in browser
+    if (typeof window === 'undefined') {
+        return null;
     }
 
     return (
@@ -73,7 +90,7 @@ export function TestConnection() {
                         <XCircle className="h-5 w-5 text-red-500" />
                     )}
                 </div>
-                <Button onClick={testAll} disabled={isLoading} className="w-full">
+                <Button onClick={testAll} disabled={isLoading || !isFirebaseReady} className="w-full">
                     {isLoading ? "Testing..." : "Test All Connections"}
                 </Button>
             </CardContent>
