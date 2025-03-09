@@ -1,88 +1,81 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
-import { sendPasswordResetEmail } from "firebase/auth"
-import { auth } from "@/lib/firebase"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { toast } from "sonner"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowLeft } from "lucide-react"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { auth } from "@/lib/firebase"
+import { sendPasswordResetEmail, type Auth } from "firebase/auth"
+import { toast } from "sonner"
 import Link from "next/link"
 
 export function PasswordResetForm() {
   const [email, setEmail] = useState("")
   const [isLoading, setIsLoading] = useState(false)
 
-  async function onSubmit(e: React.FormEvent) {
+  // Check if Firebase is initialized
+  const isFirebaseReady = typeof window !== 'undefined' && !!auth;
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!email || !isFirebaseReady || !auth) {
+      toast.error("Please enter your email address")
+      return
+    }
 
     try {
       setIsLoading(true)
-      await sendPasswordResetEmail(auth, email)
+      // Use type assertion to tell TypeScript that auth is definitely an Auth instance
+      const authInstance = auth as Auth;
+
+      await sendPasswordResetEmail(authInstance, email)
       toast.success("Password reset email sent! Check your inbox.")
       setEmail("")
     } catch (error: any) {
-      console.error("Password reset error:", error)
-      // More specific error messages
-      if (error.code === "auth/network-request-failed") {
-        toast.error("Network error. Please check your connection and make sure the Firebase emulator is running.")
-      } else if (error.code === "auth/user-not-found") {
-        toast.error("No account found with this email address.")
-      } else if (error.code === "auth/invalid-email") {
-        toast.error("Please enter a valid email address.")
-      } else {
-        toast.error(error.message || "Failed to send reset email. Please try again.")
-      }
+      console.error(error)
+      toast.error(error.message || "Failed to send password reset email")
     } finally {
       setIsLoading(false)
     }
   }
 
+  // Early return if not in browser
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
   return (
-    <Card className="border-none bg-black/50 backdrop-blur-xl">
+    <Card className="w-full max-w-md">
       <CardHeader>
-        <CardTitle className="text-xl text-white">Reset Password</CardTitle>
-        <CardDescription className="text-zinc-400">
-          Enter your email address and we'll send you a link to reset your password.
-        </CardDescription>
+        <CardTitle>Reset Password</CardTitle>
+        <CardDescription>Enter your email to receive a password reset link</CardDescription>
       </CardHeader>
-      <form onSubmit={onSubmit}>
-        <CardContent>
-          <div className="grid gap-4">
+      <CardContent>
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-2">
+            <Label htmlFor="email">Email</Label>
             <Input
+              id="email"
               type="email"
-              placeholder="Enter your email"
+              placeholder="m@example.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              className="bg-white/5 border-white/10 text-white placeholder:text-zinc-400"
+              disabled={isLoading}
             />
           </div>
-        </CardContent>
-        <CardFooter className="flex flex-col gap-4">
-          <Button type="submit" disabled={isLoading} className="w-full bg-white/10 hover:bg-white/20 text-white">
-            {isLoading ? (
-              <span className="flex items-center gap-2">
-                <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-200" />
-                Sending...
-              </span>
-            ) : (
-              "Send Reset Link"
-            )}
+          <Button type="submit" className="w-full" disabled={isLoading || !isFirebaseReady}>
+            {isLoading ? "Sending..." : "Send Reset Link"}
           </Button>
-          <Link
-            href="/login"
-            className="flex items-center gap-2 text-sm text-zinc-400 hover:text-white transition-colors"
-          >
-            <ArrowLeft className="h-4 w-4" />
-            Back to Login
-          </Link>
-        </CardFooter>
-      </form>
+        </form>
+      </CardContent>
+      <CardFooter className="flex justify-center">
+        <Link href="/login" className="text-sm text-primary hover:underline">
+          Back to Login
+        </Link>
+      </CardFooter>
     </Card>
   )
 }
-
