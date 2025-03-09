@@ -1,7 +1,8 @@
-import { getApps, initializeApp, cert, type App } from "firebase-admin/app"
-import { getFirestore, type Firestore } from "firebase-admin/firestore"
-import { getAuth, type Auth } from "firebase-admin/auth"
-import { getStorage, type Storage } from "firebase-admin/storage"
+import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
+import { getFirestore, type Firestore } from "firebase-admin/firestore";
+import { getAuth, type Auth } from "firebase-admin/auth";
+import { getStorage, type Storage } from "firebase-admin/storage";
+import path from "path";
 
 // Function to check if we're in the build phase
 function isBuildPhase() {
@@ -18,7 +19,6 @@ try {
     // Skip initialization during build
     if (!isBuildPhase()) {
         const apps = getApps();
-
         if (apps.length > 0) {
             app = apps[0];
         } else if (
@@ -53,7 +53,7 @@ try {
 function ensureService<T>(service: T | null, serviceName: string): T {
     if (!service) {
         if (isBuildPhase()) {
-            // During build, return a dummy object that won't be used
+            // During build, return a mock object that won't be used
             return {} as T;
         }
         throw new Error(`Firebase Admin ${serviceName} not initialized. Check your environment variables.`);
@@ -61,7 +61,7 @@ function ensureService<T>(service: T | null, serviceName: string): T {
     return service;
 }
 
-// Create a more complete mock data object
+// Mock data used for Firestore, Auth, and Storage during the build phase
 const mockData = {
     // User data
     presence: { status: "offline", lastSeen: null },
@@ -69,19 +69,7 @@ const mockData = {
     displayName: "Mock User",
     photoURL: "/placeholder.svg?height=40&width=40",
     createdAt: new Date().toISOString(),
-
-    // Room data
-    name: "Mock Room",
-    isPrivate: false,
-    ownerId: "mock-uid",
-    members: ["mock-uid"],
-
-    // Message data
-    text: "This is a mock message",
-    senderId: "mock-uid",
-    roomId: "mock-room-id",
-
-    // Add any other properties your app uses
+    // Add other properties you need here...
 };
 
 // Create a more complete mock query implementation
@@ -95,25 +83,24 @@ const createMockQuery = () => {
             docs: [
                 {
                     id: "mock-id",
-                    data: () => ({ ...mockData })
-                }
-            ]
+                    data: () => ({ ...mockData }),
+                },
+            ],
         }),
     };
     return mockQuery;
 };
 
-// Export the admin services with safety checks
+// Firestore Service (Mock or Real)
 export const adminDb = {
     collection: (path: string) => {
         if (isBuildPhase()) {
-            // Return a mock during build
             return {
                 doc: (id: string) => ({
                     get: async () => ({
                         exists: true,
                         id: id || "mock-id",
-                        data: () => ({ ...mockData })
+                        data: () => ({ ...mockData }),
                     }),
                     update: async () => ({}),
                     set: async () => ({}),
@@ -128,9 +115,9 @@ export const adminDb = {
                     docs: [
                         {
                             id: "mock-id",
-                            data: () => ({ ...mockData })
-                        }
-                    ]
+                            data: () => ({ ...mockData }),
+                        },
+                    ],
                 }),
             };
         }
@@ -142,7 +129,7 @@ export const adminDb = {
                 get: async () => ({
                     exists: true,
                     id: "mock-id",
-                    data: () => ({ ...mockData })
+                    data: () => ({ ...mockData }),
                 }),
                 update: async () => ({}),
                 set: async () => ({}),
@@ -153,6 +140,7 @@ export const adminDb = {
     },
 };
 
+// Firebase Admin Auth Service (Mock or Real)
 export const adminAuth = {
     verifyIdToken: async (token: string) => {
         if (isBuildPhase()) {
@@ -180,6 +168,7 @@ export const adminAuth = {
     },
 };
 
+// Firebase Admin Storage Service (Mock or Real)
 export const adminStorage = {
     bucket: (name?: string) => {
         if (isBuildPhase()) {

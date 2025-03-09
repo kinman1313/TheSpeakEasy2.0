@@ -1,3 +1,5 @@
+const path = require('path');  // Make sure path module is required
+
 const withPWA = require("next-pwa")({
   dest: "public",
   register: true,
@@ -22,13 +24,18 @@ const nextConfig = {
       loader: "babel-loader",
       options: {
         presets: ["@babel/preset-env"],
-        plugins: ["@babel/plugin-proposal-private-methods", "@babel/plugin-proposal-class-properties"],
+        plugins: [
+          "@babel/plugin-proposal-private-methods",
+          "@babel/plugin-proposal-class-properties",
+        ],
       },
-    })
+    });
 
-    return config
+    // Setting up alias for '@'
+    config.resolve.alias['@'] = path.join(__dirname, 'src'); // or your preferred directory
+
+    return config;
   },
 }
 
-module.exports = withPWA(nextConfig)
-
+module.exports = withPWA(nextConfig);

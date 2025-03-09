@@ -10,10 +10,6 @@ const hostname = dev ? "localhost" : "thespeakeasy.app"
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler() 
 
-app.listen(port, () => {
-  console.log(`App listening on port: ${port}`);
-});
-
 app.prepare().then(() => {
   const server = createServer((req, res) => {
     const parsedUrl = parse(req.url, true)
