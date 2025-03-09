@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Button } from "@/components/ui/button"
-import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MonitorOff } from "lucide-react"
+import { Mic, MicOff, Video, VideoOff, PhoneOff, ScreenShare, MonitorOff } from 'lucide-react'
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
 import {
@@ -16,24 +16,38 @@ import {
   getDocs,
   type DocumentData,
   type QuerySnapshot,
+  type Firestore,
 } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
-import type { CallControlsProps, Participant, PeerConnectionData, SignalData } from "@/components/types/call"
+import type { Participant, PeerConnectionData, SignalData } from "@/components/types/call"
 import { getSocket, joinCallRoom } from "@/lib/socket"
+import { useRouter } from "next/navigation"
 
 interface CallData {
   creatorId: string
   createdAt: Date
 }
 
-export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
+// Update the props interface to use redirectUrl instead of onEnd function
+interface CallControlsProps {
+  isVideo: boolean;
+  roomId: string;
+  redirectUrl?: string; // URL to redirect to after call ends
+}
+
+export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControlsProps) {
   const { user } = useAuth()
+  const router = useRouter()
   const [isMuted, setIsMuted] = useState<boolean>(false)
   const [isVideoEnabled, setIsVideoEnabled] = useState<boolean>(isVideo)
   const [isScreenSharing, setIsScreenSharing] = useState<boolean>(false)
   const [participants, setParticipants] = useState<Participant[]>([])
   const socket = getSocket()
+
+  // Check if we're in the browser and Firebase is initialized
+  const isBrowser = typeof window !== 'undefined';
+  const isFirebaseReady = isBrowser && !!db;
 
   // Refs for video elements
   const localVideoRef = useRef<HTMLVideoElement | null>(null)
@@ -163,8 +177,14 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
 
   // Subscribe to participants
   useEffect(() => {
-    const callDocRef = doc(db, "calls", roomId)
-    const participantsCollection = collection(callDocRef, "participants")
+    // Skip if Firebase is not initialized
+    if (!isFirebaseReady || !db) return;
+
+    // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+    const firestore = db as Firestore;
+
+    const callDocRef = doc(firestore, "calls", roomId);
+    const participantsCollection = collection(callDocRef, "participants");
 
     const unsubscribe = onSnapshot(participantsCollection, (snapshot: QuerySnapshot<DocumentData>) => {
       const updatedParticipants = snapshot.docs.map((doc) => ({
@@ -182,7 +202,7 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
     })
 
     return () => unsubscribe()
-  }, [roomId, user?.uid])
+  }, [roomId, user?.uid, isFirebaseReady, db])
 
   // Create a peer connection for a participant
   const createPeerConnection = (participantId: string) => {
@@ -245,11 +265,15 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
 
   // Initialize peer connections
   useEffect(() => {
-    if (!user || !localStream.current) return
+    // Skip if Firebase is not initialized
+    if (!user || !localStream.current || !isFirebaseReady || !db) return
 
     const initializePeerConnection = async () => {
-      const callDocRef = doc(db, "calls", roomId)
-      const callDoc = await getDoc(callDocRef)
+      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+      const firestore = db as Firestore;
+
+      const callDocRef = doc(firestore, "calls", roomId);
+      const callDoc = await getDoc(callDocRef);
 
       if (!callDoc.exists()) {
         const callData: CallData = {
@@ -274,7 +298,7 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
     }
 
     initializePeerConnection()
-  }, [roomId, user, isMuted, isVideoEnabled])
+  }, [roomId, user, isMuted, isVideoEnabled, isFirebaseReady, db])
 
   // Handle media controls
   const toggleMute = async () => {
@@ -289,11 +313,14 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
 
     setIsMuted(newMutedState)
 
-    if (user) {
-      const callDocRef = doc(db, "calls", roomId)
-      const participantsCollection = collection(callDocRef, "participants")
-      const userDocRef = doc(participantsCollection, user.uid)
-      await updateDoc(userDocRef, { isMuted: newMutedState })
+    if (user && isFirebaseReady && db) {
+      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+      const firestore = db as Firestore;
+
+      const callDocRef = doc(firestore, "calls", roomId);
+      const participantsCollection = collection(callDocRef, "participants");
+      const userDocRef = doc(participantsCollection, user.uid);
+      await updateDoc(userDocRef, { isMuted: newMutedState });
     }
   }
 
@@ -309,11 +336,14 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
 
     setIsVideoEnabled(newVideoState)
 
-    if (user) {
-      const callDocRef = doc(db, "calls", roomId)
-      const participantsCollection = collection(callDocRef, "participants")
-      const userDocRef = doc(participantsCollection, user.uid)
-      await updateDoc(userDocRef, { isVideoEnabled: newVideoState })
+    if (user && isFirebaseReady && db) {
+      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+      const firestore = db as Firestore;
+
+      const callDocRef = doc(firestore, "calls", roomId);
+      const participantsCollection = collection(callDocRef, "participants");
+      const userDocRef = doc(participantsCollection, user.uid);
+      await updateDoc(userDocRef, { isVideoEnabled: newVideoState });
     }
   }
 
@@ -386,13 +416,16 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
   // Handle call end
   const handleEndCall = async () => {
     try {
-      if (user) {
-        const callDocRef = doc(db, "calls", roomId)
-        const participantsCollection = collection(callDocRef, "participants")
-        const userDocRef = doc(participantsCollection, user.uid)
+      if (user && isFirebaseReady && db) {
+        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+        const firestore = db as Firestore;
 
-        await deleteDoc(userDocRef)
-        await deleteCallIfEmpty(roomId)
+        const callDocRef = doc(firestore, "calls", roomId);
+        const participantsCollection = collection(callDocRef, "participants");
+        const userDocRef = doc(participantsCollection, user.uid);
+
+        await deleteDoc(userDocRef);
+        await deleteCallIfEmpty(roomId);
       }
 
       // Clean up media
@@ -408,7 +441,8 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
         peerConnection.close()
       })
 
-      onEnd()
+      // Use router to navigate to the redirect URL instead of calling onEnd
+      router.push(redirectUrl);
     } catch (error) {
       console.error("Error ending call:", error)
       toast.error("Failed to end call properly")
@@ -417,12 +451,17 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
 
   const handleParticipantLeft = async (participantId: string) => {
     try {
-      const callDocRef = doc(db, "calls", roomId)
-      const participantsCollection = collection(callDocRef, "participants")
-      const participantDocRef = doc(participantsCollection, participantId)
+      if (isFirebaseReady && db) {
+        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+        const firestore = db as Firestore;
 
-      await deleteDoc(participantDocRef)
-      await deleteCallIfEmpty(roomId)
+        const callDocRef = doc(firestore, "calls", roomId);
+        const participantsCollection = collection(callDocRef, "participants");
+        const participantDocRef = doc(participantsCollection, participantId);
+
+        await deleteDoc(participantDocRef);
+        await deleteCallIfEmpty(roomId);
+      }
 
       // Clean up participant's peer connection
       if (peerConnections.current[participantId]) {
@@ -444,13 +483,23 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
   }
 
   const deleteCallIfEmpty = async (roomId: string) => {
-    const callDocRef = doc(db, "calls", roomId)
-    const participantsCollection = collection(callDocRef, "participants")
-    const snapshot = await getDocs(participantsCollection)
+    if (!isFirebaseReady || !db) return;
+
+    // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+    const firestore = db as Firestore;
+
+    const callDocRef = doc(firestore, "calls", roomId);
+    const participantsCollection = collection(callDocRef, "participants");
+    const snapshot = await getDocs(participantsCollection);
 
     if (snapshot.empty) {
-      await deleteDoc(callDocRef)
+      await deleteDoc(callDocRef);
     }
+  }
+
+  // Early return if not in browser
+  if (!isBrowser) {
+    return null;
   }
 
   return (
@@ -528,4 +577,3 @@ export function CallControls({ isVideo, roomId, onEnd }: CallControlsProps) {
     </div>
   )
 }
-
