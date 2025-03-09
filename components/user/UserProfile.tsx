@@ -10,11 +10,12 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Switch } from "@/components/ui/switch"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db, storage, auth } from "@/lib/firebase"
-import { doc, getDoc, setDoc, updateDoc } from "firebase/firestore"
-import { ref, uploadBytes, getDownloadURL } from "firebase/storage"
-import { updateProfile } from "firebase/auth"
+import { doc, getDoc, setDoc, updateDoc, type Firestore } from "firebase/firestore"
+import { ref, uploadBytes, getDownloadURL, type FirebaseStorage } from "firebase/storage"
+import { updateProfile, type Auth } from "firebase/auth"
 import { toast } from "sonner"
 import { CirclePicker } from "react-color"
+import { useRouter } from "next/navigation"
 
 interface UserSettings {
     enterToSend: boolean
@@ -24,7 +25,7 @@ interface UserSettings {
 }
 
 interface UserProfileProps {
-    onClose: () => void
+    redirectUrl?: string // URL to redirect to after closing
 }
 
 const DEFAULT_SETTINGS: UserSettings = {
@@ -45,8 +46,9 @@ const NEON_COLORS = [
     "#ffffff", // neon white
 ]
 
-export function UserProfile({ onClose }: UserProfileProps) {
+export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
     const { user } = useAuth()
+    const router = useRouter()
     const [displayName, setDisplayName] = useState("")
     const [photoURL, setPhotoURL] = useState("")
     const [isUploading, setIsUploading] = useState(false)
@@ -54,15 +56,81 @@ export function UserProfile({ onClose }: UserProfileProps) {
     const [chatColor, setChatColor] = useState("#00f3ff") // Default neon blue
     const [settings, setSettings] = useState<UserSettings>(DEFAULT_SETTINGS)
 
+    // Check if Firebase is initialized
+    const isFirebaseReady = typeof window !== 'undefined' && !!db && !!storage && !!auth;
+
+    const handleClose = () => {
+        router.push(redirectUrl);
+    }
+
     useEffect(() => {
-        if (!user) return
+        if (!user || !isFirebaseReady || !db) return;
 
         setDisplayName(user.displayName || "")
-        setPhotoURL(user.photoURL || "")
+     useEffect(() => {
+    if (!user || !isFirebaseReady || !db) return;
 
-        const fetchUserData = async () => {
+    // Make sure user is defined and photoURL is accessed safely
+    if (user) {
+        setDisplayName(user.displayName || "");
+        setPhotoURL(user.photoURL || "");
+    }
+
+    // Use an IIFE to handle the async function
+    (async () => {
+        try {
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
+            // Make sure user is defined before accessing uid
+            if (!user || !user.uid) {
+                console.error("User or user.uid is undefined");
+                return;
+            }
+
+            const userRef = doc(firestore, "users", user.uid);
+            const userSnap = await getDoc(userRef);
+
+            if (userSnap.exists()) {
+                const userData = userSnap.data();
+                if (userData.chatColor) {
+                    setChatColor(userData.chatColor);
+                }
+                if (userData.settings) {
+                    setSettings((prev) => ({
+                        ...prev,
+                        ...userData.settings,
+                    }));
+                }
+            } else {
+                // Create user document if it doesn't exist
+                await setDoc(userRef, {
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName || "",
+                    photoURL: user.photoURL || "",
+                    chatColor: "#00f3ff",
+                    settings: DEFAULT_SETTINGS,
+                    createdAt: new Date(),
+                });
+            }
+        } catch (error) {
+            console.error("Error fetching user data:", error);
+            toast.error("Could not load user settings");
+        }
+    })().catch(error => {
+        console.error("Error in fetchUserData:", error);
+        toast.error("Failed to load user settings");
+    });
+}, [user, isFirebaseReady, db]);
+
+        // Use an IIFE to handle the async function
+        (async () => {
             try {
-                const userRef = doc(db, "users", user.uid)
+                // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+                const firestore = db as Firestore;
+
+                const userRef = doc(firestore, "users", user.uid)
                 const userSnap = await getDoc(userRef)
 
                 if (userSnap.exists()) {
@@ -92,14 +160,15 @@ export function UserProfile({ onClose }: UserProfileProps) {
                 console.error("Error fetching user data:", error)
                 toast.error("Could not load user settings")
             }
-        }
-
-        fetchUserData()
-    }, [user])
+        })().catch(error => {
+            console.error("Error in fetchUserData:", error);
+            toast.error("Failed to load user settings");
+        });
+    }, [user, isFirebaseReady, db])
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]
-        if (!file || !user) return
+        if (!file || !user || !isFirebaseReady || !storage || !auth || !db) return
 
         const maxSize = 5 * 1024 * 1024 // 5MB
         if (file.size > maxSize) {
@@ -111,18 +180,25 @@ export function UserProfile({ onClose }: UserProfileProps) {
             setIsUploading(true)
             toast.loading("Uploading photo...")
 
+            // Use type assertions to tell TypeScript that these are definitely the correct instances
+            const firebaseStorage = storage as FirebaseStorage;
+            const firebaseAuth = auth as Auth;
+            const firestore = db as Firestore;
+
             // Upload to Firebase Storage
-            const storageRef = ref(storage, `profile_photos/${user.uid}`)
+            const storageRef = ref(firebaseStorage, `profile_photos/${user.uid}`)
             await uploadBytes(storageRef, file)
             const downloadURL = await getDownloadURL(storageRef)
 
             // Update user profile
-            await updateProfile(auth.currentUser!, {
-                photoURL: downloadURL,
-            })
+            if (firebaseAuth.currentUser) {
+                await updateProfile(firebaseAuth.currentUser, {
+                    photoURL: downloadURL,
+                })
+            }
 
             // Update in Firestore
-            const userRef = doc(db, "users", user.uid)
+            const userRef = doc(firestore, "users", user.uid)
             await updateDoc(userRef, {
                 photoURL: downloadURL,
             })
@@ -138,7 +214,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
     }
 
     const updateUserProfile = async () => {
-        if (!user) return
+        if (!user || !isFirebaseReady || !auth || !db) return
 
         if (!displayName.trim()) {
             toast.error("Display name cannot be empty")
@@ -149,15 +225,19 @@ export function UserProfile({ onClose }: UserProfileProps) {
             setIsSaving(true)
             toast.loading("Saving changes...")
 
+            // Use type assertions to tell TypeScript that these are definitely the correct instances
+            const firebaseAuth = auth as Auth;
+            const firestore = db as Firestore;
+
             // Update display name in Firebase Auth
-            if (displayName !== user.displayName) {
-                await updateProfile(auth.currentUser!, {
+            if (displayName !== user.displayName && firebaseAuth.currentUser) {
+                await updateProfile(firebaseAuth.currentUser, {
                     displayName: displayName.trim(),
                 })
             }
 
             // Update in Firestore
-            const userRef = doc(db, "users", user.uid)
+            const userRef = doc(firestore, "users", user.uid)
             await updateDoc(userRef, {
                 displayName: displayName.trim(),
                 chatColor,
@@ -166,7 +246,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
             })
 
             toast.success("Profile updated successfully")
-            onClose()
+            handleClose()
         } catch (error) {
             console.error("Error updating profile:", error)
             toast.error("Could not update profile")
@@ -182,7 +262,10 @@ export function UserProfile({ onClose }: UserProfileProps) {
         }))
     }
 
-    if (!user) return null
+    // Early return if not in browser or no user
+    if (typeof window === 'undefined' || !user) {
+        return null;
+    }
 
     return (
         <>
@@ -205,7 +288,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                             variant="outline"
                             className="border-neon-blue text-neon-blue hover:bg-neon-blue/20"
                             onClick={() => document.getElementById("photo-upload")?.click()}
-                            disabled={isUploading}
+                            disabled={isUploading || !isFirebaseReady}
                         >
                             {isUploading ? "Uploading..." : "Change Photo"}
                         </Button>
@@ -216,6 +299,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                             onChange={handlePhotoUpload}
                             className="hidden"
                             aria-label="Upload profile photo"
+                            disabled={!isFirebaseReady}
                         />
                     </div>
                 </div>
@@ -232,6 +316,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                         className="bg-opacity-30 border-neon-blue text-neon-white"
                         maxLength={50}
                         required
+                        disabled={!isFirebaseReady}
                     />
                 </div>
 
@@ -263,6 +348,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                                 id="enter-to-send"
                                 checked={settings.enterToSend}
                                 onCheckedChange={(value) => handleSettingChange("enterToSend", value)}
+                                disabled={!isFirebaseReady}
                             />
                         </div>
 
@@ -274,6 +360,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                                 id="typing-indicators"
                                 checked={settings.showTypingIndicators}
                                 onCheckedChange={(value) => handleSettingChange("showTypingIndicators", value)}
+                                disabled={!isFirebaseReady}
                             />
                         </div>
 
@@ -285,6 +372,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                                 id="read-receipts"
                                 checked={settings.showReadReceipts}
                                 onCheckedChange={(value) => handleSettingChange("showReadReceipts", value)}
+                                disabled={!isFirebaseReady}
                             />
                         </div>
 
@@ -296,6 +384,7 @@ export function UserProfile({ onClose }: UserProfileProps) {
                                 id="notifications"
                                 checked={settings.notificationsEnabled}
                                 onCheckedChange={(value) => handleSettingChange("notificationsEnabled", value)}
+                                disabled={!isFirebaseReady}
                             />
                         </div>
                     </div>
@@ -305,16 +394,16 @@ export function UserProfile({ onClose }: UserProfileProps) {
             <div className="flex justify-end space-x-2 mt-4">
                 <Button
                     variant="outline"
-                    onClick={onClose}
+                    onClick={handleClose}
                     className="border-neon-red text-neon-red hover:bg-neon-red/20"
-                    disabled={isUploading || isSaving}
+                    disabled={isUploading || isSaving || !isFirebaseReady}
                 >
                     Cancel
                 </Button>
                 <Button
                     onClick={updateUserProfile}
                     className="bg-neon-green text-black hover:bg-neon-green/80"
-                    disabled={isUploading || isSaving}
+                    disabled={isUploading || isSaving || !isFirebaseReady}
                 >
                     {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
@@ -322,4 +411,3 @@ export function UserProfile({ onClose }: UserProfileProps) {
         </>
     )
 }
-

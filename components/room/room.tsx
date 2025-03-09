@@ -57,4 +57,3 @@ export function Room({ roomId }: RoomProps) {
 
   return <ChatInterface roomId={roomId} />
 }
-
