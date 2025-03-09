@@ -26,7 +26,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
   const router = useRouter()
   const [isMuted, setIsMuted] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
-  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
+  useRef<{ [key: string]: RTCPeerConnection }>({});
   const localStream = useRef<MediaStream | null>(null)
 
   // Check if we're in a browser environment and Firebase is initialized
