@@ -2,19 +2,14 @@
 
 import React, { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { db } from "@/lib/firebase"
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  addDoc,
-  serverTimestamp,
-  type Firestore,
-} from "firebase/firestore"
-import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, Timestamp } from "firebase/firestore"
+import { app } from "@/lib/firebase"
+
+// Initialize Firestore only if app is defined
+const db = app ? getFirestore(app) : undefined
 
 interface Message {
   id: string
@@ -22,99 +17,94 @@ interface Message {
   userId: string
   userName: string
   userPhotoURL?: string
-  createdAt: any
+  timestamp: Timestamp
 }
 
-export default function ChatRoom() {
+export default function ChatApp() {
   const { user } = useAuth()
+  const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
-  const [newMessage, setNewMessage] = useState("")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Check if Firebase is initialized
-  const isFirebaseReady = typeof window !== 'undefined' && !!db;
+  const isFirebaseReady = !!app && !!db
 
   useEffect(() => {
-    // Skip if Firebase is not initialized
-    if (!isFirebaseReady || !db) return;
+    if (!isFirebaseReady) return
 
-    // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-    const firestore = db as Firestore;
+    // Subscribe to messages
+    const messagesRef = collection(db!, "messages")
+    const q = query(messagesRef, orderBy("timestamp", "asc"))
 
-    const q = query(collection(firestore, "messages"), orderBy("createdAt"))
-
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const messagesData: Message[] = []
-      querySnapshot.forEach((doc) => {
-        messagesData.push({
-          id: doc.id,
-          ...doc.data(),
-        } as Message)
-      })
-      setMessages(messagesData)
-
-      // Scroll to bottom of messages
-      setTimeout(() => {
-        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-      }, 100)
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Message[]
+      setMessages(newMessages)
     })
 
     return () => unsubscribe()
-  }, [isFirebaseReady, db])
+  }, [isFirebaseReady])
+
+  useEffect(() => {
+    // Scroll to bottom when messages change
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!newMessage.trim() || !user || !isFirebaseReady || !db) return
+    if (!message.trim() || !user || !isFirebaseReady) return
 
     try {
-      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-      const firestore = db as Firestore;
-
-      await addDoc(collection(firestore, "messages"), {
-        text: newMessage,
+      await addDoc(collection(db!, "messages"), {
+        text: message,
         userId: user.uid,
         userName: user.displayName || "Anonymous",
         userPhotoURL: user.photoURL,
-        createdAt: serverTimestamp(),
+        timestamp: serverTimestamp(),
       })
 
-      setNewMessage("")
+      setMessage("")
     } catch (error) {
       console.error("Error sending message:", error)
     }
   }
 
-  // Early return if not in browser
-  if (typeof window === 'undefined') {
-    return null;
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <p className="text-lg">Please sign in to use the chat</p>
+      </div>
+    )
   }
 
   return (
     <div className="flex flex-col h-[calc(100vh-4rem)]">
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((message) => (
+        {messages.map((msg) => (
           <div
-            key={message.id}
+            key={msg.id}
             className={`flex items-start gap-2 ${
-              message.userId === user?.uid ? "flex-row-reverse" : "flex-row"
+              msg.userId === user.uid ? "flex-row-reverse" : "flex-row"
             }`}
           >
             <Avatar className="h-8 w-8">
-              <AvatarImage src={message.userPhotoURL || ""} />
-              <AvatarFallback>{message.userName?.[0] || "?"}</AvatarFallback>
+              <AvatarImage src={msg.userPhotoURL || ""} />
+              <AvatarFallback>{msg.userName?.[0] || "?"}</AvatarFallback>
             </Avatar>
             <div
               className={`px-3 py-2 rounded-lg max-w-xs ${
-                message.userId === user?.uid
+                msg.userId === user.uid
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted"
               }`}
             >
-              <p className="text-sm font-medium">{message.userName}</p>
-              <p>{message.text}</p>
+              <p className="text-sm font-medium">{msg.userName}</p>
+              <p>{msg.text}</p>
               <p className="text-xs opacity-70">
-                {message.createdAt?.toDate().toLocaleTimeString()}
+                {msg.timestamp?.toDate().toLocaleTimeString()}
               </p>
             </div>
           </div>
@@ -125,12 +115,12 @@ export default function ChatRoom() {
       <form onSubmit={handleSendMessage} className="p-4 border-t">
         <div className="flex gap-2">
           <Input
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
             placeholder="Type your message..."
-            disabled={!isFirebaseReady || !user}
+            disabled={!isFirebaseReady}
           />
-          <Button type="submit" disabled={!newMessage.trim() || !isFirebaseReady || !user}>
+          <Button type="submit" disabled={!message.trim() || !isFirebaseReady}>
             Send
           </Button>
         </div>

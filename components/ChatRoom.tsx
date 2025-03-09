@@ -1,96 +1,142 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import React, { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore"
 import { db } from "@/lib/firebase"
-import { MessageList } from "@/components/MessageList"
-import { MessageInput } from "@/components/MessageInput"
-import type { SimpleUser, Message } from "@/lib/types"
-import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { CallControls } from "@/components/call-controls"
-import { getSocket } from "@/lib/socket"
+import {
+  collection,
+  query,
+  orderBy,
+  onSnapshot,
+  addDoc,
+  serverTimestamp,
+  type Firestore,
+} from "firebase/firestore"
+import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Phone } from "lucide-react"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-export function ChatRoom() {
+interface Message {
+  id: string
+  text: string
+  userId: string
+  userName: string
+  userPhotoURL?: string
+  createdAt: any
+}
+
+export default function ChatRoom() {
   const { user } = useAuth()
   const [messages, setMessages] = useState<Message[]>([])
-  const [isVoiceChatOpen, setIsVoiceChatOpen] = useState(false)
-  const socket = getSocket() // Get the socket instance
+  const [newMessage, setNewMessage] = useState("")
+  const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  // Check if Firebase is initialized
+  const isFirebaseReady = typeof window !== 'undefined' && !!db;
 
   useEffect(() => {
-    const q = query(collection(db, "messages"), orderBy("createdAt"))
+    // Skip if Firebase is not initialized
+    if (!isFirebaseReady || !db) return;
+
+    // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+    const firestore = db as Firestore;
+
+    // Use firestore instead of db directly
+    const q = query(collection(firestore, "messages"), orderBy("createdAt"));
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messagesData: Message[] = []
       querySnapshot.forEach((doc) => {
-        const data = doc.data()
         messagesData.push({
           id: doc.id,
-          text: data.text,
-          uid: data.uid,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          readBy: data.readBy || [],
-          displayName: data.displayName || "Anonymous",
-          photoURL: data.photoURL || "",
-          // Add other fields as needed
-        })
+          ...doc.data(),
+        } as Message)
       })
       setMessages(messagesData)
+
+      // Scroll to bottom of messages
+      setTimeout(() => {
+        messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+      }, 100)
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [isFirebaseReady, db])
 
-  const sendMessage = async (text: string) => {
-    if (!user) return
+  const handleSendMessage = async (e: React.FormEvent) => {
+    e.preventDefault()
 
-    await addDoc(collection(db, "messages"), {
-      text,
-      uid: user.uid,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-      readBy: [user.uid],
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-    })
+    if (!newMessage.trim() || !user || !isFirebaseReady || !db) return
+
+    try {
+      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+      const firestore = db as Firestore;
+
+      // Use firestore instead of db directly
+      await addDoc(collection(firestore, "messages"), {
+        text: newMessage,
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userPhotoURL: user.photoURL,
+        createdAt: serverTimestamp(),
+      })
+
+      setNewMessage("")
+    } catch (error) {
+      console.error("Error sending message:", error)
+    }
   }
 
-  // Convert the Firebase user to our simplified user type
-  const customUser: SimpleUser | null = user
-    ? {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      }
-    : null
+  // Early return if not in browser
+  if (typeof window === 'undefined') {
+    return null;
+  }
 
   return (
-    <div className="flex flex-col h-screen">
-      <div className="bg-primary p-4 text-primary-foreground flex justify-between items-center">
-        <h1 className="text-xl font-bold">Chat Room</h1>
-        <Button variant="outline" size="icon" onClick={() => setIsVoiceChatOpen(true)}>
-          <Phone className="h-4 w-4" />
-        </Button>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((message) => (
+          <div
+            key={message.id}
+            className={`flex items-start gap-2 ${
+              message.userId === user?.uid ? "flex-row-reverse" : "flex-row"
+            }`}
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={message.userPhotoURL || ""} />
+              <AvatarFallback>{message.userName?.[0] || "?"}</AvatarFallback>
+            </Avatar>
+            <div
+              className={`px-3 py-2 rounded-lg max-w-xs ${
+                message.userId === user?.uid
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted"
+              }`}
+            >
+              <p className="text-sm font-medium">{message.userName}</p>
+              <p>{message.text}</p>
+              <p className="text-xs opacity-70">
+                {message.createdAt?.toDate().toLocaleTimeString()}
+              </p>
+            </div>
+          </div>
+        ))}
+        <div ref={messagesEndRef} />
       </div>
 
-      <MessageList messages={messages} currentUser={customUser} />
-      <MessageInput onSend={sendMessage} />
-
-      <Dialog open={isVoiceChatOpen} onOpenChange={setIsVoiceChatOpen}>
-        <DialogContent className="sm:max-w-md">
-          <CallControls
-            isVideo={true}
-            roomId="main-room"
-            onEnd={() => setIsVoiceChatOpen(false)}
-            socket={socket} // Pass the socket instance
+      <form onSubmit={handleSendMessage} className="p-4 border-t">
+        <div className="flex gap-2">
+          <Input
+            value={newMessage}
+            onChange={(e) => setNewMessage(e.target.value)}
+            placeholder="Type your message..."
+            disabled={!isFirebaseReady || !user}
           />
-        </DialogContent>
-      </Dialog>
+          <Button type="submit" disabled={!newMessage.trim() || !isFirebaseReady || !user}>
+            Send
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }
-
