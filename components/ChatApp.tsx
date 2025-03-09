@@ -1,151 +1,130 @@
 "use client"
 
-import type React from "react"
 import { useState, useEffect, useRef } from "react"
-// Update the import path to point to the correct location
-import { Sidebar } from "@/components/Sidebar"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore"
-import { getFirestore } from "firebase/firestore"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { getFirestore, collection, addDoc, onSnapshot, query, orderBy, serverTimestamp, Timestamp } from "firebase/firestore"
 import { app } from "@/lib/firebase"
 
-const db = getFirestore(app)
+// Initialize Firestore only if app is defined
+const db = app ? getFirestore(app) : undefined
 
 interface Message {
   id: string
   text: string
-  createdAt: any
-  uid: string
-  displayName: string
-  photoURL: string
+  userId: string
+  userName: string
+  userPhotoURL?: string
+  timestamp: Timestamp
 }
 
-const ChatApp = () => {
+export default function ChatApp() {
   const { user } = useAuth()
-  const [newMessage, setNewMessage] = useState("")
+  const [message, setMessage] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const messagesEndRef = useRef<HTMLDivElement>(null)
-  // Add state for sidebar
-  const [selectedRoomId, setSelectedRoomId] = useState<string | null>("general")
 
-  // Mock rooms data for the sidebar
-  const rooms = [
-    { id: "general", name: "General", lastMessage: "Welcome to the chat!" },
-    { id: "random", name: "Random", lastMessage: "What's up?" },
-  ]
+  // Check if Firebase is initialized
+  const isFirebaseReady = !!app && !!db
 
   useEffect(() => {
-    const q = query(collection(db, "messages"), orderBy("createdAt"))
+    if (!isFirebaseReady) return
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const messages: Message[] = []
-      querySnapshot.forEach((doc) => {
-        messages.push({
-          id: doc.id,
-          text: doc.data().text,
-          createdAt: doc.data().createdAt,
-          uid: doc.data().uid,
-          displayName: doc.data().displayName,
-          photoURL: doc.data().photoURL,
-        })
-      })
-      setMessages(messages)
+    // Subscribe to messages
+    const messagesRef = collection(db!, "messages")
+    const q = query(messagesRef, orderBy("timestamp", "asc"))
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const newMessages = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Message[]
+      setMessages(newMessages)
     })
 
     return () => unsubscribe()
-  }, [])
+  }, [isFirebaseReady])
 
   useEffect(() => {
-    scrollToBottom()
-  }, [])
-
-  const scrollToBottom = () => {
+    // Scroll to bottom when messages change
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }
+  }, [messages])
 
-  const sendMessage = async (e: React.FormEvent) => {
+  const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!user) {
-      alert("You must be logged in to send a message.")
-      return
-    }
+    if (!message.trim() || !user || !isFirebaseReady) return
 
-    if (newMessage.trim() !== "") {
-      await addDoc(collection(db, "messages"), {
-        text: newMessage,
-        createdAt: serverTimestamp(),
-        uid: user.uid,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
+    try {
+      await addDoc(collection(db!, "messages"), {
+        text: message,
+        userId: user.uid,
+        userName: user.displayName || "Anonymous",
+        userPhotoURL: user.photoURL,
+        timestamp: serverTimestamp(),
       })
-      setNewMessage("")
-      scrollToBottom()
+
+      setMessage("")
+    } catch (error) {
+      console.error("Error sending message:", error)
     }
   }
 
-  // Sidebar handlers
-  const handleRoomSelect = (roomId: string) => {
-    setSelectedRoomId(roomId)
-    // You might want to load messages for the selected room here
-  }
-
-  const handleProfileClick = () => {
-    // Handle profile click
-    console.log("Profile clicked")
-  }
-
-  const handleRoomSettingsClick = () => {
-    // Handle room settings click
-    console.log("Room settings clicked")
+  if (!user) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <p className="text-lg">Please sign in to use the chat</p>
+      </div>
+    )
   }
 
   return (
-    <div className="flex h-screen">
-      {/* Add the Sidebar component */}
-      <Sidebar
-        rooms={rooms}
-        selectedRoomId={selectedRoomId}
-        onRoomSelect={handleRoomSelect}
-        onProfileClick={handleProfileClick}
-        onRoomSettingsClick={handleRoomSettingsClick}
-      />
-
-      <div className="flex flex-col flex-1">
-        <div className="bg-gray-200 p-4">{user ? <p>Logged in as {user.displayName}</p> : <p>Not logged in</p>}</div>
-
-        <div className="flex-1 overflow-y-scroll p-4">
-          {messages.map((message) => (
-            <div key={message.id} className={`mb-2 ${message.uid === user?.uid ? "text-right" : "text-left"}`}>
-              <div
-                className={`inline-block p-2 rounded-lg ${message.uid === user?.uid ? "bg-blue-500 text-white" : "bg-gray-300"}`}
-              >
-                <div className="text-sm">{message.displayName}</div>
-                <div>{message.text}</div>
-              </div>
+    <div className="flex flex-col h-[calc(100vh-4rem)]">
+      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        {messages.map((msg) => (
+          <div
+            key={msg.id}
+            className={`flex items-start gap-2 ${
+              msg.userId === user.uid ? "flex-row-reverse" : "flex-row"
+            }`}
+          >
+            <Avatar className="h-8 w-8">
+              <AvatarImage src={msg.userPhotoURL || ""} />
+              <AvatarFallback>{msg.userName?.[0] || "?"}</AvatarFallback>
+            </Avatar>
+            <div
+              className={`px-3 py-2 rounded-lg max-w-xs ${
+                msg.userId === user.uid
+                  ? "bg-primary text-primary-foreground"
+                  : "bg-muted"
+              }`}
+            >
+              <p className="text-sm font-medium">{msg.userName}</p>
+              <p>{msg.text}</p>
+              <p className="text-xs opacity-70">
+                {msg.timestamp?.toDate().toLocaleTimeString()}
+              </p>
             </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-
-        <form onSubmit={sendMessage} className="p-4 bg-gray-100">
-          <div className="flex">
-            <input
-              type="text"
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              placeholder="Type your message..."
-              className="flex-1 p-2 border rounded mr-2"
-            />
-            <button type="submit" className="bg-blue-500 text-white p-2 rounded">
-              Send
-            </button>
           </div>
-        </form>
+        ))}
+        <div ref={messagesEndRef} />
       </div>
+
+      <form onSubmit={handleSendMessage} className="p-4 border-t">
+        <div className="flex gap-2">
+          <Input
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type your message..."
+            disabled={!isFirebaseReady}
+          />
+          <Button type="submit" disabled={!message.trim() || !isFirebaseReady}>
+            Send
+          </Button>
+        </div>
+      </form>
     </div>
   )
 }
-
-export default ChatApp
-
