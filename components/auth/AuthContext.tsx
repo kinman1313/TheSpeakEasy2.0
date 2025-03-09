@@ -1,45 +1,48 @@
-// components/auth/AuthContext.tsx
-import React, { createContext, useContext, useState, useEffect } from 'react'
-import { auth } from '@/lib/firebase'
-import { onAuthStateChanged, User, updateProfile as firebaseUpdateProfile } from 'firebase/auth'
+"use client";
+
+import { createContext, useState, useEffect, type ReactNode } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
+import { auth } from "@/lib/firebase"; // Now guaranteed to never be undefined
 
 interface AuthContextType {
-    user: User | null
-    updateProfile: (profile: { displayName?: string; photoURL?: string }) => Promise<void>
+  user: User | null;
+  isLoading: boolean;
+  isFirebaseReady: boolean;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined)
+export const AuthContext = createContext<AuthContextType>({
+  user: null,
+  isLoading: true,
+  isFirebaseReady: false,
+});
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null)
+export function AuthProvider({ children }: { children: ReactNode }) {
+  const [user, setUser] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-    useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, (user) => {
-            setUser(user)
-        })
-        return () => unsubscribe()
-    }, [])
+  // Check if we're in a browser environment
+  const isBrowser = typeof window !== "undefined";
+  const isFirebaseReady = isBrowser && !!auth; // Now auth is never undefined
 
-    const updateProfile = async (profile: { displayName?: string; photoURL?: string }) => {
-        if (user) {
-            await firebaseUpdateProfile(user, profile)
-            setUser({ ...user, ...profile })
-        }
+  useEffect(() => {
+    // Ensure Firebase auth is ready before using it
+    if (!isFirebaseReady) {
+      setIsLoading(false);
+      return;
     }
 
-    return (
-        <AuthContext.Provider value={{ user, updateProfile }}>
-            {children}
-        </AuthContext.Provider>
-    )
+    // Subscribe to auth state changes
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setUser(user);
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [isFirebaseReady]);
+
+  return (
+    <AuthContext.Provider value={{ user, isLoading, isFirebaseReady }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
-
-export const useAuth = () => {
-    const context = useContext(AuthContext)
-    if (!context) {
-        throw new Error('useAuth must be used within an AuthProvider')
-    }
-    return context
-}
-
-
