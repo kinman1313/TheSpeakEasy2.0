@@ -61,23 +61,77 @@ function ensureService<T>(service: T | null, serviceName: string): T {
     return service;
 }
 
+// Create a more complete mock data object
+const mockData = {
+    // User data
+    presence: { status: "offline", lastSeen: null },
+    email: "mock@example.com",
+    displayName: "Mock User",
+    photoURL: "/placeholder.svg?height=40&width=40",
+    createdAt: new Date().toISOString(),
+
+    // Room data
+    name: "Mock Room",
+    isPrivate: false,
+    ownerId: "mock-uid",
+    members: ["mock-uid"],
+
+    // Message data
+    text: "This is a mock message",
+    senderId: "mock-uid",
+    roomId: "mock-room-id",
+
+    // Add any other properties your app uses
+};
+
+// Create a more complete mock query implementation
+const createMockQuery = () => {
+    const mockQuery = {
+        where: () => mockQuery,
+        orderBy: () => mockQuery,
+        limit: () => mockQuery,
+        startAfter: () => mockQuery,
+        get: async () => ({
+            docs: [
+                {
+                    id: "mock-id",
+                    data: () => ({ ...mockData })
+                }
+            ]
+        }),
+    };
+    return mockQuery;
+};
+
 // Export the admin services with safety checks
 export const adminDb = {
     collection: (path: string) => {
         if (isBuildPhase()) {
             // Return a mock during build
             return {
-                doc: () => ({
-                    get: async () => ({ exists: false, data: () => ({}) }),
+                doc: (id: string) => ({
+                    get: async () => ({
+                        exists: true,
+                        id: id || "mock-id",
+                        data: () => ({ ...mockData })
+                    }),
                     update: async () => ({}),
                     set: async () => ({}),
+                    delete: async () => ({}),
                 }),
-                where: () => ({
-                    orderBy: () => ({
-                        get: async () => ({ docs: [] }),
-                    }),
-                }),
+                where: () => createMockQuery(),
+                orderBy: () => createMockQuery(),
+                limit: () => createMockQuery(),
+                startAfter: () => createMockQuery(),
                 add: async () => ({ id: "mock-id" }),
+                get: async () => ({
+                    docs: [
+                        {
+                            id: "mock-id",
+                            data: () => ({ ...mockData })
+                        }
+                    ]
+                }),
             };
         }
         return ensureService(_adminDb, "Firestore").collection(path);
@@ -85,9 +139,14 @@ export const adminDb = {
     doc: (path: string) => {
         if (isBuildPhase()) {
             return {
-                get: async () => ({ exists: false, data: () => ({}) }),
+                get: async () => ({
+                    exists: true,
+                    id: "mock-id",
+                    data: () => ({ ...mockData })
+                }),
                 update: async () => ({}),
                 set: async () => ({}),
+                delete: async () => ({}),
             };
         }
         return ensureService(_adminDb, "Firestore").doc(path);

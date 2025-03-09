@@ -25,10 +25,7 @@ const limiter = rateLimit({
     uniqueTokenPerInterval: 500,
 })
 
-export async function POST(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function POST(request: NextRequest) {
     try {
         await limiter.check(request, 60, "SEND_MESSAGE") // 60 messages per minute
 
@@ -37,9 +34,16 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id: roomId } = params
-
         const decodedToken = await adminAuth.verifyIdToken(token)
+        const { roomId, text, attachments = [] } = await request.json()
+
+        if (!roomId) {
+            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
+        }
+
+        if (!text?.trim() && attachments.length === 0) {
+            return NextResponse.json({ error: "Message content is required" }, { status: 400 })
+        }
 
         // Check if user is a member of the room
         const roomRef = adminDb.collection("rooms").doc(roomId)
@@ -53,12 +57,6 @@ export async function POST(
 
         if (!roomData.members.includes(decodedToken.uid)) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
-        }
-
-        const { text, attachments = [] } = await request.json()
-
-        if (!text?.trim() && attachments.length === 0) {
-            return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
         // Create message in Firestore
@@ -83,10 +81,7 @@ export async function POST(
     }
 }
 
-export async function GET(
-    request: NextRequest,
-    { params }: { params: { id: string } }
-) {
+export async function GET(request: NextRequest) {
     try {
         await limiter.check(request, 60, "GET_MESSAGES") // 60 requests per minute
 
@@ -95,9 +90,14 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id: roomId } = params
-
         const decodedToken = await adminAuth.verifyIdToken(token)
+
+        // Get query parameters
+        const roomId = request.nextUrl.searchParams.get("roomId")
+
+        if (!roomId) {
+            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
+        }
 
         // Check if user is a member of the room
         const roomRef = adminDb.collection("rooms").doc(roomId)
@@ -113,7 +113,6 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
         }
 
-        // Get query parameters
         const limit = parseInt(request.nextUrl.searchParams.get("limit") || "50", 10)
         const before = request.nextUrl.searchParams.get("before")
 
