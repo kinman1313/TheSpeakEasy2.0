@@ -1,126 +1,47 @@
-"use client"
+'use client'
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react"
-import {
-  onAuthStateChanged,
-  getAuth,
-  signInWithEmailAndPassword,
-  signInWithPopup,
-  GoogleAuthProvider,
-  signOut as firebaseSignOut,
-  createUserWithEmailAndPassword,
-  updateProfile,
-} from "firebase/auth"
-import { app } from "@/lib/firebase"
+import { User } from "firebase/auth"
+import { createContext, useContext, useEffect, useState } from "react"
+import { onAuthStateChanged, getAuth } from "firebase/auth"
+import { app } from "@/lib/firebase" // Assuming this is where your Firebase client init is
 
-const auth = getAuth(app)
+// Initialize auth only in the browser
+const auth = typeof window !== 'undefined' ? getAuth(app) : null;
 
-type User = {
-  uid: string
-  email: string | null
-  displayName: string | null
-  photoURL: string | null
-} | null
-
-type AuthContextType = {
-  user: User
-  loading: boolean
-  signIn: (email: string, password: string) => Promise<void>
-  signInWithGoogle: () => Promise<void>
-  signOut: () => Promise<void>
-  signUp: (email: string, password: string, displayName: string) => Promise<void>
+// Define the shape of our context
+interface AuthContextType {
+    user: User | null
+    loading: boolean
 }
 
-// Create the context with a default value that matches the type
+// Create the context with a default value
 const AuthContext = createContext<AuthContextType>({
-  user: null,
-  loading: true,
-  signIn: async () => {},
-  signInWithGoogle: async () => {},
-  signOut: async () => {},
-  signUp: async () => {},
+    user: null,
+    loading: true,
 })
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      if (user) {
-        setUser({
-          uid: user.uid,
-          email: user.email,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-        })
-      } else {
-        setUser(null)
-      }
-      setLoading(false)
-    })
-
-    return () => unsubscribe()
-  }, [])
-
-  const signIn = async (email: string, password: string) => {
-    try {
-      await signInWithEmailAndPassword(auth, email, password)
-    } catch (error) {
-      console.error("Error signing in:", error)
-      throw error
-    }
-  }
-
-  const signInWithGoogle = async () => {
-    try {
-      const provider = new GoogleAuthProvider()
-      await signInWithPopup(auth, provider)
-    } catch (error) {
-      console.error("Error signing in with Google:", error)
-      throw error
-    }
-  }
-
-  const signOut = async () => {
-    try {
-      await firebaseSignOut(auth)
-    } catch (error) {
-      console.error("Error signing out:", error)
-      throw error
-    }
-  }
-
-  const signUp = async (email: string, password: string, displayName: string) => {
-    try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password)
-      // Update the user's profile with the display name
-      if (userCredential.user) {
-        await updateProfile(userCredential.user, {
-          displayName,
-        })
-      }
-    } catch (error) {
-      console.error("Error signing up:", error)
-      throw error
-    }
-  }
-
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        loading,
-        signIn,
-        signInWithGoogle,
-        signOut,
-        signUp,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  )
-}
-
+// Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext)
 
+export function AuthProvider({ children }: { children: React.ReactNode }) {
+    const [user, setUser] = useState<User | null>(null)
+    const [loading, setLoading] = useState(true)
+
+    useEffect(() => {
+        // Only run this effect in the browser
+        if (typeof window === 'undefined' || !auth) return;
+
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            setUser(user)
+            setLoading(false)
+        })
+
+        return () => unsubscribe()
+    }, [])
+
+    return (
+        <AuthContext.Provider value={{ user, loading }}>
+            {children}
+        </AuthContext.Provider>
+    )
+}

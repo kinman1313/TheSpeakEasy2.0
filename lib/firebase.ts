@@ -1,7 +1,7 @@
-import { initializeApp, getApps, getApp } from "firebase/app"
-import { getAuth } from "firebase/auth"
-import { getFirestore } from "firebase/firestore"
-import { getStorage } from "firebase/storage"
+import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app"
+import { getAuth, type Auth } from "firebase/auth"
+import { getFirestore, type Firestore } from "firebase/firestore"
+import { getStorage, type FirebaseStorage } from "firebase/storage"
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics"
 
 const firebaseConfig = {
@@ -15,10 +15,10 @@ const firebaseConfig = {
 }
 
 // Initialize Firebase only in the browser
-let app;
-let auth;
-let db;
-let storage;
+let app: FirebaseApp | undefined;
+let auth: Auth | undefined;
+let db: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 let analytics: Analytics | null = null;
 
 // Check if we're in the browser environment
