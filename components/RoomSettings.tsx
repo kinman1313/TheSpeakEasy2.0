@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { collection, query, where, getDocs } from "firebase/firestore"
+import { collection, query, where, getDocs, type Firestore } from "firebase/firestore"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -12,11 +12,12 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
 import { doc, updateDoc, getDoc, arrayUnion, arrayRemove } from "firebase/firestore"
 import { toast } from "sonner"
-import { UserPlus, UserMinus, Copy, Check } from "lucide-react"
+import { UserPlus, UserMinus, Copy, Check } from 'lucide-react'
+import { useRouter } from "next/navigation"
 
 interface RoomSettingsProps {
     roomId: string
-    onClose: () => void
+    redirectUrl?: string // URL to redirect to after closing
 }
 
 interface Member {
@@ -26,8 +27,9 @@ interface Member {
     photoURL: string | null
 }
 
-export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
+export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsProps) {
     const { user } = useAuth()
+    const router = useRouter()
     const [roomName, setRoomName] = useState<string>("")
     const [isPrivate, setIsPrivate] = useState<boolean>(false)
     const [members, setMembers] = useState<Member[]>([])
@@ -36,51 +38,62 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
     const [isLoading, setIsLoading] = useState<boolean>(true)
     const [copied, setCopied] = useState<boolean>(false)
 
+    // Check if Firebase is initialized
+    const isFirebaseReady = typeof window !== 'undefined' && !!db;
+
     useEffect(() => {
-        const fetchRoomData = async () => {
-            if (!user) return
+        // Use an IIFE (Immediately Invoked Function Expression) to handle the async function
+        (async () => {
+            if (!user || !isFirebaseReady || !db || !roomId) return;
 
             try {
-                setIsLoading(true)
-                const roomRef = doc(db, "rooms", roomId)
-                const roomSnap = await getDoc(roomRef)
+                setIsLoading(true);
+                // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+                const firestore = db as Firestore;
+
+                const roomRef = doc(firestore, "rooms", roomId);
+                const roomSnap = await getDoc(roomRef);
 
                 if (roomSnap.exists()) {
-                    const roomData = roomSnap.data()
-                    setRoomName(roomData.name)
-                    setIsPrivate(roomData.isPrivate || false)
+                    const roomData = roomSnap.data();
+                    setRoomName(roomData.name);
+                    setIsPrivate(roomData.isPrivate || false);
 
                     // Fetch member details
                     const memberPromises = roomData.members.map(async (memberId: string) => {
-                        const userRef = doc(db, "users", memberId)
-                        const userSnap = await getDoc(userRef)
+                        const userRef = doc(firestore, "users", memberId);
+                        const userSnap = await getDoc(userRef);
                         if (userSnap.exists()) {
                             return {
                                 id: memberId,
                                 ...userSnap.data(),
-                            } as Member
+                            } as Member;
                         }
-                        return { id: memberId, displayName: "Unknown User", email: "", photoURL: null }
-                    })
+                        return { id: memberId, displayName: "Unknown User", email: "", photoURL: null };
+                    });
 
-                    const memberDetails = await Promise.all(memberPromises)
-                    setMembers(memberDetails)
+                    const memberDetails = await Promise.all(memberPromises);
+                    setMembers(memberDetails);
 
                     // Check if current user is admin (creator) of the room
-                    setIsAdmin(roomData.createdBy === user.uid)
+                    setIsAdmin(roomData.createdBy === user.uid);
                 }
             } catch (error) {
-                console.error("Error fetching room data:", error)
-                toast.error("Could not load room settings")
+                console.error("Error fetching room data:", error);
+                toast.error("Could not load room settings");
             } finally {
-                setIsLoading(false)
+                setIsLoading(false);
             }
-        }
+        })().catch(error => {
+            console.error("Error in fetchRoomData:", error);
+            toast.error("Failed to load room settings");
+            setIsLoading(false);
+        });
+    }, [roomId, user, isFirebaseReady, db]);
 
-        if (roomId) {
-            fetchRoomData()
-        }
-    }, [roomId, user])
+    const handleClose = () => {
+        router.push(redirectUrl);
+    }
 
     const updateRoomSettings = async () => {
         if (!roomName.trim()) {
@@ -88,8 +101,16 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
             return
         }
 
+        if (!isFirebaseReady || !db) {
+            toast.error("Firebase is not initialized")
+            return
+        }
+
         try {
-            const roomRef = doc(db, "rooms", roomId)
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
+            const roomRef = doc(firestore, "rooms", roomId)
             await updateDoc(roomRef, {
                 name: roomName,
                 isPrivate,
@@ -97,7 +118,7 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
             })
 
             toast.success("Room settings have been updated successfully")
-            onClose()
+            handleClose()
         } catch (error) {
             console.error("Error updating room settings:", error)
             toast.error("Could not update room settings. Please try again.")
@@ -107,9 +128,17 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
     const addMember = async () => {
         if (!newMemberEmail.trim()) return
 
+        if (!isFirebaseReady || !db) {
+            toast.error("Firebase is not initialized")
+            return
+        }
+
         try {
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
             // Find user by email
-            const usersRef = collection(db, "users")
+            const usersRef = collection(firestore, "users")
             const q = query(usersRef, where("email", "==", newMemberEmail.trim()))
             const querySnapshot = await getDocs(q)
 
@@ -128,7 +157,7 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
             }
 
             // Add to room members
-            const roomRef = doc(db, "rooms", roomId)
+            const roomRef = doc(firestore, "rooms", roomId)
             await updateDoc(roomRef, {
                 members: arrayUnion(newMemberId),
             })
@@ -151,6 +180,11 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
     const removeMember = async (memberId: string) => {
         if (!user) return
 
+        if (!isFirebaseReady || !db) {
+            toast.error("Firebase is not initialized")
+            return
+        }
+
         try {
             // Don't allow removing yourself if you're the admin
             if (memberId === user.uid && isAdmin) {
@@ -158,8 +192,11 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                 return
             }
 
+            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+            const firestore = db as Firestore;
+
             // Remove from room members
-            const roomRef = doc(db, "rooms", roomId)
+            const roomRef = doc(firestore, "rooms", roomId)
             await updateDoc(roomRef, {
                 members: arrayRemove(memberId),
             })
@@ -173,15 +210,25 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
         }
     }
 
-    const copyInviteLink = () => {
-        const inviteLink = `${window.location.origin}/invite/${roomId}`
-        navigator.clipboard.writeText(inviteLink)
-        setCopied(true)
-        toast.success("Invite link copied to clipboard")
+    const copyInviteLink = async () => {
+    try {
+        const inviteLink = `${window.location.origin}/invite/${roomId}`;
+        await navigator.clipboard.writeText(inviteLink);
+        setCopied(true);
+        toast.success("Invite link copied to clipboard");
 
         setTimeout(() => {
-            setCopied(false)
-        }, 2000)
+            setCopied(false);
+        }, 2000);
+    } catch (error) {
+        console.error("Failed to copy to clipboard:", error);
+        toast.error("Failed to copy invite link to clipboard");
+    }
+};
+
+    // Early return if not in browser
+    if (typeof window === 'undefined') {
+        return null;
     }
 
     return (
@@ -207,7 +254,7 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                                 onChange={(e) => setRoomName(e.target.value)}
                                 placeholder="Enter room name"
                                 className="bg-opacity-30 border-neon-blue text-neon-white"
-                                disabled={!isAdmin}
+                                disabled={!isAdmin || !isFirebaseReady}
                             />
                         </div>
 
@@ -216,7 +263,12 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                                 <Label htmlFor="is-private" className="text-neon-white">
                                     Private Room
                                 </Label>
-                                <Switch id="is-private" checked={isPrivate} onCheckedChange={setIsPrivate} />
+                                <Switch
+                                    id="is-private"
+                                    checked={isPrivate}
+                                    onCheckedChange={setIsPrivate}
+                                    disabled={!isFirebaseReady}
+                                />
                             </div>
                         )}
 
@@ -228,7 +280,12 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                                     readOnly
                                     className="bg-opacity-30 border-neon-white text-neon-white"
                                 />
-                                <Button variant="outline" className="border-neon-green text-neon-green" onClick={copyInviteLink}>
+                                <Button
+                                    variant="outline"
+                                    className="border-neon-green text-neon-green"
+                                    onClick={copyInviteLink}
+                                    disabled={!isFirebaseReady}
+                                >
                                     {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                                 </Button>
                             </div>
@@ -264,6 +321,7 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                                                 size="icon"
                                                 onClick={() => removeMember(member.id)}
                                                 className="text-neon-red h-8 w-8"
+                                                disabled={!isFirebaseReady}
                                             >
                                                 <UserMinus className="h-4 w-4" />
                                             </Button>
@@ -285,8 +343,13 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
                                         onChange={(e) => setNewMemberEmail(e.target.value)}
                                         placeholder="Enter email address"
                                         className="bg-opacity-30 border-neon-blue text-neon-white"
+                                        disabled={!isFirebaseReady}
                                     />
-                                    <Button onClick={addMember} className="bg-neon-green text-black">
+                                    <Button
+                                        onClick={addMember}
+                                        className="bg-neon-green text-black"
+                                        disabled={!isFirebaseReady}
+                                    >
                                         <UserPlus className="h-4 w-4 mr-2" />
                                         Add
                                     </Button>
@@ -298,11 +361,19 @@ export function RoomSettings({ roomId, onClose }: RoomSettingsProps) {
             </div>
 
             <div className="flex justify-end space-x-2 mt-4">
-                <Button variant="outline" onClick={onClose} className="border-neon-red text-neon-red">
+                <Button
+                    variant="outline"
+                    onClick={handleClose}
+                    className="border-neon-red text-neon-red"
+                >
                     Cancel
                 </Button>
                 {isAdmin && (
-                    <Button onClick={updateRoomSettings} className="bg-neon-green text-black" disabled={isLoading}>
+                    <Button
+                        onClick={updateRoomSettings}
+                        className="bg-neon-green text-black"
+                        disabled={isLoading || !isFirebaseReady}
+                    >
                         Save Changes
                     </Button>
                 )}
