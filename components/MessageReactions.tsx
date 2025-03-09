@@ -1,64 +1,74 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { SmilePlus } from "lucide-react"
-import { useAuth } from "@/components/auth/AuthProvider"
+import { SmilePlus } from 'lucide-react'
 import { db } from "@/lib/firebase"
-import { doc, updateDoc } from "firebase/firestore"
+import { doc, updateDoc, arrayUnion, arrayRemove, type Firestore } from "firebase/firestore"
+import { useAuth } from "@/components/auth/AuthProvider"
 import { toast } from "sonner"
 
-// Define types
-interface Message {
-  id: string
-  reactions?: {
-    [key: string]: string[] // emoji: userIds[]
-  }
+interface Reaction {
+  emoji: string
+  count: number
+  users: string[]
 }
 
-const REACTIONS = ["👍", "❤️", "😂", "😮", "😢", "🔥", "👏", "🎉"] as const
+interface Message {
+  id: string
+  text: string
+  userId: string
+  reactions?: Record<string, Reaction>
+}
 
-export function MessageReactions({ message }: { message: Message }) {
+interface MessageReactionsProps {
+  message: Message
+}
+
+const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀"]
+
+export function MessageReactions({ message }: MessageReactionsProps) {
   const { user } = useAuth()
-  const [showReactions, setShowReactions] = useState(false)
   const [isUpdating, setIsUpdating] = useState(false)
 
-  const addReaction = async (emoji: string) => {
-    if (!user) return
+  // Check if Firebase is initialized
+  const isFirebaseReady = typeof window !== 'undefined' && !!db;
+
+  const handleReaction = async (emoji: string) => {
+    if (!user || !isFirebaseReady || !db) {
+      toast.error("You must be logged in to react")
+      return
+    }
 
     setIsUpdating(true)
     try {
-      const messageRef = doc(db, "messages", message.id)
+      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+      const firestore = db as Firestore;
+
+      const messageRef = doc(firestore, "messages", message.id)
       const reactions = message.reactions ? { ...message.reactions } : {}
 
       // Check if user already reacted with this emoji
-      const userReactions = Object.entries(reactions).find(([key, users]) => key === emoji && users.includes(user.uid))
+      const existingReaction = reactions[emoji]
+      const userReacted = existingReaction?.users.includes(user.uid)
 
-      if (userReactions) {
+      if (userReacted) {
         // Remove user's reaction
-        const updatedUsers = userReactions[1].filter((uid) => uid !== user.uid)
-
-        if (updatedUsers.length === 0) {
-          // If no users left, remove the emoji key
-          delete reactions[emoji]
-        } else {
-          // Otherwise update the users array
-          reactions[emoji] = updatedUsers
-        }
-        toast.success("Reaction removed")
+        await updateDoc(messageRef, {
+          [`reactions.${emoji}.count`]: existingReaction.count - 1,
+          [`reactions.${emoji}.users`]: arrayRemove(user.uid),
+        })
       } else {
         // Add user's reaction
-        if (reactions[emoji]) {
-          reactions[emoji] = [...reactions[emoji], user.uid]
-        } else {
-          reactions[emoji] = [user.uid]
-        }
-        toast.success("Reaction added")
+        const newCount = (existingReaction?.count || 0) + 1
+        await updateDoc(messageRef, {
+          [`reactions.${emoji}.count`]: newCount,
+          [`reactions.${emoji}.users`]: existingReaction
+            ? arrayUnion(user.uid)
+            : [user.uid],
+        })
       }
-
-      await updateDoc(messageRef, { reactions })
-      setShowReactions(false)
     } catch (error) {
       console.error("Error updating reaction:", error)
       toast.error("Failed to update reaction")
@@ -67,78 +77,65 @@ export function MessageReactions({ message }: { message: Message }) {
     }
   }
 
-  // Get all reactions for display
-  const messageReactions = message.reactions || {}
-  const hasReactions = Object.keys(messageReactions).length > 0
+  // Early return if not in browser
+  if (typeof window === 'undefined') {
+    return null;
+  }
 
   return (
-    <div className="mt-2">
-      <div className="flex flex-wrap gap-1 items-center">
-        {hasReactions &&
-          Object.entries(messageReactions).map(([emoji, users]) => (
-            <Button
-              key={emoji}
-              variant="ghost"
-              size="sm"
-              className={`h-6 px-2 py-1 text-xs rounded-full transition-colors
-                            ${
-                              users.includes(user?.uid || "")
-                                ? "bg-neon-purple bg-opacity-30 hover:bg-neon-purple hover:bg-opacity-40"
-                                : "bg-gray-800 bg-opacity-50 hover:bg-gray-700"
-                            }`}
-              onClick={() => addReaction(emoji)}
-              disabled={isUpdating}
-              aria-label={`${emoji} reaction (${users.length} ${users.length === 1 ? "person" : "people"})`}
-            >
-              <span role="img" aria-label={`${emoji} emoji`}>
-                {emoji}
-              </span>{" "}
-              <span className="ml-1">{users.length}</span>
-            </Button>
-          ))}
+    <div className="flex items-center mt-1 space-x-2">
+      {message.reactions &&
+        Object.entries(message.reactions).map(([emoji, reaction]) => {
+          if (reaction.count > 0) {
+            const userReacted = user && reaction.users.includes(user.uid)
+            return (
+              <Button
+                key={emoji}
+                variant="ghost"
+                size="sm"
+                className={`h-6 px-2 text-xs rounded-full ${
+                  userReacted ? "bg-primary/20" : ""
+                }`}
+                onClick={() => handleReaction(emoji)}
+                disabled={isUpdating || !isFirebaseReady}
+              >
+                {emoji} {reaction.count}
+              </Button>
+            )
+          }
+          return null
+        })}
 
-        <Popover open={showReactions} onOpenChange={setShowReactions}>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="sm"
-              className={`h-6 w-6 p-0 rounded-full transition-colors
-                                ${
-                                  showReactions
-                                    ? "bg-neon-yellow bg-opacity-30 hover:bg-neon-yellow hover:bg-opacity-40"
-                                    : "bg-gray-800 bg-opacity-50 hover:bg-gray-700"
-                                }`}
-              disabled={isUpdating}
-              aria-label="Add reaction"
-            >
-              <SmilePlus className="h-3 w-3" />
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent
-            className="w-auto p-2 bg-opacity-90 backdrop-filter backdrop-blur-lg border-neon-yellow"
-            sideOffset={5}
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 rounded-full"
+            disabled={isUpdating || !isFirebaseReady}
           >
-            <div className="flex gap-1">
-              {REACTIONS.map((emoji) => (
-                <Button
-                  key={emoji}
-                  variant="ghost"
-                  size="sm"
-                  className="h-8 w-8 p-0 text-lg hover:bg-neon-yellow hover:bg-opacity-20"
-                  onClick={() => addReaction(emoji)}
-                  disabled={isUpdating}
-                  aria-label={`Add ${emoji} reaction`}
-                >
-                  <span role="img" aria-hidden="true">
-                    {emoji}
-                  </span>
-                </Button>
-              ))}
-            </div>
-          </PopoverContent>
-        </Popover>
-      </div>
+            <SmilePlus className="h-4 w-4" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-auto p-2">
+          <div className="flex gap-1 flex-wrap max-w-[200px]">
+            {EMOJI_LIST.map((emoji) => (
+              <Button
+                key={emoji}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0"
+                onClick={() => {
+                  handleReaction(emoji)
+                }}
+                disabled={isUpdating}
+              >
+                {emoji}
+              </Button>
+            ))}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   )
 }
-
