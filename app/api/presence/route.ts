@@ -1,13 +1,14 @@
-export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { FieldValue } from "firebase-admin/firestore"
 
+export const dynamic = "force-dynamic";
+
 // Define types for our data structures
 interface PresenceData {
     status: string;
-    lastSeen: any; // Using 'any' for FieldValue.serverTimestamp()
+    lastSeen: FirebaseFirestore.Timestamp | null;
 }
 
 interface UserData {
@@ -86,7 +87,12 @@ export async function GET(request: NextRequest) {
             presence: userData?.presence || defaultPresence
         })
     } catch (error) {
-        console.error("Presence fetch error:", error)
-        return NextResponse.json({ error: "Failed to fetch presence" }, { status: 500 })
-    }
-}
+        console.error("Presence update error:", error);
+        if (error.code === 'auth/id-token-expired') {
+            return NextResponse.json({ error: "Authentication token expired" }, { status: 401 });
+        }
+        return NextResponse.json({ error: "Failed to update presence" }, { status: 500 })
+
+
+    }}
+

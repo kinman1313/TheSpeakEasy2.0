@@ -1,12 +1,8 @@
 "use client"
-
 import type React from "react"
-
 import { createContext, useContext, useEffect, useState } from "react"
 import { onAuthStateChanged, getAuth } from "firebase/auth"
 import { app } from "@/lib/firebase" // Assuming this is where your Firebase client init is
-
-const auth = getAuth(app)
 
 type User = {
   uid: string
@@ -30,6 +26,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    // Only initialize Firebase Auth in the browser
+    if (typeof window === 'undefined') {
+      setLoading(false);
+      return;
+    }
+
+    // Initialize auth inside useEffect
+    const auth = getAuth(app);
+
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
         setUser({
@@ -51,4 +56,3 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 }
 
 export const useAuth = () => useContext(AuthContext)
-

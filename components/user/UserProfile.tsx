@@ -66,63 +66,11 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
     useEffect(() => {
         if (!user || !isFirebaseReady || !db) return;
 
-        setDisplayName(user.displayName || "")
-     useEffect(() => {
-    if (!user || !isFirebaseReady || !db) return;
-
-    // Make sure user is defined and photoURL is accessed safely
-    if (user) {
-        setDisplayName(user.displayName || "");
-        setPhotoURL(user.photoURL || "");
-    }
-
-    // Use an IIFE to handle the async function
-    (async () => {
-        try {
-            // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-            const firestore = db as Firestore;
-
-            // Make sure user is defined before accessing uid
-            if (!user || !user.uid) {
-                console.error("User or user.uid is undefined");
-                return;
-            }
-
-            const userRef = doc(firestore, "users", user.uid);
-            const userSnap = await getDoc(userRef);
-
-            if (userSnap.exists()) {
-                const userData = userSnap.data();
-                if (userData.chatColor) {
-                    setChatColor(userData.chatColor);
-                }
-                if (userData.settings) {
-                    setSettings((prev) => ({
-                        ...prev,
-                        ...userData.settings,
-                    }));
-                }
-            } else {
-                // Create user document if it doesn't exist
-                await setDoc(userRef, {
-                    uid: user.uid,
-                    email: user.email,
-                    displayName: user.displayName || "",
-                    photoURL: user.photoURL || "",
-                    chatColor: "#00f3ff",
-                    settings: DEFAULT_SETTINGS,
-                    createdAt: new Date(),
-                });
-            }
-        } catch (error) {
-            console.error("Error fetching user data:", error);
-            toast.error("Could not load user settings");
+        // Make sure user is defined and photoURL is accessed safely
+        if (user) {
+            setDisplayName(user.displayName || "");
+            setPhotoURL(user.photoURL || "");
         }
-    })().catch(error => {
-        console.error("Error in fetchUserData:", error);
-        toast.error("Failed to load user settings");
-    });
-}, [user, isFirebaseReady, db]);
 
         // Use an IIFE to handle the async function
         (async () => {
@@ -130,19 +78,25 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
                 // Use type assertion to tell TypeScript that db is definitely a Firestore instance
                 const firestore = db as Firestore;
 
-                const userRef = doc(firestore, "users", user.uid)
-                const userSnap = await getDoc(userRef)
+                // Make sure user is defined before accessing uid
+                if (!user || !user.uid) {
+                    console.error("User or user.uid is undefined");
+                    return;
+                }
+
+                const userRef = doc(firestore, "users", user.uid);
+                const userSnap = await getDoc(userRef);
 
                 if (userSnap.exists()) {
-                    const userData = userSnap.data()
+                    const userData = userSnap.data();
                     if (userData.chatColor) {
-                        setChatColor(userData.chatColor)
+                        setChatColor(userData.chatColor);
                     }
                     if (userData.settings) {
                         setSettings((prev) => ({
                             ...prev,
                             ...userData.settings,
-                        }))
+                        }));
                     }
                 } else {
                     // Create user document if it doesn't exist
@@ -154,17 +108,17 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
                         chatColor: "#00f3ff",
                         settings: DEFAULT_SETTINGS,
                         createdAt: new Date(),
-                    })
+                    });
                 }
             } catch (error) {
-                console.error("Error fetching user data:", error)
-                toast.error("Could not load user settings")
+                console.error("Error fetching user data:", error);
+                toast.error("Could not load user settings");
             }
         })().catch(error => {
             console.error("Error in fetchUserData:", error);
             toast.error("Failed to load user settings");
         });
-    }, [user, isFirebaseReady, db])
+    }, [user, isFirebaseReady, db]);
 
     const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0]

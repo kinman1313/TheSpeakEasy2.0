@@ -1,8 +1,10 @@
-export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { FieldValue } from "firebase-admin/firestore"
+
+export const dynamic = "force-dynamic";
+
 
 // Add this interface to define the room data structure
 interface RoomData {

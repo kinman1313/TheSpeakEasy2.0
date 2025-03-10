@@ -29,14 +29,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         // Only run this effect in the browser
-        if (typeof window === 'undefined' || !auth) return;
+        if (typeof window === 'undefined' || !auth) {
+            setLoading(false); // Set loading to false for server-side rendering
+            return;
+        }
 
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             setUser(user)
             setLoading(false)
         })
 
-        return () => unsubscribe()
+        return () => {
+            if (unsubscribe) unsubscribe();
+        }
     }, [])
 
     return (
