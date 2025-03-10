@@ -32,10 +32,18 @@ export function PasswordResetForm() {
 
       await sendPasswordResetEmail(authInstance, email)
       toast.success("Password reset email sent! Check your inbox.")
-      setEmail("")
+      setEmail("") // Reset email after successful submission
     } catch (error: any) {
       console.error(error)
-      toast.error(error.message || "Failed to send password reset email")
+      let errorMessage = "Failed to send password reset email"
+
+      if (error.code === 'auth/invalid-email') {
+        errorMessage = "The email address is not valid."
+      } else if (error.code === 'auth/user-not-found') {
+        errorMessage = "No user found with this email address."
+      }
+
+      toast.error(errorMessage)
     } finally {
       setIsLoading(false)
     }

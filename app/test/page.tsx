@@ -1,11 +1,4 @@
-'use client'
-
-import { TestConnection } from "@/components/TestConnection"
-
+// app/test/page.tsx
 export default function TestPage() {
-  return (
-    <div className="container mx-auto p-4">
-      <TestConnection />
-    </div>
-  )
+  return <div>Test Page</div>;
 }

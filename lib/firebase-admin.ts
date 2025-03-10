@@ -2,75 +2,100 @@ import { getApps, initializeApp, cert, type App } from "firebase-admin/app";
 import { getFirestore, type Firestore } from "firebase-admin/firestore";
 import { getAuth, type Auth } from "firebase-admin/auth";
 import { getStorage, type Storage } from "firebase-admin/storage";
-import path from "path";
 
 // Function to check if we're in the build phase
 function isBuildPhase() {
     return process.env.NEXT_PHASE === "phase-production-build";
 }
 
-// Initialize Firebase Admin
-let app: App | null = null;
-let _adminDb: Firestore | null = null;
-let _adminAuth: Auth | null = null;
-let _adminStorage: Storage | null = null;
-
-try {
-    // Skip initialization during build
-    if (!isBuildPhase()) {
-        const apps = getApps();
-        if (apps.length > 0) {
-            app = apps[0];
-        } else if (
-            process.env.FIREBASE_PROJECT_ID &&
-            process.env.FIREBASE_CLIENT_EMAIL &&
-            process.env.FIREBASE_PRIVATE_KEY
-        ) {
-            app = initializeApp({
-                credential: cert({
-                    projectId: process.env.FIREBASE_PROJECT_ID,
-                    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-                    privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
-                }),
-            });
-        } else {
-            console.warn("Firebase Admin environment variables missing.");
-        }
-
-        if (app) {
-            _adminDb = getFirestore(app);
-            _adminAuth = getAuth(app);
-            _adminStorage = getStorage(app);
-        }
-    } else {
-        console.log("Skipping Firebase Admin initialization during build phase");
-    }
-} catch (error) {
-    console.error("Error initializing Firebase Admin:", error);
-}
-
-// Helper function to ensure services are initialized
-function ensureService<T>(service: T | null, serviceName: string): T {
-    if (!service) {
-        if (isBuildPhase()) {
-            // During build, return a mock object that won't be used
-            return {} as T;
-        }
-        throw new Error(`Firebase Admin ${serviceName} not initialized. Check your environment variables.`);
-    }
-    return service;
-}
-
 // Mock data used for Firestore, Auth, and Storage during the build phase
 const mockData = {
-    // User data
     presence: { status: "offline", lastSeen: null },
     email: "mock@example.com",
     displayName: "Mock User",
     photoURL: "/placeholder.svg?height=40&width=40",
     createdAt: new Date().toISOString(),
-    // Add other properties you need here...
 };
+
+// Lazy initialization of Firebase Admin
+let _app: App | undefined;
+let _adminDb: Firestore | undefined;
+let _adminAuth: Auth | undefined;
+let _adminStorage: Storage | undefined;
+
+// Get or initialize the Firebase app
+export function getAdminApp(): App {
+    if (isBuildPhase()) {
+        return {} as App;
+    }
+
+    if (!_app) {
+        const apps = getApps();
+        if (apps.length > 0) {
+            _app = apps[0];
+        } else if (
+            process.env.FIREBASE_PROJECT_ID &&
+            process.env.FIREBASE_CLIENT_EMAIL &&
+            process.env.FIREBASE_PRIVATE_KEY
+        ) {
+            try {
+                _app = initializeApp({
+                    credential: cert({
+                        projectId: process.env.FIREBASE_PROJECT_ID,
+                        clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                        privateKey: process.env.FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+                    }),
+                });
+            } catch (error) {
+                console.error("Error initializing Firebase Admin:", error);
+                throw new Error("Failed to initialize Firebase Admin");
+            }
+        } else {
+            throw new Error("Firebase Admin environment variables missing.");
+        }
+    }
+
+    return _app;
+}
+
+// Get or initialize Firestore
+export function getAdminDb(): Firestore {
+    if (isBuildPhase()) {
+        return {} as Firestore;
+    }
+
+    if (!_adminDb) {
+        _adminDb = getFirestore(getAdminApp());
+    }
+
+    return _adminDb;
+}
+
+// Get or initialize Auth
+export function getAdminAuth(): Auth {
+    if (isBuildPhase()) {
+        return {} as Auth;
+    }
+
+    if (!_adminAuth) {
+        _adminAuth = getAuth(getAdminApp());
+    }
+
+    return _adminAuth;
+}
+
+// Get or initialize Storage
+export function getAdminStorage(): Storage {
+    if (isBuildPhase()) {
+        return {} as Storage;
+    }
+
+    if (!_adminStorage) {
+        _adminStorage = getStorage(getAdminApp());
+    }
+
+    return _adminStorage;
+}
 
 // Create a more complete mock query implementation
 const createMockQuery = () => {
@@ -91,7 +116,7 @@ const createMockQuery = () => {
     return mockQuery;
 };
 
-// Firestore Service (Mock or Real)
+// Firestore Service with Lazy Loading or Mock
 export const adminDb = {
     collection: (path: string) => {
         if (isBuildPhase()) {
@@ -121,7 +146,7 @@ export const adminDb = {
                 }),
             };
         }
-        return ensureService(_adminDb, "Firestore").collection(path);
+        return getAdminDb().collection(path);
     },
     doc: (path: string) => {
         if (isBuildPhase()) {
@@ -136,39 +161,39 @@ export const adminDb = {
                 delete: async () => ({}),
             };
         }
-        return ensureService(_adminDb, "Firestore").doc(path);
+        return getAdminDb().doc(path);
     },
 };
 
-// Firebase Admin Auth Service (Mock or Real)
+// Firebase Admin Auth Service with Lazy Loading or Mock
 export const adminAuth = {
     verifyIdToken: async (token: string) => {
         if (isBuildPhase()) {
             return { uid: "mock-uid", email: "mock@example.com" };
         }
-        return ensureService(_adminAuth, "Auth").verifyIdToken(token);
+        return getAdminAuth().verifyIdToken(token);
     },
     verifySessionCookie: async (cookie: string, checkRevoked = true) => {
         if (isBuildPhase()) {
             return { uid: "mock-uid", email: "mock@example.com", name: "Mock User", picture: "" };
         }
-        return ensureService(_adminAuth, "Auth").verifySessionCookie(cookie, checkRevoked);
+        return getAdminAuth().verifySessionCookie(cookie, checkRevoked);
     },
     createSessionCookie: async (token: string, options: { expiresIn: number }) => {
         if (isBuildPhase()) {
             return "mock-session-cookie";
         }
-        return ensureService(_adminAuth, "Auth").createSessionCookie(token, options);
+        return getAdminAuth().createSessionCookie(token, options);
     },
     listUsers: async (maxResults: number) => {
         if (isBuildPhase()) {
             return { users: [] };
         }
-        return ensureService(_adminAuth, "Auth").listUsers(maxResults);
+        return getAdminAuth().listUsers(maxResults);
     },
 };
 
-// Firebase Admin Storage Service (Mock or Real)
+// Firebase Admin Storage Service with Lazy Loading or Mock
 export const adminStorage = {
     bucket: (name?: string) => {
         if (isBuildPhase()) {
@@ -179,11 +204,14 @@ export const adminStorage = {
                 }),
             };
         }
-        return ensureService(_adminStorage, "Storage").bucket(name);
+        return getAdminStorage().bucket(name);
     },
 };
 
 // For backward compatibility
-export function initAdmin(): App | null {
-    return app;
+export function initAdmin(): App | undefined {
+    if (isBuildPhase()) {
+        return undefined;
+    }
+    return getAdminApp();
 }

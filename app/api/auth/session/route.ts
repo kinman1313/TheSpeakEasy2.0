@@ -1,8 +1,10 @@
-export const dynamic = "force-dynamic";
+
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
 import { adminAuth } from "@/lib/firebase-admin"
+
+export const dynamic = "force-dynamic";
 
 export async function GET() {
     try {
