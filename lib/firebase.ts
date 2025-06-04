@@ -1,6 +1,7 @@
 import { initializeApp, getApps, getApp, type FirebaseApp } from "firebase/app";
 import { getAuth, type Auth } from "firebase/auth";
 import { getFirestore, type Firestore } from "firebase/firestore";
+import { getDatabase, type Database } from "firebase/database"; // Added for RTDB
 import { getStorage, type FirebaseStorage } from "firebase/storage";
 import { getAnalytics, isSupported, type Analytics } from "firebase/analytics";
 
@@ -18,6 +19,7 @@ const firebaseConfig = {
 let app: FirebaseApp;
 let auth: Auth;
 let db: Firestore;
+let rtdb: Database; // Added for RTDB
 let storage: FirebaseStorage;
 let analytics: Analytics | null = null;
 
@@ -27,6 +29,7 @@ if (typeof window !== "undefined") {
     app = getApps().length ? getApp() : initializeApp(firebaseConfig);
     auth = getAuth(app);
     db = getFirestore(app);
+    rtdb = getDatabase(app); // Initialize RTDB
     storage = getStorage(app);
 
     // Initialize Analytics only if supported
@@ -46,7 +49,8 @@ if (typeof window !== "undefined") {
   app = {} as FirebaseApp;
   auth = {} as Auth;
   db = {} as Firestore;
+  rtdb = {} as Database; // Placeholder for RTDB
   storage = {} as FirebaseStorage;
 }
 
-export { app, auth, db, storage, analytics };
+export { app, auth, db, rtdb, storage, analytics }; // Export rtdb
