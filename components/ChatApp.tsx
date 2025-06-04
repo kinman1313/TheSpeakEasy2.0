@@ -16,7 +16,10 @@ import { useToggleReaction } from "@/lib/hooks/useToggleReaction"
 import MessageReactions from "@/components/chat/MessageReactions"
 import UserList from "@/components/UserList"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import VideoCallView from "@/components/chat/VideoCallView" // Import VideoCallView
+import VideoCallView from "@/components/chat/VideoCallView"
+import VoiceRecorder from "@/components/chat/VoiceRecorder"
+import AudioPlayer from "@/components/chat/AudioPlayer" // Import AudioPlayer
+import { uploadVoiceMessage } from "@/lib/storage"
 
 // Initialize Firestore only if app is defined
 const db = app ? getFirestore(app) : undefined
@@ -170,16 +173,73 @@ export default function ChatApp() {
 
   const handleFormSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!textMessage.trim() || !user) return // Basic check, hook also checks firebaseStatus
+    if (!textMessage.trim() || !user || isSending) return
+    // Disable submit if isSending (already handled by button's disabled state, but good for direct calls)
 
     try {
       await sendMessage(textMessage, user)
-      setTextMessage("") // Clear input on successful send
+      setTextMessage("")
     } catch (error) {
-      // Error is already handled by the useEffect for sendMessageError and toast
-      // console.error is also in the hook
+      // Error is handled by the useEffect for sendMessageError
     }
   }
+
+  const handleRecordingComplete = async (audioBlob: Blob, duration: number) => {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to send a voice message.", variant: "destructive" });
+      return;
+    }
+    if (!audioBlob || audioBlob.size === 0) {
+      toast({ title: "Recording Error", description: "Recorded audio is empty.", variant: "destructive" });
+      return;
+    }
+
+    const uploadingToast = toast({ title: "Voice Message", description: "Uploading voice message..." });
+
+    try {
+      const downloadURL = await uploadVoiceMessage(user.uid, audioBlob);
+      console.log("Voice message uploaded:", downloadURL, "Duration:", duration, "seconds");
+
+      // Update toast to show sending
+      uploadingToast.update && uploadingToast.update({
+        id: uploadingToast.id,
+        title: "Voice Message",
+        description: "Sending voice message...",
+      });
+
+      // Call sendMessage with voice message details
+      // Using an empty string for text, as the UI will primarily render the audio player
+      await sendMessage("", user, {
+        voiceMessageUrl: downloadURL,
+        voiceMessageDuration: duration
+      });
+
+      toast({
+        title: "Voice Message Sent",
+        description: `Duration: ${duration}s.`,
+        variant: "success"
+      });
+
+    } catch (error) { // Catches errors from upload or sendMessage (if sendMessage is modified to throw)
+      console.error("Failed to send voice message:", error);
+      const errorMessage = error instanceof Error ? error.message : "Could not send voice message.";
+
+      uploadingToast.update && uploadingToast.update({
+        id: uploadingToast.id,
+        title: "Failed to Send",
+        description: errorMessage,
+        variant: "destructive",
+      });
+      // If the toast doesn't have update (e.g. if first toast failed to show), show a new one
+      if (!uploadingToast.update) {
+        toast({
+            title: "Failed to Send",
+            description: errorMessage,
+            variant: "destructive",
+        });
+      }
+    }
+  };
 
   // Display loading UI
   if (firebaseStatus === "initializing") {
@@ -281,7 +341,15 @@ export default function ChatApp() {
                 }`}
               >
                 <p className="text-sm font-medium">{msg.userName}</p>
-                <p className="whitespace-pre-wrap break-words">{msg.text}</p> {/* Style for text wrapping */}
+                {/* Conditional rendering for voice message or text message */}
+                {msg.voiceMessageUrl ? (
+                  <AudioPlayer
+                    audioUrl={msg.voiceMessageUrl}
+                    initialDuration={msg.voiceMessageDuration}
+                  />
+                ) : (
+                  <p className="whitespace-pre-wrap break-words">{msg.text}</p>
+                )}
                 <p className="text-xs opacity-70 mt-1">
                   {(() => {
                     if (msg.timestamp && typeof msg.timestamp.toDate === 'function') {
@@ -314,32 +382,54 @@ export default function ChatApp() {
         </div>
 
         <TooltipProvider delayDuration={300}>
-          <form onSubmit={handleFormSubmit} className="p-4 border-t">
-            <div className="flex gap-2">
+          <form onSubmit={handleFormSubmit} className="p-4 border-t bg-background"> {/* Ensure form has a background */}
+            <div className="flex items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
+                  {/* Input field takes up remaining space */}
                   <Input
                     value={textMessage}
                     onChange={(e) => setTextMessage(e.target.value)}
                     placeholder={firebaseStatus === "ready" ? "Type your message..." : (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat unavailable")}
-                    disabled={firebaseStatus !== "ready" || isSending}
+                    disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+                    className="flex-1" // Make input take available space
                   />
                 </TooltipTrigger>
-                {(firebaseStatus !== "ready" || isSending) && (
+                {(firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle') && (
                   <TooltipContent>
-                    <p>{isSending ? "Sending message..." : (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}</p>
+                    <p>
+                      {webRTCCallStatus !== 'idle' ? "Cannot send messages during a call." :
+                       isSending ? "Sending message..." :
+                       (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}
+                    </p>
                   </TooltipContent>
                 )}
               </Tooltip>
+
+              {/* Voice Recorder */}
+              <VoiceRecorder
+                onRecordingComplete={handleRecordingComplete}
+                disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+              />
+
+              {/* Send Button */}
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Button type="submit" disabled={!textMessage.trim() || firebaseStatus !== "ready" || isSending}>
+                  <Button
+                    type="submit"
+                    disabled={!textMessage.trim() || firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+                    aria-label="Send message"
+                  >
                     {isSending ? "Sending..." : "Send"}
                   </Button>
                 </TooltipTrigger>
-                {(firebaseStatus !== "ready" || isSending) && (
+                {(firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle') && (
                   <TooltipContent>
-                     <p>{isSending ? "Message is sending" : (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}</p>
+                     <p>
+                       {webRTCCallStatus !== 'idle' ? "Cannot send messages during a call." :
+                        isSending ? "Message is sending" :
+                        (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}
+                     </p>
                   </TooltipContent>
                 )}
               </Tooltip>

@@ -9,7 +9,9 @@ export interface Message {
   userName: string;
   userPhotoURL?: string;
   timestamp: Timestamp; // Firestore Timestamp
-  reactions?: { [emoji: string]: string[] }; // Added reactions field
+  reactions?: { [emoji: string]: string[] };
+  voiceMessageUrl?: string; // Added for voice messages
+  voiceMessageDuration?: number; // Added for voice message duration in seconds
 }
 
 interface UseMessagesReturn {

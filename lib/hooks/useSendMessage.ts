@@ -6,8 +6,17 @@ import { User as FirebaseAuthUser } from 'firebase/auth'; // Firebase Auth User 
 // For this context, FirebaseAuthUser (renamed to User for clarity if preferred) is suitable
 export type User = FirebaseAuthUser;
 
+interface SendMessageOptions {
+  voiceMessageUrl?: string;
+  voiceMessageDuration?: number;
+}
+
 interface UseSendMessageReturn {
-  sendMessage: (text: string, user: User) => Promise<void>;
+  sendMessage: (
+    text: string,
+    user: User,
+    options?: SendMessageOptions
+  ) => Promise<void>;
   isSending: boolean;
   error: Error | null;
 }
@@ -19,37 +28,60 @@ export const useSendMessage = (
   const [isSending, setIsSending] = useState<boolean>(false);
   const [error, setError] = useState<Error | null>(null);
 
-  const sendMessage = async (text: string, user: User): Promise<void> => {
+  const sendMessage = async (
+    text: string,
+    user: User,
+    options?: SendMessageOptions
+  ): Promise<void> => {
     if (firebaseStatus !== 'ready' || !db) {
       const err = new Error("Firebase is not ready or database is unavailable.");
       console.error("Error sending message:", err);
       setError(err);
-      // Optionally, re-throw the error if the caller needs to handle it directly
-      // throw err;
       return;
     }
 
-    if (!text.trim() || !user) {
-      // Should be handled by UI, but good to have a check
+    // If it's a voice message, text can be empty. Otherwise, text is required.
+    if (!options?.voiceMessageUrl && !text.trim()) {
+      console.warn("Attempted to send an empty message without voice content.");
+      // setError(new Error("Cannot send an empty message.")); // Or just return silently
+      return;
+    }
+    if (!user) {
+      setError(new Error("User not authenticated."));
       return;
     }
 
     setIsSending(true);
     setError(null);
 
+    const messageData: {
+      text: string;
+      userId: string;
+      userName: string;
+      userPhotoURL: string | null;
+      timestamp: Object;
+      voiceMessageUrl?: string;
+      voiceMessageDuration?: number;
+    } = {
+      text: text, // Can be empty or placeholder like "[Voice Message]"
+      userId: user.uid,
+      userName: user.displayName || "Anonymous",
+      userPhotoURL: user.photoURL,
+      timestamp: serverTimestamp(),
+    };
+
+    if (options?.voiceMessageUrl) {
+      messageData.voiceMessageUrl = options.voiceMessageUrl;
+    }
+    if (options?.voiceMessageDuration !== undefined) { // Duration can be 0, so check for undefined
+      messageData.voiceMessageDuration = options.voiceMessageDuration;
+    }
+
     try {
-      await addDoc(collection(db, "messages"), {
-        text: text,
-        userId: user.uid,
-        userName: user.displayName || "Anonymous",
-        userPhotoURL: user.photoURL,
-        timestamp: serverTimestamp(),
-      });
+      await addDoc(collection(db, "messages"), messageData);
     } catch (err: any) {
       console.error("Error sending message:", err);
       setError(err);
-      // Optionally, re-throw
-      // throw err;
     } finally {
       setIsSending(false);
     }
