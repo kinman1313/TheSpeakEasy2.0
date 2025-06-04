@@ -18,8 +18,11 @@ import UserList from "@/components/UserList"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
 import VideoCallView from "@/components/chat/VideoCallView"
 import VoiceRecorder from "@/components/chat/VoiceRecorder"
-import AudioPlayer from "@/components/chat/AudioPlayer" // Import AudioPlayer
+import AudioPlayer from "@/components/chat/AudioPlayer"
+import GiphyPicker from "@/components/chat/GiphyPicker"
+import UserProfileModal from "@/components/user/UserProfileModal" // Import UserProfileModal
 import { uploadVoiceMessage } from "@/lib/storage"
+import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
 
 // Initialize Firestore only if app is defined
 const db = app ? getFirestore(app) : undefined
@@ -27,7 +30,9 @@ const db = app ? getFirestore(app) : undefined
 export default function ChatApp() {
   const { user } = useAuth()
   const { toast } = useToast()
-  const [textMessage, setTextMessage] = useState("") // Renamed from 'message' to avoid conflict with hook variable
+  const [textMessage, setTextMessage] = useState("")
+  const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false); // State for profile modal
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -241,6 +246,25 @@ export default function ChatApp() {
     }
   };
 
+  const handleSelectGif = async (gifUrl: string) => {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to send a GIF.", variant: "destructive" });
+      return;
+    }
+    try {
+      await sendMessage("", user, { gifUrl });
+      toast({ title: "GIF Sent!", variant: "success" });
+    } catch (error) {
+      console.error("Error sending GIF:", error);
+      toast({ title: "Error Sending GIF", description: "Could not send the GIF.", variant: "destructive" });
+    }
+    setShowGiphyPicker(false);
+  };
+
+  const handleCloseGiphyPicker = () => {
+    setShowGiphyPicker(false);
+  };
+
   // Display loading UI
   if (firebaseStatus === "initializing") {
     return (
@@ -272,9 +296,20 @@ export default function ChatApp() {
 
   // Main chat UI (Firebase ready and user authenticated)
   return (
-    <div className="flex h-[calc(100vh-4rem)]"> {/* Changed to flex-row implicitly by children */}
+    <> {/* Use Fragment to allow multiple top-level elements (modal and main layout) */}
+    <div className="flex h-[calc(100vh-4rem)]">
       {/* User List Sidebar */}
-      <div className="w-64 border-r bg-background hidden md:block">
+      <div className="w-64 border-r bg-background hidden md:block p-4 space-y-4">
+        <div className="flex items-center gap-2 mb-4 p-2 rounded-lg hover:bg-muted cursor-pointer" onClick={() => setIsProfileModalOpen(true)}>
+            <Avatar className="h-10 w-10">
+                <AvatarImage src={user?.photoURL || ""} alt={user?.displayName || "User"}/>
+                <AvatarFallback>{user?.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+            </Avatar>
+            <div>
+                <p className="text-sm font-semibold">{user?.displayName || "Current User"}</p>
+                <p className="text-xs text-muted-foreground">Edit Profile</p>
+            </div>
+        </div>
         <UserList />
       </div>
 
@@ -334,15 +369,24 @@ export default function ChatApp() {
                 <AvatarFallback>{msg.userName?.[0] || "?"}</AvatarFallback>
               </Avatar>
               <div
-                className={`px-3 py-2 rounded-lg max-w-xs ${
+                className={`px-3 py-2 rounded-lg ${ msg.gifUrl ? 'p-0 bg-transparent max-w-sm' : 'max-w-xs' } ${ // Special styling for GIF messages
                   msg.userId === user.uid
-                    ? "bg-primary text-primary-foreground"
-                    : "bg-muted"
+                    ? (msg.gifUrl ? '' : 'bg-primary text-primary-foreground')
+                    : (msg.gifUrl ? '' : 'bg-muted')
                 }`}
               >
                 <p className="text-sm font-medium">{msg.userName}</p>
-                {/* Conditional rendering for voice message or text message */}
-                {msg.voiceMessageUrl ? (
+                {/* Conditional rendering for GIF, then voice, then text */}
+                {msg.gifUrl ? (
+                  <Image
+                    src={msg.gifUrl}
+                    alt="User GIF"
+                    width={250} // Example width, adjust as needed
+                    height={150} // Example height, adjust based on typical GIF aspect ratios
+                    className="mt-1 rounded-md object-contain max-w-full"
+                    unoptimized
+                  />
+                ) : msg.voiceMessageUrl ? (
                   <AudioPlayer
                     audioUrl={msg.voiceMessageUrl}
                     initialDuration={msg.voiceMessageDuration}
@@ -350,7 +394,7 @@ export default function ChatApp() {
                 ) : (
                   <p className="whitespace-pre-wrap break-words">{msg.text}</p>
                 )}
-                <p className="text-xs opacity-70 mt-1">
+                <p className={cn("text-xs opacity-70 mt-1", msg.gifUrl ? "px-2 pb-1" : "")}> {/* Add padding back for timestamp if GIF */}
                   {(() => {
                     if (msg.timestamp && typeof msg.timestamp.toDate === 'function') {
                       const date = msg.timestamp.toDate();
@@ -382,61 +426,63 @@ export default function ChatApp() {
         </div>
 
         <TooltipProvider delayDuration={300}>
-          <form onSubmit={handleFormSubmit} className="p-4 border-t bg-background"> {/* Ensure form has a background */}
+          <form onSubmit={handleFormSubmit} className="p-4 border-t bg-background">
             <div className="flex items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  {/* Input field takes up remaining space */}
-                  <Input
-                    value={textMessage}
-                    onChange={(e) => setTextMessage(e.target.value)}
-                    placeholder={firebaseStatus === "ready" ? "Type your message..." : (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat unavailable")}
-                    disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
-                    className="flex-1" // Make input take available space
-                  />
-                </TooltipTrigger>
-                {(firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle') && (
-                  <TooltipContent>
-                    <p>
-                      {webRTCCallStatus !== 'idle' ? "Cannot send messages during a call." :
-                       isSending ? "Sending message..." :
-                       (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}
-                    </p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
+              <Input
+                value={textMessage}
+                onChange={(e) => setTextMessage(e.target.value)}
+                placeholder={firebaseStatus === "ready" ? "Type your message..." : "Chat unavailable"}
+                disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+                className="flex-1"
+              />
 
-              {/* Voice Recorder */}
+              <TooltipProvider delayDuration={300}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setShowGiphyPicker(true)}
+                      disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+                      aria-label="Send a GIF"
+                      className="text-muted-foreground hover:text-primary"
+                    >
+                      <ImageIcon size={22} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent><p>Send GIF</p></TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+
               <VoiceRecorder
                 onRecordingComplete={handleRecordingComplete}
                 disabled={firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
               />
 
-              {/* Send Button */}
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    type="submit"
-                    disabled={!textMessage.trim() || firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
-                    aria-label="Send message"
-                  >
-                    {isSending ? "Sending..." : "Send"}
-                  </Button>
-                </TooltipTrigger>
-                {(firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle') && (
-                  <TooltipContent>
-                     <p>
-                       {webRTCCallStatus !== 'idle' ? "Cannot send messages during a call." :
-                        isSending ? "Message is sending" :
-                        (firebaseStatus === "initializing" ? "Connecting to chat..." : "Chat is currently unavailable")}
-                     </p>
-                  </TooltipContent>
-                )}
-              </Tooltip>
+              <Button
+                type="submit"
+                disabled={(!textMessage.trim() && !showGiphyPicker) || firebaseStatus !== "ready" || isSending || webRTCCallStatus !== 'idle'}
+                aria-label="Send message"
+              >
+                {isSending ? "Sending..." : "Send"}
+              </Button>
             </div>
           </form>
         </TooltipProvider>
+
+        {showGiphyPicker && (
+          <GiphyPicker
+            onSelectGif={handleSelectGif}
+            onClose={handleCloseGiphyPicker}
+          />
+        )}
       </div>
     </div>
+    <UserProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        user={user}
+    />
+    </>
   )
 }

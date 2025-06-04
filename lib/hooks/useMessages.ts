@@ -10,8 +10,9 @@ export interface Message {
   userPhotoURL?: string;
   timestamp: Timestamp; // Firestore Timestamp
   reactions?: { [emoji: string]: string[] };
-  voiceMessageUrl?: string; // Added for voice messages
-  voiceMessageDuration?: number; // Added for voice message duration in seconds
+  voiceMessageUrl?: string;
+  voiceMessageDuration?: number;
+  gifUrl?: string; // Added for Giphy GIFs
 }
 
 interface UseMessagesReturn {

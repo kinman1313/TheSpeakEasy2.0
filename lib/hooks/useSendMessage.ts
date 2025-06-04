@@ -9,6 +9,7 @@ export type User = FirebaseAuthUser;
 interface SendMessageOptions {
   voiceMessageUrl?: string;
   voiceMessageDuration?: number;
+  gifUrl?: string; // Added for Giphy GIFs
 }
 
 interface UseSendMessageReturn {
@@ -40,10 +41,9 @@ export const useSendMessage = (
       return;
     }
 
-    // If it's a voice message, text can be empty. Otherwise, text is required.
-    if (!options?.voiceMessageUrl && !text.trim()) {
-      console.warn("Attempted to send an empty message without voice content.");
-      // setError(new Error("Cannot send an empty message.")); // Or just return silently
+    // If it's a voice or GIF message, text can be empty. Otherwise, text is required.
+    if (!options?.voiceMessageUrl && !options?.gifUrl && !text.trim()) {
+      console.warn("Attempted to send an empty message without voice or GIF content.");
       return;
     }
     if (!user) {
@@ -62,8 +62,9 @@ export const useSendMessage = (
       timestamp: Object;
       voiceMessageUrl?: string;
       voiceMessageDuration?: number;
+      gifUrl?: string; // Added
     } = {
-      text: text, // Can be empty or placeholder like "[Voice Message]"
+      text: text,
       userId: user.uid,
       userName: user.displayName || "Anonymous",
       userPhotoURL: user.photoURL,
@@ -73,8 +74,14 @@ export const useSendMessage = (
     if (options?.voiceMessageUrl) {
       messageData.voiceMessageUrl = options.voiceMessageUrl;
     }
-    if (options?.voiceMessageDuration !== undefined) { // Duration can be 0, so check for undefined
+    if (options?.voiceMessageDuration !== undefined) {
       messageData.voiceMessageDuration = options.voiceMessageDuration;
+    }
+    if (options?.gifUrl) {
+      messageData.gifUrl = options.gifUrl;
+      // If GIF is present, text might be cleared or set to a placeholder by the caller.
+      // For now, we just add the GIF URL. If text is also present, both will be stored.
+      // The display component will decide precedence.
     }
 
     try {

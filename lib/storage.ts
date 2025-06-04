@@ -42,3 +42,45 @@ export async function uploadVoiceMessage(userId: string, audioBlob: Blob): Promi
     throw new Error(`Failed to upload voice message: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
+
+/**
+ * Uploads an avatar image file to Firebase Storage.
+ * @param userId The UID of the user uploading the avatar.
+ * @param file The image file to upload.
+ * @returns A Promise that resolves with the download URL of the uploaded file.
+ * @throws Will throw an error if the upload fails.
+ */
+export async function uploadAvatar(userId: string, file: File): Promise<string> {
+  if (!storage) {
+    throw new Error("Firebase Storage is not initialized.");
+  }
+  if (!userId) {
+    throw new Error("User ID is required for uploading avatar.");
+  }
+  if (!file) {
+    throw new Error("File is required for uploading avatar.");
+  }
+
+  // Generate a more unique filename using UUID to prevent overwrites and improve cache busting
+  const fileExtension = file.name.split('.').pop() || 'png'; // Default to png if no extension
+  const uniqueFilename = `${uuidv4()}.${fileExtension}`;
+  const filePath = `avatars/${userId}/${uniqueFilename}`;
+  const fileRef = storageRef(storage, filePath);
+
+  console.log(`Uploading avatar to: ${filePath}`);
+
+  try {
+    // Content type is derived from the file itself by uploadBytes, but can be specified
+    const metadata = { contentType: file.type || 'image/jpeg' }; // Fallback contentType
+    const snapshot = await uploadBytes(fileRef, file, metadata);
+    console.log('Uploaded avatar file!', snapshot);
+
+    const downloadURL = await getDownloadURL(snapshot.ref);
+    console.log('Avatar file available at', downloadURL);
+
+    return downloadURL;
+  } catch (error) {
+    console.error("Error uploading avatar:", error);
+    throw new Error(`Failed to upload avatar: ${error instanceof Error ? error.message : String(error)}`);
+  }
+}
