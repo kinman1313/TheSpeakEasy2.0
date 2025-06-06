@@ -110,8 +110,6 @@ export default function ChatApp() {
                 title: "Call Declined",
                 description: `${fromUserName || 'The other user'} declined the call.`,
             });
-            setActiveCallTargetUserId(null); // From WebRTCProvider, if exposed, or manage locally
-            setActiveCallTargetUserName(null); // From WebRTCProvider
             closePeerConnection(); // This should reset callStatus to idle
         },
         () => { // onCallEndedSignalCb
@@ -379,13 +377,12 @@ export default function ChatApp() {
                 <p className="text-sm font-medium">{msg.userName}</p>
                 {/* Conditional rendering for GIF, then voice, then text */}
                 {msg.gifUrl ? (
-                  <Image
+                  <img
                     src={msg.gifUrl}
                     alt="User GIF"
                     width={250} // Example width, adjust as needed
                     height={150} // Example height, adjust based on typical GIF aspect ratios
                     className="mt-1 rounded-md object-contain max-w-full"
-                    unoptimized
                   />
                 ) : msg.voiceMessageUrl ? (
                   <AudioPlayer

@@ -27,18 +27,39 @@ const nextConfig = {
     ignoreDuringBuilds: true,
   },
   webpack: (config, { isServer, dev }) => {
-    // Simplify webpack configuration to avoid build issues
+    // Firebase compatibility fixes for Vercel
     if (!isServer) {
       config.resolve.fallback = {
         ...config.resolve.fallback,
         fs: false,
         net: false,
         tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        http: false,
+        https: false,
+        assert: false,
+        os: false,
+        path: false,
       };
     }
 
-    // Fix the alias path - make sure it points to your project root
-    config.resolve.alias['@'] = path.resolve(__dirname);
+    // Fix Firebase module resolution
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@': path.resolve(__dirname),
+    };
+
+    // Ensure Firebase modules are properly handled
+    config.module.rules.push({
+      test: /\.m?js$/,
+      type: "javascript/auto",
+      resolve: {
+        fullySpecified: false,
+      },
+    });
 
     return config;
   },
