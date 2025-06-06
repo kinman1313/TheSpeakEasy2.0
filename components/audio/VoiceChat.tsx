@@ -5,7 +5,18 @@ import { Button } from "@/components/ui/button"
 import { Mic, MicOff, PhoneOff } from "lucide-react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
-import { collection, doc, onSnapshot, setDoc, deleteDoc, getDocs, type Firestore } from "firebase/firestore"
+import {
+  collection,
+  doc,
+  onSnapshot,
+  setDoc,
+  deleteDoc,
+  getDocs,
+  type Firestore,
+  type QuerySnapshot,
+  type DocumentData,
+  type DocumentSnapshot
+} from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
 import { useRouter } from "next/navigation"
@@ -19,6 +30,7 @@ interface Participant {
   id: string
   displayName: string
   photoURL: string
+  joinedAt?: Date
 }
 
 export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps) {
@@ -26,7 +38,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
   const router = useRouter()
   const [isMuted, setIsMuted] = useState(false)
   const [participants, setParticipants] = useState<Participant[]>([])
-  useRef<{ [key: string]: RTCPeerConnection }>({});
+  const peerConnections = useRef<{ [key: string]: RTCPeerConnection }>({})
   const localStream = useRef<MediaStream | null>(null)
 
   // Check if we're in a browser environment and Firebase is initialized
@@ -49,7 +61,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
       const participantsCollection = collection(firestore, "voiceChatRooms", roomId, "participants")
       const participantsSnapshot = await getDocs(participantsCollection)
 
-      const deletePromises = participantsSnapshot.docs.map((doc) => deleteDoc(doc.ref))
+      const deletePromises = participantsSnapshot.docs.map((doc: DocumentSnapshot<DocumentData>) => deleteDoc(doc.ref))
 
       await Promise.all(deletePromises)
     } catch (error) {
@@ -76,7 +88,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
   const toggleMute = () => {
     if (!localStream.current) return
 
-    localStream.current.getAudioTracks().forEach((track) => {
+    localStream.current.getAudioTracks().forEach((track: MediaStreamTrack) => {
       track.enabled = !track.enabled
       setIsMuted(!track.enabled)
     })
@@ -90,7 +102,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
 
   const stopVoiceChat = useCallback(() => {
     if (localStream.current) {
-      localStream.current.getTracks().forEach((track) => {
+      localStream.current.getTracks().forEach((track: MediaStreamTrack) => {
         track.stop()
       })
       localStream.current = null
@@ -107,44 +119,44 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
 
     let unsubscribe: (() => void) | undefined
 
-    // Use an IIFE to handle the async function
-    ;(async () => {
-      try {
-        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-        const firestore = db as Firestore
+      // Use an IIFE to handle the async function
+      ; (async () => {
+        try {
+          // Use type assertion to tell TypeScript that db is definitely a Firestore instance
+          const firestore = db as Firestore
 
-        // Create or update the room document
-        await setDoc(doc(firestore, "voiceChatRooms", roomId), {
-          initiatorId: user.uid,
-          createdAt: new Date(),
-        })
+          // Create or update the room document
+          await setDoc(doc(firestore, "voiceChatRooms", roomId), {
+            initiatorId: user.uid,
+            createdAt: new Date(),
+          })
 
-        // Add the current user as a participant
-        await setDoc(doc(firestore, "voiceChatRooms", roomId, "participants", user.uid), {
-          id: user.uid,
-          displayName: user.displayName || "Anonymous",
-          photoURL: user.photoURL || "",
-          joinedAt: new Date(),
-        })
+          // Add the current user as a participant
+          await setDoc(doc(firestore, "voiceChatRooms", roomId, "participants", user.uid), {
+            id: user.uid,
+            displayName: user.displayName || "Anonymous",
+            photoURL: user.photoURL || "",
+            joinedAt: new Date(),
+          })
 
-        // Start the voice chat
-        await startVoiceChat()
+          // Start the voice chat
+          await startVoiceChat()
 
-        // Listen for participants
-        const participantsCollection = collection(firestore, "voiceChatRooms", roomId, "participants")
+          // Listen for participants
+          const participantsCollection = collection(firestore, "voiceChatRooms", roomId, "participants")
 
-        unsubscribe = onSnapshot(participantsCollection, (snapshot) => {
-          const updatedParticipants = snapshot.docs.map((doc) => doc.data() as Participant)
-          setParticipants(updatedParticipants)
-        })
-      } catch (error) {
-        console.error("Error initializing voice chat:", error)
+          unsubscribe = onSnapshot(participantsCollection, (snapshot: QuerySnapshot<DocumentData>) => {
+            const updatedParticipants = snapshot.docs.map((doc: DocumentSnapshot<DocumentData>) => doc.data() as Participant)
+            setParticipants(updatedParticipants)
+          })
+        } catch (error) {
+          console.error("Error initializing voice chat:", error)
+          toast.error("Failed to initialize voice chat")
+        }
+      })().catch((error) => {
+        console.error("Error in voice chat initialization:", error)
         toast.error("Failed to initialize voice chat")
-      }
-    })().catch((error) => {
-      console.error("Error in voice chat initialization:", error)
-      toast.error("Failed to initialize voice chat")
-    })
+      })
 
     // Cleanup function
     return () => {
@@ -165,7 +177,7 @@ export default function VoiceChat({ roomId, redirectUrl = "/" }: VoiceChatProps)
       <div className="flex flex-wrap gap-4 mb-4">
         {/* Voice chat participants */}
         <div className="flex flex-wrap gap-4 w-full">
-          {participants.map((participant) => (
+          {participants.map((participant: Participant) => (
             <div key={participant.id} className="flex items-center space-x-2 bg-gray-800 p-2 rounded-lg">
               <Avatar className="h-10 w-10">
                 <AvatarImage

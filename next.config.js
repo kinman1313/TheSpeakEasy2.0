@@ -16,8 +16,8 @@ const nextConfig = {
   },
   experimental: {
     webpackBuildWorker: true,
-    serverComponentsExternalPackages: ["undici", "firebase", "firebase-admin"],
   },
+  serverExternalPackages: ["undici", "firebase", "firebase-admin"],
   // Skip TS and ESLint checks during build to avoid issues
   typescript: {
     ignoreBuildErrors: true,

@@ -1,9 +1,9 @@
+export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { MESSAGE_BATCH_SIZE } from "@/lib/constants"
-
-export const dynamic = "force-dynamic";
+import { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore"
 
 // Add this interface to define the message data structure
 interface MessageData {
@@ -75,7 +75,7 @@ export async function GET(
         }
 
         const snapshot = await messagesQuery.get()
-        const messages = snapshot.docs.map((doc) => ({
+        const messages = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({
             id: doc.id,
             ...doc.data(),
         }))

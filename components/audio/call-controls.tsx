@@ -17,6 +17,7 @@ import {
   type DocumentData,
   type QuerySnapshot,
   type Firestore,
+  type DocumentSnapshot,
 } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { toast } from "sonner"
@@ -147,7 +148,10 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     socket.emit("signal", signal)
   }
 
-  // Initialize media devices
+  // Update type declarations for track parameters
+  const handleTrackStop = (track: MediaStreamTrack) => track.stop()
+
+  // Update useEffect cleanup
   useEffect(() => {
     const initializeMedia = async () => {
       try {
@@ -170,7 +174,7 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
 
     return () => {
       if (localStream.current) {
-        localStream.current.getTracks().forEach((track) => track.stop())
+        localStream.current.getTracks().forEach(handleTrackStop)
       }
     }
   }, [isVideo])
@@ -187,7 +191,7 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     const participantsCollection = collection(callDocRef, "participants");
 
     const unsubscribe = onSnapshot(participantsCollection, (snapshot: QuerySnapshot<DocumentData>) => {
-      const updatedParticipants = snapshot.docs.map((doc) => ({
+      const updatedParticipants = snapshot.docs.map((doc: DocumentSnapshot<DocumentData>) => ({
         id: doc.id,
         ...doc.data(),
       })) as Participant[]
@@ -213,7 +217,7 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     })
 
     // Add local tracks
-    localStream.current.getTracks().forEach((track) => {
+    localStream.current.getTracks().forEach((track: MediaStreamTrack) => {
       peerConnection.addTrack(track, localStream.current!)
     })
 
@@ -300,27 +304,25 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     initializePeerConnection()
   }, [roomId, user, isMuted, isVideoEnabled, isFirebaseReady, db])
 
-  // Handle media controls
+  // Update media control handlers
   const toggleMute = async () => {
     if (!localStream.current) return
 
     const audioTracks = localStream.current.getAudioTracks()
     const newMutedState = !isMuted
 
-    audioTracks.forEach((track) => {
+    audioTracks.forEach((track: MediaStreamTrack) => {
       track.enabled = !newMutedState
     })
 
     setIsMuted(newMutedState)
 
     if (user && isFirebaseReady && db) {
-      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-      const firestore = db as Firestore;
-
-      const callDocRef = doc(firestore, "calls", roomId);
-      const participantsCollection = collection(callDocRef, "participants");
-      const userDocRef = doc(participantsCollection, user.uid);
-      await updateDoc(userDocRef, { isMuted: newMutedState });
+      const firestore = db as Firestore
+      const callDocRef = doc(firestore, "calls", roomId)
+      const participantsCollection = collection(callDocRef, "participants")
+      const userDocRef = doc(participantsCollection, user.uid)
+      await updateDoc(userDocRef, { isMuted: newMutedState })
     }
   }
 
@@ -330,20 +332,18 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     const videoTracks = localStream.current.getVideoTracks()
     const newVideoState = !isVideoEnabled
 
-    videoTracks.forEach((track) => {
+    videoTracks.forEach((track: MediaStreamTrack) => {
       track.enabled = newVideoState
     })
 
     setIsVideoEnabled(newVideoState)
 
     if (user && isFirebaseReady && db) {
-      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-      const firestore = db as Firestore;
-
-      const callDocRef = doc(firestore, "calls", roomId);
-      const participantsCollection = collection(callDocRef, "participants");
-      const userDocRef = doc(participantsCollection, user.uid);
-      await updateDoc(userDocRef, { isVideoEnabled: newVideoState });
+      const firestore = db as Firestore
+      const callDocRef = doc(firestore, "calls", roomId)
+      const participantsCollection = collection(callDocRef, "participants")
+      const userDocRef = doc(participantsCollection, user.uid)
+      await updateDoc(userDocRef, { isVideoEnabled: newVideoState })
     }
   }
 
@@ -368,9 +368,10 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
       }
 
       // Replace video track in all peer connections
-      Object.values(peerConnections.current).forEach(({ peerConnection }) => {
+      const connections = Object.values(peerConnections.current) as PeerConnectionData[]
+      connections.forEach((connection) => {
         const [videoTrack] = stream.getVideoTracks()
-        const sender = peerConnection.getSenders().find((s) => s.track?.kind === "video")
+        const sender = connection.peerConnection.getSenders().find((s: RTCRtpSender) => s.track?.kind === "video")
 
         if (sender && videoTrack) {
           sender.replaceTrack(videoTrack)
@@ -391,7 +392,7 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
   const stopScreenShare = async () => {
     if (!screenStream.current) return
 
-    screenStream.current.getTracks().forEach((track) => track.stop())
+    screenStream.current.getTracks().forEach(handleTrackStop)
     screenStream.current = null
 
     if (screenShareRef.current) {
@@ -400,9 +401,10 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
 
     // Restore video tracks
     if (localStream.current) {
-      Object.values(peerConnections.current).forEach(({ peerConnection }) => {
+      const connections = Object.values(peerConnections.current) as PeerConnectionData[]
+      connections.forEach((connection) => {
         const [videoTrack] = localStream.current!.getVideoTracks()
-        const sender = peerConnection.getSenders().find((s) => s.track?.kind === "video")
+        const sender = connection.peerConnection.getSenders().find((s: RTCRtpSender) => s.track?.kind === "video")
 
         if (sender && videoTrack) {
           sender.replaceTrack(videoTrack)
@@ -413,36 +415,34 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     setIsScreenSharing(false)
   }
 
-  // Handle call end
+  // Update call end handler
   const handleEndCall = async () => {
     try {
       if (user && isFirebaseReady && db) {
-        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-        const firestore = db as Firestore;
+        const firestore = db as Firestore
+        const callDocRef = doc(firestore, "calls", roomId)
+        const participantsCollection = collection(callDocRef, "participants")
+        const userDocRef = doc(participantsCollection, user.uid)
 
-        const callDocRef = doc(firestore, "calls", roomId);
-        const participantsCollection = collection(callDocRef, "participants");
-        const userDocRef = doc(participantsCollection, user.uid);
-
-        await deleteDoc(userDocRef);
-        await deleteCallIfEmpty(roomId);
+        await deleteDoc(userDocRef)
+        await deleteCallIfEmpty(roomId)
       }
 
       // Clean up media
       if (localStream.current) {
-        localStream.current.getTracks().forEach((track) => track.stop())
+        localStream.current.getTracks().forEach(handleTrackStop)
       }
       if (screenStream.current) {
-        screenStream.current.getTracks().forEach((track) => track.stop())
+        screenStream.current.getTracks().forEach(handleTrackStop)
       }
 
       // Close peer connections
-      Object.values(peerConnections.current).forEach(({ peerConnection }) => {
-        peerConnection.close()
+      const connections = Object.values(peerConnections.current) as PeerConnectionData[]
+      connections.forEach((connection) => {
+        connection.peerConnection.close()
       })
 
-      // Use router to navigate to the redirect URL instead of calling onEnd
-      router.push(redirectUrl);
+      router.push(redirectUrl)
     } catch (error) {
       console.error("Error ending call:", error)
       toast.error("Failed to end call properly")
@@ -452,15 +452,13 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
   const handleParticipantLeft = async (participantId: string) => {
     try {
       if (isFirebaseReady && db) {
-        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-        const firestore = db as Firestore;
+        const firestore = db as Firestore
+        const callDocRef = doc(firestore, "calls", roomId)
+        const participantsCollection = collection(callDocRef, "participants")
+        const participantDocRef = doc(participantsCollection, participantId)
 
-        const callDocRef = doc(firestore, "calls", roomId);
-        const participantsCollection = collection(callDocRef, "participants");
-        const participantDocRef = doc(participantsCollection, participantId);
-
-        await deleteDoc(participantDocRef);
-        await deleteCallIfEmpty(roomId);
+        await deleteDoc(participantDocRef)
+        await deleteCallIfEmpty(roomId)
       }
 
       // Clean up participant's peer connection
@@ -471,11 +469,11 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
 
       // Clean up participant's stream
       if (remoteStreams.current[participantId]) {
-        remoteStreams.current[participantId].getTracks().forEach((track) => track.stop())
+        remoteStreams.current[participantId].getTracks().forEach(handleTrackStop)
         delete remoteStreams.current[participantId]
       }
 
-      setParticipants((prev) => prev.filter((p) => p.id !== participantId))
+      setParticipants((prev: Participant[]) => prev.filter((p: Participant) => p.id !== participantId))
     } catch (error) {
       console.error("Error handling participant left:", error)
       toast.error("Error removing participant from call")
@@ -516,8 +514,8 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
 
           {/* Remote participants */}
           {participants
-            .filter((p) => p.id !== user?.uid)
-            .map((participant) => (
+            .filter((p: Participant) => p.id !== user?.uid)
+            .map((participant: Participant) => (
               <div key={participant.id} className="flex flex-col items-center">
                 <Avatar className="w-16 h-16">
                   <AvatarImage src={participant.photoURL || ""} />

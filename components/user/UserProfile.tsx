@@ -158,10 +158,10 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
             })
 
             setPhotoURL(downloadURL)
-            toast.success("Photo updated successfully")
+            toast.success("Profile photo updated")
         } catch (error) {
             console.error("Error uploading photo:", error)
-            toast.error("Could not upload photo")
+            toast.error("Failed to upload photo")
         } finally {
             setIsUploading(false)
         }
@@ -169,11 +169,6 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
 
     const updateUserProfile = async () => {
         if (!user || !isFirebaseReady || !auth || !db) return
-
-        if (!displayName.trim()) {
-            toast.error("Display name cannot be empty")
-            return
-        }
 
         try {
             setIsSaving(true)
@@ -183,27 +178,26 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
             const firebaseAuth = auth as Auth;
             const firestore = db as Firestore;
 
-            // Update display name in Firebase Auth
-            if (displayName !== user.displayName && firebaseAuth.currentUser) {
+            // Update user profile
+            if (firebaseAuth.currentUser) {
                 await updateProfile(firebaseAuth.currentUser, {
-                    displayName: displayName.trim(),
+                    displayName: displayName,
                 })
             }
 
             // Update in Firestore
             const userRef = doc(firestore, "users", user.uid)
             await updateDoc(userRef, {
-                displayName: displayName.trim(),
-                chatColor,
-                settings,
-                updatedAt: new Date(),
+                displayName: displayName,
+                chatColor: chatColor,
+                settings: settings,
             })
 
-            toast.success("Profile updated successfully")
+            toast.success("Profile updated")
             handleClose()
         } catch (error) {
             console.error("Error updating profile:", error)
-            toast.error("Could not update profile")
+            toast.error("Failed to update profile")
         } finally {
             setIsSaving(false)
         }
@@ -216,152 +210,136 @@ export function UserProfile({ redirectUrl = "/" }: UserProfileProps) {
         }))
     }
 
-    // Early return if not in browser or no user
-    if (typeof window === 'undefined' || !user) {
-        return null;
-    }
-
     return (
-        <>
+        <div className="flex flex-col gap-6 p-6">
             <DialogHeader>
-                <DialogTitle className="text-2xl font-bold text-neon-blue glow-blue">User Profile</DialogTitle>
+                <DialogTitle>Profile Settings</DialogTitle>
             </DialogHeader>
 
-            <div className="space-y-6 py-4">
-                <div className="flex flex-col items-center space-y-4">
-                    <Avatar className="h-24 w-24 border-2 border-neon-blue">
-                        <AvatarImage
-                            src={photoURL || `/api/avatar?name=${encodeURIComponent(displayName || "User")}`}
-                            alt={displayName || "User avatar"}
-                        />
-                        <AvatarFallback>{displayName?.[0] || user.email?.[0] || "U"}</AvatarFallback>
+            <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                    <Avatar className="h-24 w-24">
+                        <AvatarImage src={photoURL} alt={displayName} />
+                        <AvatarFallback>{displayName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
                     </Avatar>
-
-                    <div>
-                        <Button
-                            variant="outline"
-                            className="border-neon-blue text-neon-blue hover:bg-neon-blue/20"
-                            onClick={() => document.getElementById("photo-upload")?.click()}
-                            disabled={isUploading || !isFirebaseReady}
-                        >
-                            {isUploading ? "Uploading..." : "Change Photo"}
-                        </Button>
+                    <label
+                        htmlFor="photo-upload"
+                        className="absolute bottom-0 right-0 bg-primary text-primary-foreground rounded-full p-2 cursor-pointer hover:bg-primary/90"
+                    >
                         <input
                             id="photo-upload"
                             type="file"
-                            accept="image/jpeg,image/png,image/webp"
-                            onChange={handlePhotoUpload}
+                            accept="image/*"
                             className="hidden"
-                            aria-label="Upload profile photo"
-                            disabled={!isFirebaseReady}
+                            onChange={handlePhotoUpload}
+                            disabled={isUploading}
+                        />
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="20"
+                            height="20"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                        >
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="17 8 12 3 7 8" />
+                            <line x1="12" y1="3" x2="12" y2="15" />
+                        </svg>
+                    </label>
+                </div>
+
+                <div className="w-full space-y-4">
+                    <div className="space-y-2">
+                        <Label htmlFor="displayName">Display Name</Label>
+                        <Input
+                            id="displayName"
+                            value={displayName}
+                            onChange={(e) => setDisplayName(e.target.value)}
+                            placeholder="Enter your display name"
                         />
                     </div>
-                </div>
 
-                <div className="space-y-2">
-                    <Label htmlFor="display-name" className="text-neon-white">
-                        Display Name
-                    </Label>
-                    <Input
-                        id="display-name"
-                        value={displayName}
-                        onChange={(e) => setDisplayName(e.target.value)}
-                        placeholder="Your display name"
-                        className="bg-opacity-30 border-neon-blue text-neon-white"
-                        maxLength={50}
-                        required
-                        disabled={!isFirebaseReady}
-                    />
-                </div>
-
-                <div className="space-y-2">
-                    <Label className="text-neon-white">Chat Bubble Color</Label>
-                    <div className="p-2 bg-gray-800 bg-opacity-50 rounded-md">
+                    <div className="space-y-2">
+                        <Label>Chat Color</Label>
                         <CirclePicker
+                            colors={NEON_COLORS}
                             color={chatColor}
                             onChange={(color) => setChatColor(color.hex)}
-                            colors={NEON_COLORS}
-                            circleSize={28}
-                            circleSpacing={14}
+                            width="100%"
                         />
                     </div>
-                    <div className="mt-2 p-3 rounded-lg transition-colors" style={{ backgroundColor: `${chatColor}40` }}>
-                        <p className="text-neon-white">Preview of your chat bubble</p>
-                    </div>
-                </div>
-
-                <div className="space-y-4">
-                    <Label className="text-neon-white">Chat Settings</Label>
 
                     <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="enter-to-send" className="text-neon-white cursor-pointer">
-                                Press Enter to send message
-                            </Label>
-                            <Switch
-                                id="enter-to-send"
-                                checked={settings.enterToSend}
-                                onCheckedChange={(value) => handleSettingChange("enterToSend", value)}
-                                disabled={!isFirebaseReady}
-                            />
-                        </div>
+                        <Label>Settings</Label>
+                        <div className="space-y-4">
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="enterToSend" className="cursor-pointer">
+                                    Enter to Send
+                                </Label>
+                                <Switch
+                                    id="enterToSend"
+                                    checked={settings.enterToSend}
+                                    onCheckedChange={(checked) =>
+                                        handleSettingChange("enterToSend", checked)
+                                    }
+                                />
+                            </div>
 
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="typing-indicators" className="text-neon-white cursor-pointer">
-                                Show typing indicators
-                            </Label>
-                            <Switch
-                                id="typing-indicators"
-                                checked={settings.showTypingIndicators}
-                                onCheckedChange={(value) => handleSettingChange("showTypingIndicators", value)}
-                                disabled={!isFirebaseReady}
-                            />
-                        </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="showTypingIndicators" className="cursor-pointer">
+                                    Show Typing Indicators
+                                </Label>
+                                <Switch
+                                    id="showTypingIndicators"
+                                    checked={settings.showTypingIndicators}
+                                    onCheckedChange={(checked) =>
+                                        handleSettingChange("showTypingIndicators", checked)
+                                    }
+                                />
+                            </div>
 
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="read-receipts" className="text-neon-white cursor-pointer">
-                                Show read receipts
-                            </Label>
-                            <Switch
-                                id="read-receipts"
-                                checked={settings.showReadReceipts}
-                                onCheckedChange={(value) => handleSettingChange("showReadReceipts", value)}
-                                disabled={!isFirebaseReady}
-                            />
-                        </div>
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="showReadReceipts" className="cursor-pointer">
+                                    Show Read Receipts
+                                </Label>
+                                <Switch
+                                    id="showReadReceipts"
+                                    checked={settings.showReadReceipts}
+                                    onCheckedChange={(checked) =>
+                                        handleSettingChange("showReadReceipts", checked)
+                                    }
+                                />
+                            </div>
 
-                        <div className="flex items-center justify-between">
-                            <Label htmlFor="notifications" className="text-neon-white cursor-pointer">
-                                Enable notifications
-                            </Label>
-                            <Switch
-                                id="notifications"
-                                checked={settings.notificationsEnabled}
-                                onCheckedChange={(value) => handleSettingChange("notificationsEnabled", value)}
-                                disabled={!isFirebaseReady}
-                            />
+                            <div className="flex items-center justify-between">
+                                <Label htmlFor="notificationsEnabled" className="cursor-pointer">
+                                    Enable Notifications
+                                </Label>
+                                <Switch
+                                    id="notificationsEnabled"
+                                    checked={settings.notificationsEnabled}
+                                    onCheckedChange={(checked) =>
+                                        handleSettingChange("notificationsEnabled", checked)
+                                    }
+                                />
+                            </div>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div className="flex justify-end space-x-2 mt-4">
-                <Button
-                    variant="outline"
-                    onClick={handleClose}
-                    className="border-neon-red text-neon-red hover:bg-neon-red/20"
-                    disabled={isUploading || isSaving || !isFirebaseReady}
-                >
+            <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={handleClose}>
                     Cancel
                 </Button>
-                <Button
-                    onClick={updateUserProfile}
-                    className="bg-neon-green text-black hover:bg-neon-green/80"
-                    disabled={isUploading || isSaving || !isFirebaseReady}
-                >
+                <Button onClick={updateUserProfile} disabled={isSaving || isUploading}>
                     {isSaving ? "Saving..." : "Save Changes"}
                 </Button>
             </div>
-        </>
+        </div>
     )
 }
