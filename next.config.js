@@ -14,6 +14,19 @@ const nextConfig = {
   images: {
     domains: ["firebasestorage.googleapis.com", "lh3.googleusercontent.com", "media.giphy.com"],
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          {
+            key: 'Cross-Origin-Opener-Policy',
+            value: 'same-origin-allow-popups'
+          }
+        ]
+      }
+    ]
+  },
   experimental: {
     webpackBuildWorker: true,
   },

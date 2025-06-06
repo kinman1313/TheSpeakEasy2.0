@@ -20,14 +20,8 @@ export function middleware(request: NextRequest) {
     return NextResponse.next()
   }
 
-  const authCookie = request.cookies.get("auth")
-
-  // Redirect to login if no auth cookie is present
-  if (!authCookie) {
-    const loginUrl = new URL("/login", request.url)
-    loginUrl.searchParams.set("from", request.nextUrl.pathname)
-    return NextResponse.redirect(loginUrl)
-  }
+  // For now, allow all routes - Firebase auth will handle protection client-side
+  // You can add server-side auth verification later if needed
 
   return NextResponse.next()
 }

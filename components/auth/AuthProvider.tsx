@@ -6,9 +6,8 @@ import { onAuthStateChanged, getAuth, User as FirebaseUser } from "firebase/auth
 import { app, rtdb } from "@/lib/firebase" // Import rtdb
 import { ref, set, onDisconnect, serverTimestamp, goOnline, goOffline } from "firebase/database" // RTDB functions
 
-// Initialize auth only in the browser
-const auth = typeof window !== 'undefined' ? getAuth(app) : null;
-// RTDB is already initialized in firebase.ts, ensure it's available
+// Initialize auth - getAuth is safe to call on server
+const auth = getAuth(app);
 
 // Define the shape of our context
 interface AuthContextType {
@@ -33,9 +32,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
-        if (typeof window === 'undefined' || !auth || !rtdb) {
+        if (typeof window === 'undefined') {
             setLoading(false);
-            if (!rtdb) console.error("Realtime Database not available in AuthProvider.");
+            return;
+        }
+
+        if (!auth) {
+            console.error("Auth not available in AuthProvider.");
+            setLoading(false);
             return;
         }
 
@@ -46,29 +50,33 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             if (authUser) {
                 // User is logged in
                 previousUserUid = authUser.uid; // Store UID for logout
-                const userStatusRef = ref(rtdb, `status/${authUser.uid}`);
 
-                goOnline(rtdb); // Ensure connection is active
+                // Only handle presence if rtdb is available
+                if (rtdb) {
+                    const userStatusRef = ref(rtdb, `status/${authUser.uid}`);
 
-                const presenceData = {
-                    isOnline: true,
-                    lastChanged: serverTimestamp(),
-                    userName: authUser.displayName || "Anonymous",
-                    photoURL: authUser.photoURL || "",
-                };
+                    goOnline(rtdb); // Ensure connection is active
 
-                set(userStatusRef, presenceData).catch(error => console.error("Error setting online status:", error));
+                    const presenceData = {
+                        isOnline: true,
+                        lastChanged: serverTimestamp(),
+                        userName: authUser.displayName || "Anonymous",
+                        photoURL: authUser.photoURL || "",
+                    };
 
-                onDisconnect(userStatusRef).set({
-                    isOnline: false,
-                    lastChanged: serverTimestamp(),
-                    userName: authUser.displayName || "Anonymous", // Keep info on disconnect
-                    photoURL: authUser.photoURL || "",
-                }).catch(error => console.error("Error setting onDisconnect:", error));
+                    set(userStatusRef, presenceData).catch(error => console.error("Error setting online status:", error));
+
+                    onDisconnect(userStatusRef).set({
+                        isOnline: false,
+                        lastChanged: serverTimestamp(),
+                        userName: authUser.displayName || "Anonymous", // Keep info on disconnect
+                        photoURL: authUser.photoURL || "",
+                    }).catch(error => console.error("Error setting onDisconnect:", error));
+                }
 
             } else {
                 // User is logged out
-                if (previousUserUid) {
+                if (previousUserUid && rtdb) {
                     const userStatusRef = ref(rtdb, `status/${previousUserUid}`);
                     set(userStatusRef, {
                         isOnline: false,
@@ -76,12 +84,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                         // Optionally clear userName and photoURL or keep them
                     }).catch(error => console.error("Error setting offline status on logout:", error));
                 }
-                // goOffline(rtdb); // Mark client as offline. Important for RTDB connection management.
-                                  // Consider if this should be here or if onDisconnect is sufficient.
-                                  // If multiple users share a client, goOffline might be too aggressive.
-                                  // For a typical single-user client, this is okay.
-                                  // Let's defer to onDisconnect for now, as it's user-specific.
-                                  // If the app closes, onDisconnect handles it. If user logs out, we manually set.
                 previousUserUid = null;
             }
         });

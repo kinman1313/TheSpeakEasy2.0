@@ -31,12 +31,18 @@ export function LoginForm() {
   async function signInWithProvider(provider: GoogleAuthProvider | GithubAuthProvider | FacebookAuthProvider) {
     try {
       setIsLoading(true)
-      await signInWithPopup(auth, provider)
+      console.log("Starting provider sign in...")
+      const result = await signInWithPopup(auth, provider)
+      console.log("Sign in successful:", result.user)
       toast.success("Welcome back!")
       router.push("/")
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.message || "Failed to sign in. Please try again.")
+      console.error("Provider sign in error:", error)
+      if (error.code === 'auth/account-exists-with-different-credential') {
+        toast.error("An account already exists with the same email address but different sign-in credentials.")
+      } else {
+        toast.error(error.message || "Failed to sign in. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
@@ -51,17 +57,33 @@ export function LoginForm() {
 
     try {
       setIsLoading(true)
+      console.log("Starting email auth...", isRegistering ? "registering" : "signing in")
+
       if (isRegistering) {
-        await createUserWithEmailAndPassword(auth, email, password)
+        const result = await createUserWithEmailAndPassword(auth, email, password)
+        console.log("Registration successful:", result.user)
         toast.success("Account created successfully!")
       } else {
-        await signInWithEmailAndPassword(auth, email, password)
+        const result = await signInWithEmailAndPassword(auth, email, password)
+        console.log("Sign in successful:", result.user)
         toast.success("Welcome back!")
       }
       router.push("/")
     } catch (error: any) {
-      console.error(error)
-      toast.error(error.message || "Authentication failed. Please try again.")
+      console.error("Email auth error:", error)
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error("Email already in use. Try signing in instead.")
+      } else if (error.code === 'auth/weak-password') {
+        toast.error("Password is too weak. Please choose a stronger password.")
+      } else if (error.code === 'auth/invalid-email') {
+        toast.error("Invalid email address.")
+      } else if (error.code === 'auth/user-not-found') {
+        toast.error("No account found with this email. Try creating an account.")
+      } else if (error.code === 'auth/wrong-password') {
+        toast.error("Incorrect password.")
+      } else {
+        toast.error(error.message || "Authentication failed. Please try again.")
+      }
     } finally {
       setIsLoading(false)
     }
