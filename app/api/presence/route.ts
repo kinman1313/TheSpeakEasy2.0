@@ -66,6 +66,9 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "User ID is required" }, { status: 400 })
         }
 
+        // Log the requester for security/audit purposes
+        console.log(`Presence request for user ${userId} by ${decodedToken.uid}`)
+
         // Get user presence from Firestore
         const userRef = adminDb.collection("users").doc(userId)
         const userDoc = await userRef.get()

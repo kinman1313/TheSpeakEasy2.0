@@ -1,18 +1,13 @@
-'use client'
+"use client"
 
-import { User } from "firebase/auth"
-import { createContext, useContext, useEffect, useState } from "react"
-import { onAuthStateChanged, getAuth, User as FirebaseUser } from "firebase/auth" // Renamed User to FirebaseUser
-import { app, rtdb } from "@/lib/firebase" // Import rtdb
-import { ref, set, onDisconnect, serverTimestamp, goOnline, goOffline } from "firebase/database" // RTDB functions
-
-// Initialize auth only in the browser
-const auth = typeof window !== 'undefined' ? getAuth(app) : null;
-// RTDB is already initialized in firebase.ts, ensure it's available
+import React, { createContext, useContext, useEffect, useState } from "react"
+import { auth, rtdb } from "@/lib/firebase"
+import { onAuthStateChanged, type User } from "firebase/auth"
+import { ref, set, onDisconnect, serverTimestamp, goOnline } from "firebase/database" // RTDB functions - removed unused goOffline
 
 // Define the shape of our context
 interface AuthContextType {
-    user: FirebaseUser | null // Use FirebaseUser type
+    user: User | null
     loading: boolean
 }
 
@@ -29,7 +24,7 @@ let previousUserUid: string | null = null;
 export const useAuth = () => useContext(AuthContext)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<FirebaseUser | null>(null) // Use FirebaseUser type
+    const [user, setUser] = useState<User | null>(null) // Use User type
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {

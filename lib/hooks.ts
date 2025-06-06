@@ -49,31 +49,14 @@ export function useInfiniteScroll(callback: () => void) {
 }
 
 // Hook for handling typing indicator debounce
-export function useTypingIndicator(roomId: string, userId: string) {
-  const [isTyping, setIsTyping] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
-
-  const handleTyping = useCallback(() => {
-    setIsTyping(true)
-
-    if (timeoutRef.current) {
-      clearTimeout(timeoutRef.current)
-    }
-
-    timeoutRef.current = setTimeout(() => {
-      setIsTyping(false)
-    }, 3000)
-  }, [])
-
-  useEffect(() => {
-    return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current)
-      }
-    }
-  }, [])
-
-  return { isTyping, handleTyping }
+export function useTypingIndicator(_roomId: string, _userId: string) {
+  // TODO: Implement typing indicator functionality
+  // For now, return empty state
+  return {
+    typingUsers: [],
+    setTyping: () => {},
+    stopTyping: () => {}
+  }
 }
 
 // Hook for handling media queries

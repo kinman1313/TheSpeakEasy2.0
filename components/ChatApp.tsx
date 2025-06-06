@@ -11,7 +11,7 @@ import { app } from "@/lib/firebase"
 import { useToast } from "@/components/ui/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { isToday, isYesterday, format, isValid } from 'date-fns'
-import { useMessages, Message } from "@/lib/hooks/useMessages"
+import { useMessages } from "@/lib/hooks/useMessages"
 import { useSendMessage } from "@/lib/hooks/useSendMessage"
 import { useToggleReaction } from "@/lib/hooks/useToggleReaction"
 import MessageReactions from "@/components/chat/MessageReactions"
@@ -23,7 +23,7 @@ import AudioPlayer from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal" // Import UserProfileModal
 import { uploadVoiceMessage } from "@/lib/storage"
-import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
+import { Image as ImageIcon } from "lucide-react"; // Removed unused UserIcon import
 import { cn } from "@/lib/utils"
 
 // Initialize Firestore only if app is defined
@@ -70,13 +70,13 @@ export default function ChatApp() {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid);
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
-        (offer, fromUserId, fromUserName) => { // onOfferReceivedCb
+        (_offer, _fromUserId, fromUserName) => { // onOfferReceivedCb - prefix unused params with underscore
           // This state update is handled by the provider now
           // setIncomingOfferSdp(offer);
           // setRemotePeerId(fromUserId);
           // setRemotePeerName(fromUserName || "User");
           // setWebRTCCallStatus('receivingCall');
-          console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`);
+          console.log(`ChatApp: Incoming call offer from ${fromUserName || _fromUserId}`);
           toast({
             title: "Incoming Call",
             description: `Call from ${fromUserName || "Unknown User"}. Check call UI.`,
@@ -106,7 +106,7 @@ export default function ChatApp() {
               .catch((e: any) => console.error("Error adding received ICE candidate:", e));
           }
         },
-        (fromUserId, fromUserName) => { // onCallDeclinedReceivedCb
+        (_fromUserId, fromUserName) => { // onCallDeclinedReceivedCb - prefix unused param with underscore
             toast({
                 title: "Call Declined",
                 description: `${fromUserName || 'The other user'} declined the call.`,
@@ -120,6 +120,8 @@ export default function ChatApp() {
       );
       return cleanupListeners; // Cleanup on unmount or when deps change
     }
+    // Return undefined for the case when the condition is not met
+    return undefined;
   }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus]);
 
 

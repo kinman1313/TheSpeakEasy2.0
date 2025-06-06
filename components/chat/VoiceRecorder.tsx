@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Mic, StopCircle, XCircle, AlertTriangle, Loader2 } from 'lucide-react'; // Icons
-import { cn } from '@/lib/utils';
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob, duration: number) => void;

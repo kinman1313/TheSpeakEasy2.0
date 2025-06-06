@@ -17,7 +17,6 @@ import { Input } from "@/components/ui/input"
 import { toast } from "react-hot-toast"
 import { auth } from "@/lib/firebase"
 import { sendPasswordResetEmail } from "firebase/auth"
-import { ControllerRenderProps, FieldValues } from "react-hook-form"
 
 const formSchema = z.object({
     email: z.string().email("Please enter a valid email address"),

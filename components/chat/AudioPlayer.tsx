@@ -4,7 +4,6 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Play, Pause, Loader2, AlertTriangle, Volume2, VolumeX } from 'lucide-react'; // Icons
 import { Slider } from "@/components/ui/slider" // Assuming shadcn/ui Slider
-import { cn } from '@/lib/utils';
 
 interface AudioPlayerProps {
   audioUrl: string;

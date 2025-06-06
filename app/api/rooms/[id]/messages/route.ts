@@ -5,15 +5,6 @@ import { MESSAGE_BATCH_SIZE } from "@/lib/constants"
 
 export const dynamic = "force-dynamic";
 
-// Add this interface to define the message data structure
-interface MessageData {
-    text: string;
-    senderId: string;
-    roomId: string;
-    createdAt: string;
-    [key: string]: any; // Allow other properties
-}
-
 // Add this interface to define the room data structure
 interface RoomData {
     ownerId: string;

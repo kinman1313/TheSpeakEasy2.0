@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Firestore, doc, runTransaction,FieldValue } from 'firebase/firestore'; // FieldValue for arrayUnion/Remove if not using transaction read/write
+import { Firestore, doc, runTransaction } from 'firebase/firestore'; // Removed unused FieldValue import
 
 interface UseToggleReactionReturn {
   toggleReaction: (messageId: string, emoji: string, userId: string) => Promise<void>;

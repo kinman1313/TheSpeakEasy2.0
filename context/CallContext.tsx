@@ -8,7 +8,7 @@ interface CallContextProps {
 const CallContext = createContext<CallContextProps | undefined>(undefined);
 
 export const CallProvider = ({ children }: { children: ReactNode }) => {
-    const [isCallActive, setIsCallActive] = useState(false);
+    const [_isCallActive, setIsCallActive] = useState(false);
 
     const endCall = () => {
         setIsCallActive(false);

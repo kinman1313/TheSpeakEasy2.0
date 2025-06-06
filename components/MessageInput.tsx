@@ -78,6 +78,14 @@ export function MessageInput({ onSend }: MessageInputProps) {
     setIsGifPickerOpen(false)
   }
 
+  const handleVoiceComplete = (audioBlob: Blob) => {
+    // Create a URL for the audio blob
+    const audioUrl = URL.createObjectURL(audioBlob)
+    // Send the audio message
+    onSend(`[AUDIO] ${audioUrl}`)
+    setIsRecording(false)
+  }
+
   return (
     <div className="border-t p-4 bg-background">
       {isGifPickerOpen && (
@@ -111,15 +119,8 @@ export function MessageInput({ onSend }: MessageInputProps) {
       )}
 
       {isRecording && (
-        <VoiceRecorder
-          onRecordingComplete={(audioBlob) => {
-            // Create a URL for the audio blob
-            const audioUrl = URL.createObjectURL(audioBlob)
-            // Send the audio message
-            onSend(`[AUDIO] ${audioUrl}`)
-            setIsRecording(false)
-          }}
-          onClose={() => setIsRecording(false)}
+        <VoiceRecorder 
+          onRecordingComplete={handleVoiceComplete}
         />
       )}
 

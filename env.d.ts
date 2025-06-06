@@ -15,8 +15,7 @@ declare global {
       FIREBASE_CLIENT_EMAIL: string
       FIREBASE_PRIVATE_KEY: string
 
-      // Next.js Environment
-      NODE_ENV: "development" | "production" | "test"
+      // Next.js Environment - NODE_ENV is already provided by Next.js types
       NEXT_PUBLIC_VERCEL_URL?: string
       VERCEL_ENV?: "production" | "preview" | "development"
 

@@ -449,7 +449,8 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     }
   }
 
-  const handleParticipantLeft = async (participantId: string) => {
+  // @ts-ignore - Function intended for future use
+  const _handleParticipantLeft = async (participantId: string) => {
     try {
       if (isFirebaseReady && db) {
         // Use type assertion to tell TypeScript that db is definitely a Firestore instance

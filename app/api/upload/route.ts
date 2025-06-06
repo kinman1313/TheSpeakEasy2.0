@@ -22,6 +22,10 @@ export async function POST(request: NextRequest) {
     initAdmin()
 
     const decodedToken = await getAuth().verifyIdToken(token)
+    
+    // Log upload request for security audit
+    console.log(`File upload requested by user: ${decodedToken.uid}`)
+    
     const formData = await request.formData()
     const file = formData.get("file") as File
     const type = formData.get("type") as string

@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
-import { adminAuth, adminStorage } from "@/lib/firebase-admin"
+import { adminAuth } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 
 const limiter = rateLimit({
@@ -18,6 +18,10 @@ export async function POST(request: NextRequest) {
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token)
+        
+        // Log the upload request for security audit
+        console.log(`File upload requested by user: ${decodedToken.uid}`)
+        
         const formData = await request.formData()
         const file = formData.get("file") as File
         const type = formData.get("type") as string

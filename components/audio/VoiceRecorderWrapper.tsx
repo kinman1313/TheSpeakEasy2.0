@@ -4,11 +4,8 @@ import { VoiceRecorder } from './VoiceRecorder'
 
 interface VoiceRecorderWrapperProps {
     onRecordingComplete: (audioBlob: Blob) => void
-    onClose: () => void
 }
 
-const VoiceRecorderWrapper: React.FC<VoiceRecorderWrapperProps> = ({ onRecordingComplete, onClose }) => {
-    return <VoiceRecorder onRecordingComplete={onRecordingComplete} onClose={onClose} />
+export default function VoiceRecorderWrapper({ onRecordingComplete }: VoiceRecorderWrapperProps) {
+    return <VoiceRecorder onRecordingComplete={onRecordingComplete} />
 }
-
-export default VoiceRecorderWrapper
