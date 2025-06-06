@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { getFirestore } from "firebase/firestore" // Only getFirestore is needed here
 import { app } from "@/lib/firebase"
-import { useToast } from "@/components/ui/use-toast"
+import { useToast } from "@/hooks/use-toast"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { isToday, isYesterday, format, isValid } from 'date-fns'
 import { useMessages, Message } from "@/lib/hooks/useMessages"
@@ -23,7 +23,7 @@ import AudioPlayer from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal" // Import UserProfileModal
 import { uploadVoiceMessage } from "@/lib/storage"
-import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
+import { Image as ImageIcon, User as UserIcon, Camera, VideoIcon, PhoneOff, Mic, MicOff, Video, VideoOff, Users, Settings } from "lucide-react"; // Added UserIcon
 
 export default function ChatApp() {
   const { user } = useAuth()

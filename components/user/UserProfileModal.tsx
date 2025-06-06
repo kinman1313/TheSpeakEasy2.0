@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, Camera, AlertTriangle, Bell, BellOff } from 'lucide-react'; // Added Bell, BellOff
-import { useToast } from '@/components/ui/use-toast';
+import { useToast } from '@/hooks/use-toast';
 import { auth, db, messaging } from '@/lib/firebase'; // Import messaging
 import { uploadAvatar } from '@/lib/storage';
 import { Switch } from '@/components/ui/switch'; // Import Switch
