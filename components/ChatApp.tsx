@@ -13,6 +13,7 @@ import { isToday, isYesterday, format, isValid } from 'date-fns'
 import { useMessages, Message } from "@/lib/hooks/useMessages"
 import { useSendMessage } from "@/lib/hooks/useSendMessage"
 import { useToggleReaction } from "@/lib/hooks/useToggleReaction"
+import { cn } from "@/lib/utils"
 import MessageReactions from "@/components/chat/MessageReactions"
 import UserList from "@/components/UserList"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
