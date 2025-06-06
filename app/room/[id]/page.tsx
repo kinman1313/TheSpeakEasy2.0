@@ -2,9 +2,9 @@ import type { Metadata } from "next"
 import { RoomClient } from "./room-client"
 
 interface RoomPageProps {
-  params: {
+  params: Promise<{
     id: string
-  }
+  }>
 }
 
 export const metadata: Metadata = {
@@ -12,6 +12,7 @@ export const metadata: Metadata = {
   description: "Chat room page",
 }
 
-export default function RoomPage({ params }: RoomPageProps) {
-  return <RoomClient roomId={params.id} />
+export default async function RoomPage({ params }: RoomPageProps) {
+  const { id } = await params
+  return <RoomClient roomId={id} />
 }

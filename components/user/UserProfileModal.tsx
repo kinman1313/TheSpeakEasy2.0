@@ -210,7 +210,7 @@ export default function UserProfileModal({ isOpen, onClose, user }: UserProfileM
                   id="notifications-toggle"
                   checked={notificationsEnabledUI}
                   onCheckedChange={handleNotificationToggle}
-                  disabled={isNotificationProcessing || notificationError}
+                  disabled={isNotificationProcessing || !!notificationError}
                 />
                 <Label htmlFor="notifications-toggle" className="cursor-pointer">
                   Enable Push Notifications

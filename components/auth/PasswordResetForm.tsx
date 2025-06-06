@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { toast } from "react-hot-toast"
 import { auth } from "@/lib/firebase"
 import { sendPasswordResetEmail } from "firebase/auth"
-import { ControllerRenderProps, FieldValues } from "react-hook-form"
+import { ControllerRenderProps } from "react-hook-form"
 
 const formSchema = z.object({
     email: z.string().email("Please enter a valid email address"),
@@ -53,7 +53,7 @@ export function PasswordResetForm() {
                 <FormField
                     control={form.control}
                     name="email"
-                    render={({ field }: { field: ControllerRenderProps<FieldValues, string> }) => (
+                    render={({ field }: { field: ControllerRenderProps<z.infer<typeof formSchema>, "email"> }) => (
                         <FormItem>
                             <FormLabel>Email</FormLabel>
                             <FormControl>

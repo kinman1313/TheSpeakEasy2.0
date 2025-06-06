@@ -28,7 +28,7 @@ const limiter = rateLimit({
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 60, "GET_ROOM_MESSAGES") // 60 requests per minute
@@ -38,7 +38,7 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id: roomId } = params
+        const { id: roomId } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
 
@@ -75,7 +75,7 @@ export async function GET(
         }
 
         const snapshot = await messagesQuery.get()
-        const messages = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({
+        const messages = snapshot.docs.map((doc) => ({
             id: doc.id,
             ...doc.data(),
         }))
@@ -89,7 +89,7 @@ export async function GET(
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 60, "SEND_ROOM_MESSAGE") // 60 messages per minute
@@ -99,7 +99,7 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id: roomId } = params
+        const { id: roomId } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
 
@@ -125,13 +125,14 @@ export async function POST(
 
         // Create message in Firestore
         const messagesRef = adminDb.collection("messages")
-        const newMessage = await messagesRef.add({
+        const messageData: MessageData = {
             text: text?.trim() || "",
             attachments,
             senderId: decodedToken.uid,
             roomId,
             createdAt: new Date().toISOString(),
-        })
+        }
+        const newMessage = await messagesRef.add(messageData)
 
         // Update room's updatedAt timestamp
         await roomRef.update({
