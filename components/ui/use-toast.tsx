@@ -126,4 +126,7 @@ export {
     ToastDescription,
     ToastClose,
     ToastAction,
-} 
+}
+
+// Re-export useToast from the main use-toast module
+export { useToast, toast } from "../use-toast" 

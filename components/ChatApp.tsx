@@ -1,6 +1,7 @@
 "use client"
 
 import React, { useState, useEffect, useRef } from "react"
+import Image from "next/image"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -23,6 +24,7 @@ import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal" // Import UserProfileModal
 import { uploadVoiceMessage } from "@/lib/storage"
 import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
+import { cn } from "@/lib/utils"
 
 // Initialize Firestore only if app is defined
 const db = app ? getFirestore(app) : undefined
@@ -82,9 +84,9 @@ export default function ChatApp() {
         },
         async (answer, fromUserId) => { // onAnswerReceivedCb
           console.log(`ChatApp: Received answer from ${fromUserId}`);
-          if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+          if (peerConnection && (peerConnection as RTCPeerConnection).signalingState === 'have-local-offer') {
             try {
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+              await (peerConnection as RTCPeerConnection).setRemoteDescription(new RTCSessionDescription(answer));
               // Call status should ideally be updated to 'active' by 'onconnectionstatechange'
               // or within the provider after answer is set.
               // setWebRTCCallStatus('active'); // Not strictly needed here if provider handles it
@@ -100,8 +102,8 @@ export default function ChatApp() {
         (candidate) => { // onRemoteIceCandidateReceivedCb
           console.log("ChatApp: Received remote ICE candidate");
           if (peerConnection && candidate) {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-              .catch(e => console.error("Error adding received ICE candidate:", e));
+            (peerConnection as RTCPeerConnection).addIceCandidate(new RTCIceCandidate(candidate))
+              .catch((e: any) => console.error("Error adding received ICE candidate:", e));
           }
         },
         (fromUserId, fromUserName) => { // onCallDeclinedReceivedCb
@@ -109,8 +111,6 @@ export default function ChatApp() {
                 title: "Call Declined",
                 description: `${fromUserName || 'The other user'} declined the call.`,
             });
-            setActiveCallTargetUserId(null); // From WebRTCProvider, if exposed, or manage locally
-            setActiveCallTargetUserName(null); // From WebRTCProvider
             closePeerConnection(); // This should reset callStatus to idle
         },
         () => { // onCallEndedSignalCb

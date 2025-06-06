@@ -88,11 +88,10 @@ export async function GET(request: NextRequest) {
         })
     } catch (error) {
         console.error("Presence update error:", error);
-        if (error.code === 'auth/id-token-expired') {
+        if (error && typeof error === 'object' && 'code' in error && error.code === 'auth/id-token-expired') {
             return NextResponse.json({ error: "Authentication token expired" }, { status: 401 });
         }
         return NextResponse.json({ error: "Failed to update presence" }, { status: 500 })
-
-
-    }}
+    }
+}
 

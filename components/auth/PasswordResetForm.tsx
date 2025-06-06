@@ -53,7 +53,7 @@ export function PasswordResetForm() {
                 <FormField
                     control={form.control}
                     name="email"
-                    render={({ field }: { field: ControllerRenderProps<FieldValues, string> }) => (
+                    render={({ field }) => (
                         <FormItem>
                             <FormLabel>Email</FormLabel>
                             <FormControl>
