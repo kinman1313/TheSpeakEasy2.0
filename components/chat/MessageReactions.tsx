@@ -1,141 +1,109 @@
-﻿"use client"
+"use client"
 
-import React, { useState } from "react"
-import { Button } from "@/components/ui/button"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { SmilePlus } from 'lucide-react'
-import { db } from "@/lib/firebase"
-import { doc, updateDoc, arrayUnion, arrayRemove, type Firestore } from "firebase/firestore"
-import { useAuth } from "@/components/auth/AuthProvider"
-import { toast } from "sonner"
-
-interface Reaction {
-  emoji: string
-  count: number
-  users: string[]
-}
-
-interface Message {
-  id: string
-  text: string
-  userId: string
-  reactions?: Record<string, Reaction>
-}
+import React, { useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { cn } from '@/lib/utils';
 
 interface MessageReactionsProps {
-  message: Message
+  messageId: string;
+  currentReactions?: { [emoji: string]: string[] };
+  userId: string;
+  toggleReaction: (messageId: string, emoji: string, userId: string) => Promise<void>;
+  isUpdatingReaction: boolean;
 }
 
-const EMOJI_LIST = ["👍", "❤️", "😂", "😮", "😢", "🔥", "🎉", "👀"]
+const COMMON_EMOJIS = ["👍", "❤️", "😂", "🎉", "🤔", "😮"];
 
-export function MessageReactions({ message }: MessageReactionsProps) {
-  const { user } = useAuth()
-  const [isUpdating, setIsUpdating] = useState(false)
+export default function MessageReactions({
+  messageId,
+  currentReactions,
+  userId,
+  toggleReaction,
+  isUpdatingReaction,
+}: MessageReactionsProps) {
+  const [showPicker, setShowPicker] = useState(false);
 
-  // Check if Firebase is initialized
-  const isFirebaseReady = typeof window !== 'undefined' && !!db;
-
-  const handleReaction = async (emoji: string) => {
-    if (!user || !isFirebaseReady || !db) {
-      toast.error("You must be logged in to react")
-      return
-    }
-
-    setIsUpdating(true)
+  const handleEmojiClick = async (emoji: string) => {
+    if (isUpdatingReaction) return;
     try {
-      // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-      const firestore = db as Firestore;
-
-      const messageRef = doc(firestore, "messages", message.id)
-      const reactions = message.reactions ? { ...message.reactions } : {}
-
-      // Check if user already reacted with this emoji
-      const existingReaction = reactions[emoji]
-      const userReacted = existingReaction?.users.includes(user.uid)
-
-      if (userReacted) {
-        // Remove user's reaction
-        await updateDoc(messageRef, {
-          [`reactions.${emoji}.count`]: existingReaction.count - 1,
-          [`reactions.${emoji}.users`]: arrayRemove(user.uid),
-        })
-      } else {
-        // Add user's reaction
-        const newCount = (existingReaction?.count || 0) + 1
-        await updateDoc(messageRef, {
-          [`reactions.${emoji}.count`]: newCount,
-          [`reactions.${emoji}.users`]: existingReaction
-            ? arrayUnion(user.uid)
-            : [user.uid],
-        })
-      }
+      await toggleReaction(messageId, emoji, userId);
     } catch (error) {
-      console.error("Error updating reaction:", error)
-      toast.error("Failed to update reaction")
-    } finally {
-      setIsUpdating(false)
+      console.error("Failed to toggle reaction from component", error);
     }
-  }
+  };
 
-  // Early return if not in browser
-  if (typeof window === 'undefined') {
-    return null;
-  }
+  const userHasReacted = (emoji: string): boolean => {
+    return currentReactions?.[emoji]?.includes(userId) || false;
+  };
 
   return (
-    <div className="flex items-center mt-1 space-x-2">
-      {message.reactions &&
-        Object.entries(message.reactions).map(([emoji, reaction]) => {
-          if (reaction.count > 0) {
-            const userReacted = user && reaction.users.includes(user.uid)
-            return (
-              <Button
-                key={emoji}
-                variant="ghost"
-                size="sm"
-                className={`h-6 px-2 text-xs rounded-full ${
-                  userReacted ? "bg-primary/20" : ""
-                }`}
-                onClick={() => handleReaction(emoji)}
-                disabled={isUpdating || !isFirebaseReady}
-              >
-                {emoji} {reaction.count}
-              </Button>
-            )
-          }
-          return null
-        })}
+    <div className="mt-1 flex items-center space-x-1 relative flex-wrap"> {/* Added flex-wrap */}
+      {currentReactions && Object.entries(currentReactions).map(([emoji, userIds]) => {
+        if (userIds && userIds.length > 0) {
+          return (
+            <Button
+              key={emoji}
+              variant="outline"
+              size="sm"
+              onClick={() => handleEmojiClick(emoji)}
+              disabled={isUpdatingReaction}
+              className={cn(
+                "px-2 py-1 h-auto text-xs rounded-full flex items-center space-x-1 my-0.5", // Added my-0.5 for vertical spacing if wrapped
+                userHasReacted(emoji) ? "bg-primary/20 border-primary text-primary" : "hover:bg-muted/50"
+              )}
+              aria-label={`React with ${emoji}, currently ${userIds.length} reactions. ${userHasReacted(emoji) ? 'You have reacted with this emoji.' : ''}`}
+            >
+              <span>{emoji}</span>
+              <span className="font-medium">{userIds.length}</span>
+            </Button>
+          );
+        }
+        return null;
+      })}
 
-      <Popover>
-        <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-6 w-6 p-0 rounded-full"
-            disabled={isUpdating || !isFirebaseReady}
+      <div className="relative my-0.5"> {/* Wrapper for picker button and picker itself */}
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => setShowPicker(!showPicker)}
+          disabled={isUpdatingReaction}
+          className="px-2 py-1 h-auto text-xs rounded-full"
+          aria-expanded={showPicker}
+          aria-controls={`emoji-picker-${messageId}`}
+          aria-label="Add reaction"
+        >
+          🙂
+        </Button>
+
+        {showPicker && (
+          <div
+            id={`emoji-picker-${messageId}`}
+            className="absolute bottom-full mb-2 flex space-x-1 p-2 bg-background border rounded-lg shadow-lg z-10 min-w-max" // Added min-w-max
+            role="dialog"
+            aria-label="Emoji picker"
           >
-            <SmilePlus className="h-4 w-4" />
-          </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-auto p-2">
-          <div className="flex gap-1 flex-wrap max-w-[200px]">
-            {EMOJI_LIST.map((emoji) => (
+            {COMMON_EMOJIS.map((emoji) => (
               <Button
                 key={emoji}
                 variant="ghost"
-                size="sm"
-                className="h-8 w-8 p-0"
+                size="icon" // Changed to "icon" for potentially better sizing if emojis are small
                 onClick={() => {
-                  handleReaction(emoji)
+                  handleEmojiClick(emoji);
+                  setShowPicker(false);
                 }}
-                disabled={isUpdating}
+                disabled={isUpdatingReaction}
+                className={cn(
+                  "text-lg p-1 rounded-md", // Ensure padding is appropriate for "icon" size
+                  userHasReacted(emoji) ? "bg-primary/10" : "hover:bg-muted/80" // Slightly different highlight for picker
+                )}
+                aria-label={`React with ${emoji}`}
               >
                 {emoji}
               </Button>
             ))}
           </div>
-        </PopoverContent>
-      </Popover>
+        )}
+      </div>
     </div>
-  )
+  );
 }
