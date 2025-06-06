@@ -25,12 +25,22 @@ import UserProfileModal from "@/components/user/UserProfileModal" // Import User
 import { uploadVoiceMessage } from "@/lib/storage"
 import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
 
-// Initialize Firestore only if app is defined
-const db = app ? getFirestore(app) : undefined
-
 export default function ChatApp() {
   const { user } = useAuth()
   const { toast } = useToast()
+
+  // Early return if Firebase isn't ready
+  if (!app) {
+    return (
+      <div className="flex items-center justify-center h-[calc(100vh-4rem)]">
+        <p className="text-lg">Loading Firebase...</p>
+      </div>
+    )
+  }
+
+  // Now we know app exists - initialize Firestore safely
+  const db = getFirestore(app);
+
   const [textMessage, setTextMessage] = useState("")
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false); // State for profile modal
@@ -83,9 +93,9 @@ export default function ChatApp() {
         },
         async (answer, fromUserId) => { // onAnswerReceivedCb
           console.log(`ChatApp: Received answer from ${fromUserId}`);
-          if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+          if (peerConnection && (peerConnection as RTCPeerConnection).signalingState === 'have-local-offer') {
             try {
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+              await (peerConnection as RTCPeerConnection).setRemoteDescription(new RTCSessionDescription(answer));
               // Call status should ideally be updated to 'active' by 'onconnectionstatechange'
               // or within the provider after answer is set.
               // setWebRTCCallStatus('active'); // Not strictly needed here if provider handles it
@@ -101,7 +111,7 @@ export default function ChatApp() {
         (candidate) => { // onRemoteIceCandidateReceivedCb
           console.log("ChatApp: Received remote ICE candidate");
           if (peerConnection && candidate) {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
+            (peerConnection as RTCPeerConnection).addIceCandidate(new RTCIceCandidate(candidate))
               .catch(e => console.error("Error adding received ICE candidate:", e));
           }
         },
@@ -121,7 +131,6 @@ export default function ChatApp() {
     }
   }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus]);
 
-
   // Effect to check Firebase initialization status (app and db)
   useEffect(() => {
     if (app && db) {
@@ -130,7 +139,7 @@ export default function ChatApp() {
       console.error("Firebase app or Firestore db is not initialized.")
       setFirebaseStatus("error")
     }
-  }, []) // Run once on mount
+  }, [db]) // Run when db changes
 
   // Effect to handle errors from useMessages hook
   useEffect(() => {
