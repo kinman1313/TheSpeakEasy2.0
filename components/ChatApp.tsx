@@ -230,7 +230,6 @@ export default function ChatApp() {
       toast({
         title: "Voice Message Sent",
         description: `Duration: ${duration}s.`,
-        variant: "success"
       });
 
     } catch (error) { // Catches errors from upload or sendMessage (if sendMessage is modified to throw)
@@ -261,7 +260,7 @@ export default function ChatApp() {
     }
     try {
       await sendMessage("", user, { gifUrl });
-      toast({ title: "GIF Sent!", variant: "success" });
+      toast({ title: "GIF Sent!" });
     } catch (error) {
       console.error("Error sending GIF:", error);
       toast({ title: "Error Sending GIF", description: "Could not send the GIF.", variant: "destructive" });
@@ -351,7 +350,7 @@ export default function ChatApp() {
             <p className="text-center font-semibold text-lg mb-1">Incoming Call</p>
             <p className="text-center text-muted-foreground mb-4">From {callerUserName}</p>
             <div className="flex justify-around gap-3">
-              <Button variant="success" onClick={acceptCall} className="flex-1">Accept</Button>
+              <Button variant="default" onClick={acceptCall} className="flex-1 bg-green-600 hover:bg-green-700 text-white">Accept</Button>
               <Button variant="destructive" onClick={declineCall} className="flex-1">Decline</Button>
             </div>
           </div>
