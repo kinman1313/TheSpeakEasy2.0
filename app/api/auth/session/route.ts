@@ -1,4 +1,3 @@
-
 import { cookies } from "next/headers"
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
@@ -41,14 +40,15 @@ export async function POST(request: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token)
 
         // Create session cookie
-        const expiresIn = 60 * 60 * 24 * 5 * 1000 // 5 days
+        const expiresIn = 60 * 60 * 24 * 5 * 1000 // 5 days in milliseconds
         const sessionCookie = await adminAuth.createSessionCookie(token, { expiresIn })
 
         // Set the cookie
         cookies().set("__session", sessionCookie, {
-            maxAge: expiresIn,
+            maxAge: Math.floor(expiresIn / 1000), // Convert to seconds for cookie maxAge
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
+            sameSite: "lax", // Add CSRF protection
             path: "/",
         })
 
@@ -56,8 +56,19 @@ export async function POST(request: NextRequest) {
     } catch (error: unknown) {
         console.error("Error setting session:", error)
 
-        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+        // Handle specific Firebase auth errors
+        if (error && typeof error === 'object' && 'code' in error) {
+            const firebaseError = error as { code: string; message: string }
+            
+            if (firebaseError.code === 'auth/id-token-expired') {
+                return NextResponse.json({ error: "Token expired" }, { status: 401 })
+            }
+            if (firebaseError.code === 'auth/invalid-id-token') {
+                return NextResponse.json({ error: "Invalid token" }, { status: 401 })
+            }
+        }
 
+        const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
         return NextResponse.json({ error: errorMessage }, { status: 500 })
     }
 }
