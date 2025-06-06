@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+import { useToast } from "@/components/ui/use-toast"
 import { Github, Mail, ChromeIcon as Google, Facebook } from "lucide-react"
 import Link from "next/link"
 
@@ -27,16 +27,24 @@ export function LoginForm() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const router = useRouter()
+  const { toast } = useToast()
 
   async function signInWithProvider(provider: GoogleAuthProvider | GithubAuthProvider | FacebookAuthProvider) {
     try {
       setIsLoading(true)
       await signInWithPopup(auth, provider)
-      toast.success("Welcome back!")
+      toast({
+        title: "Success",
+        description: "Welcome back!",
+      })
       router.push("/")
     } catch (error: any) {
       console.error(error)
-      toast.error(error.message || "Failed to sign in. Please try again.")
+      toast({
+        title: "Error",
+        description: error.message || "Failed to sign in. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }
@@ -45,7 +53,11 @@ export function LoginForm() {
   async function handleEmailAuth(e: React.FormEvent) {
     e.preventDefault()
     if (!email || !password) {
-      toast.error("Please fill in all fields")
+      toast({
+        title: "Error",
+        description: "Please fill in all fields",
+        variant: "destructive",
+      })
       return
     }
 
@@ -53,15 +65,25 @@ export function LoginForm() {
       setIsLoading(true)
       if (isRegistering) {
         await createUserWithEmailAndPassword(auth, email, password)
-        toast.success("Account created successfully!")
+        toast({
+          title: "Success", 
+          description: "Account created successfully!",
+        })
       } else {
         await signInWithEmailAndPassword(auth, email, password)
-        toast.success("Welcome back!")
+        toast({
+          title: "Success",
+          description: "Welcome back!",
+        })
       }
       router.push("/")
     } catch (error: any) {
       console.error(error)
-      toast.error(error.message || "Authentication failed. Please try again.")
+      toast({
+        title: "Error",
+        description: error.message || "Authentication failed. Please try again.",
+        variant: "destructive",
+      })
     } finally {
       setIsLoading(false)
     }

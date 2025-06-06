@@ -17,12 +17,12 @@ const firebaseConfig = {
 };
 
 // Ensure Firebase is initialized properly
-let app: FirebaseApp;
-let auth: Auth;
-let db: Firestore;
-let rtdb: Database;
-let storage: FirebaseStorage;
-let messaging: Messaging | undefined = undefined; // Added for FCM
+let app: FirebaseApp | null = null;
+let auth: Auth | null = null;
+let db: Firestore | null = null;
+let rtdb: Database | null = null;
+let storage: FirebaseStorage | null = null;
+let messaging: Messaging | null = null;
 let analytics: Analytics | null = null;
 
 // Check if running in the browser
@@ -51,31 +51,27 @@ if (typeof window !== "undefined") {
       });
     } catch (e) {
         console.error("Could not initialize Firebase Messaging:", e);
-        messaging = undefined;
+        messaging = null;
     }
-
 
     // Initialize Analytics only if supported
     isSupported()
       .then((supported) => {
         if (supported) {
-          analytics = getAnalytics(app);
+          analytics = getAnalytics(app!);
         }
       })
       .catch((error) => console.error("Analytics error:", error));
   } catch (error) {
     console.error("Firebase initialization error:", error);
-    // Do not re-throw here, as some services might still be functional or it's SSR.
-    // Let individual service usages handle their undefined state if critical.
+    // Reset to null on error
+    app = null;
+    auth = null;
+    db = null;
+    rtdb = null;
+    storage = null;
+    messaging = null;
   }
-} else {
-  // Provide placeholders for Firebase services on the server
-  app = {} as FirebaseApp; // Or initialize with config for server-side admin tasks if needed
-  auth = {} as Auth;
-  db = {} as Firestore;
-  rtdb = {} as Database;
-  storage = {} as FirebaseStorage;
-  messaging = undefined; // No FCM on server
 }
 
-export { app, auth, db, rtdb, storage, messaging, analytics }; // Export messaging
+export { app, auth, db, rtdb, storage, messaging, analytics };

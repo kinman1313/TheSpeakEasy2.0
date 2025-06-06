@@ -26,8 +26,18 @@ import { uploadVoiceMessage } from "@/lib/storage"
 import { Image as ImageIcon } from "lucide-react"; // Removed unused UserIcon import
 import { cn } from "@/lib/utils"
 
-// Initialize Firestore only if app is defined
-const db = app ? getFirestore(app) : undefined
+// Initialize Firestore only if app is properly initialized and we're in the browser
+const getDb = () => {
+  if (typeof window !== "undefined" && app) {
+    try {
+      return getFirestore(app);
+    } catch (error) {
+      console.error("Error initializing Firestore:", error);
+      return null;
+    }
+  }
+  return null;
+};
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -36,6 +46,7 @@ export default function ChatApp() {
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false);
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false); // State for profile modal
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
+  const [db, setDb] = useState<ReturnType<typeof getFirestore> | undefined>(undefined);
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Hook for fetching messages
@@ -63,6 +74,20 @@ export default function ChatApp() {
     toggleLocalAudio, // Added
     toggleLocalVideo, // Added
   } = useWebRTC();
+
+  // Effect to initialize Firebase database
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const dbInstance = getDb();
+      if (dbInstance) {
+        setDb(dbInstance);
+        setFirebaseStatus("ready");
+      } else {
+        console.error("Firebase app or Firestore db could not be initialized.");
+        setFirebaseStatus("error");
+      }
+    }
+  }, []);
 
   // Effect for WebRTC signaling listeners
   useEffect(() => {
@@ -123,17 +148,6 @@ export default function ChatApp() {
     // Return undefined for the case when the condition is not met
     return undefined;
   }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus]);
-
-
-  // Effect to check Firebase initialization status (app and db)
-  useEffect(() => {
-    if (app && db) {
-      setFirebaseStatus("ready")
-    } else {
-      console.error("Firebase app or Firestore db is not initialized.")
-      setFirebaseStatus("error")
-    }
-  }, []) // Run once on mount
 
   // Effect to handle errors from useMessages hook
   useEffect(() => {

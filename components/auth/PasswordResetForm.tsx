@@ -14,7 +14,7 @@ import {
     FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import { toast } from "react-hot-toast"
+import { useToast } from "@/components/ui/use-toast"
 import { auth } from "@/lib/firebase"
 import { sendPasswordResetEmail } from "firebase/auth"
 
@@ -24,6 +24,7 @@ const formSchema = z.object({
 
 export function PasswordResetForm() {
     const [isLoading, setIsLoading] = useState(false)
+    const { toast } = useToast()
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -36,11 +37,18 @@ export function PasswordResetForm() {
         try {
             setIsLoading(true)
             await sendPasswordResetEmail(auth, values.email)
-            toast.success("Password reset email sent! Check your inbox.")
+            toast({
+                title: "Success",
+                description: "Password reset email sent! Check your inbox.",
+            })
             form.reset()
         } catch (error) {
             console.error("Error sending password reset email:", error)
-            toast.error("Failed to send password reset email. Please try again.")
+            toast({
+                title: "Error",
+                description: "Failed to send password reset email. Please try again.",
+                variant: "destructive",
+            })
         } finally {
             setIsLoading(false)
         }

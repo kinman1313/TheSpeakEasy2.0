@@ -1,4 +1,16 @@
-import { PasswordResetForm } from '@/components/auth/PasswordResetForm'; // Corrected path based on typical auth component location
+"use client"
+
+import dynamic from "next/dynamic"
+
+// Dynamically import PasswordResetForm with no SSR to prevent Firebase initialization issues
+const PasswordResetForm = dynamic(() => import('@/components/auth/PasswordResetForm').then(mod => ({ default: mod.PasswordResetForm })), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4">
+      <div className="text-lg">Loading...</div>
+    </div>
+  ),
+})
 
 export default function ResetPasswordPage() {
   return (

@@ -1,4 +1,16 @@
-import { LoginForm } from '@/components/auth/LoginForm';
+"use client"
+
+import dynamic from "next/dynamic"
+
+// Dynamically import LoginForm with no SSR to prevent Firebase initialization issues
+const LoginForm = dynamic(() => import('@/components/auth/LoginForm').then(mod => ({ default: mod.LoginForm })), {
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 text-white p-4">
+      <div className="text-lg">Loading...</div>
+    </div>
+  ),
+})
 
 export default function LoginPage() {
   return (
