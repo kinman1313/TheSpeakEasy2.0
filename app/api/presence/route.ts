@@ -44,8 +44,17 @@ export async function POST(request: NextRequest) {
         })
 
         return NextResponse.json({ success: true })
-    } catch (error) {
+    } catch (error: any) {
         console.error("Presence update error:", error)
+        
+        // Handle specific Firebase auth errors
+        if (error?.code === 'auth/id-token-expired') {
+            return NextResponse.json({ error: "Authentication token expired" }, { status: 401 })
+        }
+        if (error?.code === 'auth/argument-error' || error?.code === 'auth/invalid-id-token') {
+            return NextResponse.json({ error: "Invalid authentication token" }, { status: 401 })
+        }
+        
         return NextResponse.json({ error: "Failed to update presence" }, { status: 500 })
     }
 }
@@ -86,13 +95,18 @@ export async function GET(request: NextRequest) {
         return NextResponse.json({
             presence: userData?.presence || defaultPresence
         })
-    } catch (error) {
-        console.error("Presence update error:", error);
-        if (error.code === 'auth/id-token-expired') {
+    } catch (error: any) {
+        console.error("Presence get error:", error);
+        
+        // Handle specific Firebase auth errors
+        if (error?.code === 'auth/id-token-expired') {
             return NextResponse.json({ error: "Authentication token expired" }, { status: 401 });
         }
-        return NextResponse.json({ error: "Failed to update presence" }, { status: 500 })
-
-
-    }}
+        if (error?.code === 'auth/argument-error' || error?.code === 'auth/invalid-id-token') {
+            return NextResponse.json({ error: "Invalid authentication token" }, { status: 401 });
+        }
+        
+        return NextResponse.json({ error: "Failed to get presence" }, { status: 500 })
+    }
+}
 
