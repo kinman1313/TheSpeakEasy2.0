@@ -316,7 +316,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         await sendOffer(targetId, currentUser.uid, currentUser.displayName, pc.localDescription);
 
         offerTimeoutRef.current = setTimeout(async () => {
-          if (callStatus === 'waitingForAnswer') { // Check current status
+          // Use a function to get current call status to avoid TypeScript type narrowing
+          const getCurrentCallStatus = (): CallStatus => callStatus;
+          if (getCurrentCallStatus() === 'waitingForAnswer') { // Check current status
             console.warn(`No answer from ${targetName || targetId} within timeout.`);
             setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
             const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId

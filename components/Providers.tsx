@@ -1,9 +1,8 @@
 "use client"
 
-import type React from "react"
-
-import { ThemeProvider } from "./theme-provider"
-import { AuthProvider } from "./auth-provider"
+import { ReactNode } from "react"
+import { ThemeProvider } from "./ThemeProvider"
+import { AuthProvider } from "./AuthProvider"
 import { WebRTCProvider } from "./WebRTCProvider"
 
 export function Providers({ children }: { children: React.ReactNode }) {

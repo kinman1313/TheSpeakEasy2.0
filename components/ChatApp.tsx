@@ -23,6 +23,8 @@ import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal" // Import UserProfileModal
 import { uploadVoiceMessage } from "@/lib/storage"
 import { Image as ImageIcon, User as UserIcon } from "lucide-react"; // Added UserIcon
+import Image from "next/image" // Import Next.js Image component
+import { cn } from "@/lib/utils" // Import cn utility function
 
 // Initialize Firestore only if app is defined
 const db = app ? getFirestore(app) : undefined
@@ -82,9 +84,9 @@ export default function ChatApp() {
         },
         async (answer, fromUserId) => { // onAnswerReceivedCb
           console.log(`ChatApp: Received answer from ${fromUserId}`);
-          if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+          if (peerConnection && (peerConnection as RTCPeerConnection).signalingState === 'have-local-offer') {
             try {
-              await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+              await (peerConnection as RTCPeerConnection).setRemoteDescription(new RTCSessionDescription(answer));
               // Call status should ideally be updated to 'active' by 'onconnectionstatechange'
               // or within the provider after answer is set.
               // setWebRTCCallStatus('active'); // Not strictly needed here if provider handles it
@@ -100,8 +102,8 @@ export default function ChatApp() {
         (candidate) => { // onRemoteIceCandidateReceivedCb
           console.log("ChatApp: Received remote ICE candidate");
           if (peerConnection && candidate) {
-            peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
-              .catch(e => console.error("Error adding received ICE candidate:", e));
+            (peerConnection as RTCPeerConnection).addIceCandidate(new RTCIceCandidate(candidate))
+              .catch((e: Error) => console.error("Error adding received ICE candidate:", e));
           }
         },
         (fromUserId, fromUserName) => { // onCallDeclinedReceivedCb
@@ -109,8 +111,9 @@ export default function ChatApp() {
                 title: "Call Declined",
                 description: `${fromUserName || 'The other user'} declined the call.`,
             });
-            setActiveCallTargetUserId(null); // From WebRTCProvider, if exposed, or manage locally
-            setActiveCallTargetUserName(null); // From WebRTCProvider
+            // Note: These functions might not exist in the WebRTC context, will be handled in the provider
+            // setActiveCallTargetUserId(null); // From WebRTCProvider, if exposed, or manage locally
+            // setActiveCallTargetUserName(null); // From WebRTCProvider
             closePeerConnection(); // This should reset callStatus to idle
         },
         () => { // onCallEndedSignalCb
@@ -222,7 +225,7 @@ export default function ChatApp() {
       toast({
         title: "Voice Message Sent",
         description: `Duration: ${duration}s.`,
-        variant: "success"
+        variant: "default"
       });
 
     } catch (error) { // Catches errors from upload or sendMessage (if sendMessage is modified to throw)
@@ -253,7 +256,7 @@ export default function ChatApp() {
     }
     try {
       await sendMessage("", user, { gifUrl });
-      toast({ title: "GIF Sent!", variant: "success" });
+      toast({ title: "GIF Sent!", variant: "default" });
     } catch (error) {
       console.error("Error sending GIF:", error);
       toast({ title: "Error Sending GIF", description: "Could not send the GIF.", variant: "destructive" });
@@ -343,7 +346,7 @@ export default function ChatApp() {
             <p className="text-center font-semibold text-lg mb-1">Incoming Call</p>
             <p className="text-center text-muted-foreground mb-4">From {callerUserName}</p>
             <div className="flex justify-around gap-3">
-              <Button variant="success" onClick={acceptCall} className="flex-1">Accept</Button>
+              <Button variant="default" onClick={acceptCall} className="flex-1 bg-green-600 hover:bg-green-700">Accept</Button>
               <Button variant="destructive" onClick={declineCall} className="flex-1">Decline</Button>
             </div>
           </div>

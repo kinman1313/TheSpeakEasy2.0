@@ -2,9 +2,9 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useRoom } from "./room-provider"
+import { useRoom } from "../RoomProvider"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { ChatInterface } from "@/components/chat-interface"
+import { ChatInterface } from "@/components/ChatInterface"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
 

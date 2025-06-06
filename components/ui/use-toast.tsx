@@ -6,6 +6,7 @@ import { cva, type VariantProps } from "class-variance-authority"
 import { X } from "lucide-react"
 
 import { cn } from "@/lib/utils"
+import { useToast, toast } from "@/hooks/use-toast"
 
 const ToastProvider = ToastPrimitives.Provider
 
@@ -115,6 +116,8 @@ ToastDescription.displayName = ToastPrimitives.Description.displayName
 type ToastProps = React.ComponentPropsWithoutRef<typeof Toast>
 
 type ToastActionElement = React.ReactElement<typeof ToastAction>
+
+export { useToast, toast }
 
 export {
     type ToastProps,
