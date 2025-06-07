@@ -21,7 +21,8 @@ import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { Image as ImageIcon, User as UserIcon } from "lucide-react"
+import { Image as ImageIcon, User as UserIcon, Users } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 // Initialize Firestore only on the client side
 const db = typeof window !== "undefined" ? getFirestore(app) : undefined
@@ -34,6 +35,7 @@ export default function ChatApp() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const router = useRouter()
 
   // Hook for fetching messages
   const { messages, error: messagesError } = useMessages(db, firebaseStatus)
@@ -292,13 +294,23 @@ export default function ChatApp() {
         {/* Chat Header */}
         <div className="h-16 border-b border-gray-200 flex items-center justify-between px-4 bg-white">
           <h1 className="text-xl font-semibold">The SpeakEasy</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsProfileModalOpen(true)}
-          >
-            <UserIcon className="h-5 w-5" />
-          </Button>
+          <div className="flex items-center space-x-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => router.push("/rooms")}
+            >
+              <Users className="h-5 w-5 mr-2" />
+              Rooms
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsProfileModalOpen(true)}
+            >
+              <UserIcon className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Messages Area */}

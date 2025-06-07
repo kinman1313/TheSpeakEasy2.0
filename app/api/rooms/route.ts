@@ -19,10 +19,30 @@ export async function POST(request: NextRequest) {
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token)
-        const { name, isPrivate, members = [] } = await request.json()
+        const { name, isPrivate, members = [], isDM = false } = await request.json()
 
         if (!name?.trim()) {
             return NextResponse.json({ error: "Room name is required" }, { status: 400 })
+        }
+
+        // For DM rooms, check if a room already exists between these users
+        if (isDM && members.length === 2) {
+            const roomsRef = adminDb.collection("rooms")
+            const existingDMQuery = await roomsRef
+                .where("isDM", "==", true)
+                .where("members", "array-contains", decodedToken.uid)
+                .get()
+
+            // Check if any existing DM room contains both users
+            for (const doc of existingDMQuery.docs) {
+                const roomData = doc.data()
+                if (roomData.members.length === 2 && 
+                    roomData.members.includes(members[0]) && 
+                    roomData.members.includes(members[1])) {
+                    // Return existing DM room
+                    return NextResponse.json({ id: doc.id, existing: true })
+                }
+            }
         }
 
         // Create room using adminDb
@@ -30,6 +50,7 @@ export async function POST(request: NextRequest) {
         const newRoom = await roomsRef.add({
             name: name.trim(),
             isPrivate: !!isPrivate,
+            isDM: !!isDM,
             ownerId: decodedToken.uid,
             members: Array.from(new Set([...members, decodedToken.uid])),
             createdAt: Timestamp.now(),
