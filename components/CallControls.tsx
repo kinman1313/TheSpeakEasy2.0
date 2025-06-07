@@ -449,38 +449,7 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     }
   }
 
-  const handleParticipantLeft = async (participantId: string) => {
-    try {
-      if (isFirebaseReady && db) {
-        // Use type assertion to tell TypeScript that db is definitely a Firestore instance
-        const firestore = db as Firestore;
-
-        const callDocRef = doc(firestore, "calls", roomId);
-        const participantsCollection = collection(callDocRef, "participants");
-        const participantDocRef = doc(participantsCollection, participantId);
-
-        await deleteDoc(participantDocRef);
-        await deleteCallIfEmpty(roomId);
-      }
-
-      // Clean up participant's peer connection
-      if (peerConnections.current[participantId]) {
-        peerConnections.current[participantId].peerConnection.close()
-        delete peerConnections.current[participantId]
-      }
-
-      // Clean up participant's stream
-      if (remoteStreams.current[participantId]) {
-        remoteStreams.current[participantId].getTracks().forEach((track) => track.stop())
-        delete remoteStreams.current[participantId]
-      }
-
-      setParticipants((prev) => prev.filter((p) => p.id !== participantId))
-    } catch (error) {
-      console.error("Error handling participant left:", error)
-      toast.error("Error removing participant from call")
-    }
-  }
+  // Removed unused handleParticipantLeft function for cleaner code
 
   const deleteCallIfEmpty = async (roomId: string) => {
     if (!isFirebaseReady || !db) return;

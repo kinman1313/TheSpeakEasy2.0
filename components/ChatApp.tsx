@@ -5,13 +5,11 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { getFirestore } from "firebase/firestore"
-import { app } from "@/lib/firebase"
+import { app, db } from "@/lib/firebase"
 import { useToast } from "@/components/ui/toast"
 import { isToday, isYesterday, format, isValid } from 'date-fns'
 import { useMessages, Message } from "@/lib/hooks/useMessages"
 import { useSendMessage } from "@/lib/hooks/useSendMessage"
-import { useToggleReaction } from "@/lib/hooks/useToggleReaction"
 import { MessageReactions } from "@/components/chat/MessageReactions"
 import UserList from "@/components/chat/UserList"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
@@ -21,14 +19,16 @@ import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { Image as ImageIcon, User as UserIcon } from "lucide-react"
+import { Image as ImageIcon, User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw } from "lucide-react"
+import { signOut } from "firebase/auth"
+import { getAuthInstance } from "@/lib/firebase"
+import { useRouter } from "next/navigation"
 
-// Initialize Firestore only on the client side
-const db = typeof window !== "undefined" ? getFirestore(app) : undefined
 
 export default function ChatApp() {
   const { user } = useAuth()
   const { toast } = useToast()
+  const router = useRouter()
   const [textMessage, setTextMessage] = useState("")
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
@@ -36,11 +36,9 @@ export default function ChatApp() {
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   // Hook for fetching messages
-  const { messages, error: messagesError } = useMessages(db, firebaseStatus)
+  const { messages, error: messagesError, isConnected, isLoading, retryConnection } = useMessages(db, firebaseStatus)
   // Hook for sending messages
   const { sendMessage, isSending, error: sendMessageError } = useSendMessage(db, firebaseStatus)
-  // Hook for toggling reactions
-  const { toggleReaction, isUpdating: isUpdatingReaction, error: reactionError } = useToggleReaction(db, firebaseStatus)
   // WebRTC Context
   const {
     callStatus: webRTCCallStatus,
@@ -48,8 +46,6 @@ export default function ChatApp() {
     localStream,
     remoteStream,
     callerUserName,
-    acceptCall,
-    declineCall,
     listenForSignalingMessages,
     peerConnection,
     setCallStatus,
@@ -67,7 +63,7 @@ export default function ChatApp() {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid)
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
-        (offer, fromUserId, fromUserName) => {
+        (_, fromUserId, fromUserName) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
           toast({
             title: "Incoming Call",
@@ -95,7 +91,7 @@ export default function ChatApp() {
               .catch((e: Error) => console.error("Error adding received ICE candidate:", e))
           }
         },
-        (fromUserId, fromUserName) => {
+        (_, fromUserName) => {
           toast({
             title: "Call Declined",
             description: `${fromUserName || 'The other user'} declined the call.`,
@@ -109,6 +105,8 @@ export default function ChatApp() {
       )
       return cleanupListeners
     }
+    // Return undefined when condition is not met
+    return undefined
   }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus])
 
   // Effect to check Firebase initialization status
@@ -125,13 +123,37 @@ export default function ChatApp() {
   useEffect(() => {
     if (messagesError) {
       console.error("Error from useMessages hook:", messagesError)
-      toast({
-        title: "Chat Error",
-        description: messagesError.message || "Could not load messages. Please try refreshing.",
-        variant: "destructive",
-      })
+
+      // Only show toast for non-network errors or after retry attempts fail
+      if (!messagesError.message.includes('transport errored') && !messagesError.message.includes('Failed to connect after')) {
+        toast({
+          title: "Chat Error",
+          description: messagesError.message || "Could not load messages. Please try refreshing.",
+          variant: "destructive",
+        })
+      } else if (messagesError.message.includes('Failed to connect after')) {
+        toast({
+          title: "Connection Failed",
+          description: "Unable to connect to chat server. Please check your internet connection and try again.",
+          variant: "destructive",
+        })
+      }
     }
   }, [messagesError, toast])
+
+  // Effect to handle connection status changes
+  useEffect(() => {
+    if (!isConnected && !isLoading && firebaseStatus === 'ready') {
+      toast({
+        title: "Connection Lost",
+        description: "Trying to reconnect to chat...",
+        variant: "destructive",
+      })
+    } else if (isConnected && firebaseStatus === 'ready') {
+      // Connection restored - could show a success message if desired
+      console.log("Chat connection restored")
+    }
+  }, [isConnected, isLoading, firebaseStatus, toast])
 
   // Effect to handle errors from useSendMessage hook
   useEffect(() => {
@@ -144,18 +166,6 @@ export default function ChatApp() {
       })
     }
   }, [sendMessageError, toast])
-
-  // Effect to handle errors from useToggleReaction hook
-  useEffect(() => {
-    if (reactionError) {
-      console.error("Error from useToggleReaction hook:", reactionError)
-      toast({
-        title: "Reaction Error",
-        description: reactionError.message || "Could not update reaction. Please try again.",
-        variant: "destructive",
-      })
-    }
-  }, [reactionError, toast])
 
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -221,6 +231,27 @@ export default function ChatApp() {
     setShowGiphyPicker(false)
   }
 
+  const handleLogout = async () => {
+    try {
+      const auth = getAuthInstance()
+      if (auth) {
+        await signOut(auth)
+        toast({
+          title: "Signed Out",
+          description: "You have been successfully signed out.",
+        })
+        router.push("/login")
+      }
+    } catch (error) {
+      console.error("Error signing out:", error)
+      toast({
+        title: "Sign Out Error",
+        description: "Failed to sign out. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const renderMessage = (message: Message) => {
     const isCurrentUser = message.userId === user?.uid
     const messageDate = message.timestamp?.toDate()
@@ -280,50 +311,153 @@ export default function ChatApp() {
     )
   }
 
+  if (firebaseStatus === "initializing") {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+          <p>Initializing chat...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (firebaseStatus === "error") {
+    return (
+      <div className="flex items-center justify-center h-screen">
+        <div className="text-center">
+          <p className="text-red-500 mb-2">Failed to initialize chat</p>
+          <Button onClick={() => window.location.reload()}>
+            Retry
+          </Button>
+        </div>
+      </div>
+    )
+  }
+
   return (
-    <div className="flex h-screen">
+    <div className="flex h-screen bg-gradient-to-br from-slate-900 to-slate-800">
       {/* User List Sidebar */}
-      <div className="w-64 border-r bg-background">
+      <div className="w-64 border-r border-slate-700/50 bg-gradient-to-b from-slate-900/90 to-slate-800/90 backdrop-blur-md">
         <UserList />
       </div>
 
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col">
         {/* Chat Header */}
-        <div className="h-16 border-b border-gray-200 flex items-center justify-between px-4 bg-white">
-          <h1 className="text-xl font-semibold">The SpeakEasy</h1>
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsProfileModalOpen(true)}
-          >
-            <UserIcon className="h-5 w-5" />
-          </Button>
+        <div className="h-16 border-b border-slate-700/50 flex items-center justify-between px-4 bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-md glass">
+          <div className="flex items-center gap-3">
+            <h1 className="text-xl font-semibold text-white">The SpeakEasy</h1>
+
+            {/* Connection Status Indicator */}
+            <div className="flex items-center gap-2">
+              {isLoading ? (
+                <div className="flex items-center gap-2 text-yellow-400">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  <span className="text-xs">Connecting...</span>
+                </div>
+              ) : isConnected ? (
+                <div className="flex items-center gap-2 text-green-400">
+                  <Wifi className="h-4 w-4" />
+                  <span className="text-xs">Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-red-400">
+                  <WifiOff className="h-4 w-4" />
+                  <span className="text-xs">Disconnected</span>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={retryConnection}
+                    className="text-red-400 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2"
+                  >
+                    Retry
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-slate-300 mr-2">
+              {user?.displayName || user?.email || "User"}
+            </span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setIsProfileModalOpen(true)}
+              className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+            >
+              <UserIcon className="h-5 w-5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={handleLogout}
+              className="text-slate-300 hover:text-white hover:bg-red-600/50"
+              title="Sign Out"
+            >
+              <LogOut className="h-5 w-5" />
+            </Button>
+          </div>
         </div>
 
         {/* Messages Area */}
-        <div className="flex-1 overflow-y-auto p-4">
+        <div className="flex-1 overflow-y-auto p-4 bg-gradient-to-b from-slate-900/20 to-slate-800/30">
+          {/* Connection Status Banner */}
+          {!isConnected && !isLoading && firebaseStatus === 'ready' && (
+            <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
+              <div className="flex items-center gap-2 text-red-300">
+                <WifiOff className="h-4 w-4" />
+                <span className="text-sm">Connection lost. Messages may not be up to date.</span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={retryConnection}
+                  className="text-red-300 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2 ml-auto"
+                >
+                  <RefreshCw className="h-3 w-3 mr-1" />
+                  Retry
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {isLoading && (
+            <div className="mb-4 p-3 bg-yellow-900/50 border border-yellow-600/50 rounded-lg glass">
+              <div className="flex items-center gap-2 text-yellow-300">
+                <RefreshCw className="h-4 w-4 animate-spin" />
+                <span className="text-sm">Reconnecting to chat...</span>
+              </div>
+            </div>
+          )}
+
           {messages.map(renderMessage)}
           <div ref={messagesEndRef} />
         </div>
 
         {/* Input Area */}
-        <div className="border-t p-4">
+        <div className="border-t border-slate-700/50 p-4 bg-gradient-to-r from-slate-900/50 to-slate-800/50 backdrop-blur-md">
           <form onSubmit={handleFormSubmit} className="flex gap-2">
             <Input
               value={textMessage}
               onChange={(e) => setTextMessage(e.target.value)}
               placeholder="Type a message..."
-              className="flex-1"
+              className="flex-1 glass text-white placeholder:text-slate-400 border-slate-600/50 focus:border-indigo-500/50"
             />
-            <Button type="submit" disabled={isSending}>
+            <Button
+              type="submit"
+              disabled={isSending}
+              className="glass hover:glass-darker neon-glow text-white"
+            >
               Send
             </Button>
-            <VoiceRecorder onRecordingComplete={handleRecordingComplete} onClose={() => { }} />
+            <VoiceRecorder onRecordingComplete={handleRecordingComplete} />
             <Button
               type="button"
               variant="outline"
               onClick={() => setShowGiphyPicker(true)}
+              className="glass hover:glass-darker text-slate-300 hover:text-white border-slate-600/50"
             >
               <ImageIcon className="h-4 w-4" />
             </Button>
@@ -331,6 +465,7 @@ export default function ChatApp() {
               type="button"
               variant="outline"
               onClick={() => setIsProfileModalOpen(true)}
+              className="glass hover:glass-darker text-slate-300 hover:text-white border-slate-600/50"
             >
               <UserIcon className="h-4 w-4" />
             </Button>

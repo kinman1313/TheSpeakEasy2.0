@@ -8,11 +8,10 @@ import { AudioVisualizer } from "./AudioVisualizer"
 
 interface VoiceRecorderProps {
   onRecordingComplete: (audioBlob: Blob) => void
-  onClose: () => void
   maxDuration?: number
 }
 
-export function VoiceRecorder({ onRecordingComplete, onClose, maxDuration = 60 }: VoiceRecorderProps) {
+export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRecorderProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [progress, setProgress] = useState(0)
   const [stream, setStream] = useState<MediaStream | null>(null)

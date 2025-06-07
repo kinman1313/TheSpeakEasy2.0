@@ -3,7 +3,7 @@
 import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { useAuth } from '@/components/auth/AuthProvider';
 import { rtdb } from '@/lib/firebase';
-import { ref, set, onValue, push, child, off, remove, serverTimestamp } from 'firebase/database';
+import { ref, set, onValue, push, off, remove, serverTimestamp } from 'firebase/database';
 
 const configuration = {
   iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
@@ -227,7 +227,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     // Do not setPeerConnection(null) here, closePeerConnection handles it.
   }, [localStream, remoteStream]); // Dependencies for resetCallState
 
-  const closePeerConnection = useCallback((isInitiatorCleanUp = false, reason?: CallStatus) => {
+  const closePeerConnection = useCallback((_isInitiatorCleanUp = false, reason?: CallStatus) => {
     console.log(`Closing peer connection and related state. Reason: ${reason || 'general cleanup'}`);
 
     if (peerConnection) {

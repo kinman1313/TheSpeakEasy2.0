@@ -1,12 +1,6 @@
-"use client"
-
-import ChatApp from "@/components/ChatApp"
+import { AuthenticatedApp } from "@/components/AuthenticatedApp"
 
 export default function Page() {
-  return (
-    <div>
-      <ChatApp />
-    </div>
-  )
+  return <AuthenticatedApp />
 }
 

@@ -3,7 +3,7 @@ import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 import { MESSAGE_BATCH_SIZE } from "@/lib/constants"
-import { DocumentData, QueryDocumentSnapshot } from "firebase-admin/firestore"
+
 
 // Add this interface to define the message data structure
 interface MessageData {

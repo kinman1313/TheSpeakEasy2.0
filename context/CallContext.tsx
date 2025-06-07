@@ -1,5 +1,5 @@
 // context/CallContext.tsx
-import { createContext, useContext, useState, ReactNode } from 'react';
+import { createContext, useContext, ReactNode } from 'react';
 
 interface CallContextProps {
     endCall: () => void;
@@ -8,10 +8,7 @@ interface CallContextProps {
 const CallContext = createContext<CallContextProps | undefined>(undefined);
 
 export const CallProvider = ({ children }: { children: ReactNode }) => {
-    const [isCallActive, setIsCallActive] = useState(false);
-
     const endCall = () => {
-        setIsCallActive(false);
         // Add any additional cleanup logic here
     };
 

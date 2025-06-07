@@ -119,7 +119,6 @@ export function MessageInput({ onSend }: MessageInputProps) {
             onSend(`[AUDIO] ${audioUrl}`)
             setIsRecording(false)
           }}
-          onClose={() => setIsRecording(false)}
         />
       )}
 

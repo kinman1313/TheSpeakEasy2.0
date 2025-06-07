@@ -1,6 +1,6 @@
 export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
-import { adminAuth, adminStorage } from "@/lib/firebase-admin"
+import { adminAuth } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
 
 const limiter = rateLimit({
@@ -17,7 +17,7 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const decodedToken = await adminAuth.verifyIdToken(token)
+        await adminAuth.verifyIdToken(token)
         const formData = await request.formData()
         const file = formData.get("file") as File
         const type = formData.get("type") as string

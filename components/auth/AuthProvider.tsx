@@ -1,13 +1,9 @@
 'use client'
 
-import { User } from "firebase/auth"
 import { createContext, useContext, useEffect, useState } from "react"
-import { onAuthStateChanged, getAuth, User as FirebaseUser } from "firebase/auth" // Renamed User to FirebaseUser
-import { app, rtdb } from "@/lib/firebase" // Import rtdb
-import { ref, set, onDisconnect, serverTimestamp, goOnline, goOffline } from "firebase/database" // RTDB functions
-
-// Initialize auth - getAuth is safe to call on server
-const auth = getAuth(app);
+import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth" // Renamed User to FirebaseUser
+import { rtdb, auth } from "@/lib/firebase" // Import rtdb and auth
+import { ref, set, onDisconnect, serverTimestamp, goOnline } from "firebase/database" // RTDB functions
 
 // Define the shape of our context
 interface AuthContextType {

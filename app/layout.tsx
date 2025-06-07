@@ -8,7 +8,7 @@ import { Toaster } from "@/components/ui/toaster"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Neon Chat App",
+  title: "The SpeakEasy 2.0",
   description: "A modern chat application with voice and video calls",
   manifest: "/manifest.json",
 }

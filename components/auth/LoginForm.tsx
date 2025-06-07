@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Separator } from "@/components/ui/separator"
-import { toast } from "sonner"
+import { toast } from "react-hot-toast"
 import { Github, Mail, Chrome as Google, Facebook } from "lucide-react"
 import Link from "next/link"
 
@@ -32,14 +32,39 @@ export function LoginForm() {
     try {
       setIsLoading(true)
       console.log("Starting provider sign in...")
-      const result = await signInWithPopup(auth, provider)
+
+
+
+      // Try popup first, fallback to redirect if popup fails
+      let result;
+      try {
+        result = await signInWithPopup(auth, provider)
+      } catch (popupError: any) {
+        // If popup fails due to COOP policy or popup blocked, try redirect
+        if (popupError.code === 'auth/popup-blocked' ||
+          popupError.code === 'auth/popup-closed-by-user' ||
+          popupError.message.includes('Cross-Origin-Opener-Policy')) {
+          toast.error("Popup blocked. Please allow popups for this site or check your Firebase configuration.")
+          return;
+        }
+        throw popupError; // Re-throw if it's a different error
+      }
+
       console.log("Sign in successful:", result.user)
       toast.success("Welcome back!")
       router.push("/")
     } catch (error: any) {
       console.error("Provider sign in error:", error)
-      if (error.code === 'auth/account-exists-with-different-credential') {
+
+      if (error.code === 'auth/popup-closed-by-user') {
+        // Don't show error for user-cancelled popup
+        return;
+      } else if (error.code === 'auth/account-exists-with-different-credential') {
         toast.error("An account already exists with the same email address but different sign-in credentials.")
+      } else if (error.code === 'auth/popup-blocked') {
+        toast.error("Popup was blocked by your browser. Please allow popups for this site.")
+      } else if (error.code === 'auth/unauthorized-domain') {
+        toast.error("This domain is not authorized for authentication. Please check Firebase configuration.")
       } else {
         toast.error(error.message || "Failed to sign in. Please try again.")
       }
@@ -53,6 +78,20 @@ export function LoginForm() {
     if (!email || !password) {
       toast.error("Please fill in all fields")
       return
+    }
+
+
+
+    // Add validation for registration
+    if (isRegistering) {
+      if (password.length < 6) {
+        toast.error("Password must be at least 6 characters long")
+        return
+      }
+      if (!/\S+@\S+\.\S+/.test(email)) {
+        toast.error("Please enter a valid email address")
+        return
+      }
     }
 
     try {
@@ -71,18 +110,35 @@ export function LoginForm() {
       router.push("/")
     } catch (error: any) {
       console.error("Email auth error:", error)
-      if (error.code === 'auth/email-already-in-use') {
-        toast.error("Email already in use. Try signing in instead.")
-      } else if (error.code === 'auth/weak-password') {
-        toast.error("Password is too weak. Please choose a stronger password.")
-      } else if (error.code === 'auth/invalid-email') {
-        toast.error("Invalid email address.")
-      } else if (error.code === 'auth/user-not-found') {
-        toast.error("No account found with this email. Try creating an account.")
-      } else if (error.code === 'auth/wrong-password') {
-        toast.error("Incorrect password.")
+
+      // Registration-specific errors
+      if (isRegistering) {
+        if (error.code === 'auth/email-already-in-use') {
+          toast.error("An account with this email already exists. Try signing in instead.")
+          setIsRegistering(false) // Switch to sign in mode
+        } else if (error.code === 'auth/weak-password') {
+          toast.error("Password is too weak. Use at least 6 characters with numbers and letters.")
+        } else if (error.code === 'auth/invalid-email') {
+          toast.error("Please enter a valid email address.")
+        } else if (error.code === 'auth/operation-not-allowed') {
+          toast.error("Email/password accounts are not enabled. Please contact support.")
+        } else {
+          toast.error(`Account creation failed: ${error.message || "Please try again."}`)
+        }
       } else {
-        toast.error(error.message || "Authentication failed. Please try again.")
+        // Sign in specific errors
+        if (error.code === 'auth/user-not-found') {
+          toast.error("No account found with this email. Try creating an account.")
+          setIsRegistering(true) // Switch to registration mode
+        } else if (error.code === 'auth/wrong-password') {
+          toast.error("Incorrect password.")
+        } else if (error.code === 'auth/invalid-email') {
+          toast.error("Invalid email address.")
+        } else if (error.code === 'auth/user-disabled') {
+          toast.error("This account has been disabled. Contact support.")
+        } else {
+          toast.error(error.message || "Sign in failed. Please try again.")
+        }
       }
     } finally {
       setIsLoading(false)
@@ -102,23 +158,30 @@ export function LoginForm() {
             placeholder="you@example.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className="bg-white/5 border-white/10 text-white placeholder:text-zinc-400"
+            className="glass border-slate-600/50 text-white placeholder:text-slate-400 focus:border-indigo-500/50 focus:bg-slate-800/60"
           />
         </div>
         <div className="space-y-2">
           <Label htmlFor="password" className="text-white">
-            Password
+            Password {isRegistering && <span className="text-xs text-zinc-400">(min. 6 characters)</span>}
           </Label>
           <Input
             id="password"
             type="password"
-            placeholder="••••••••"
+            placeholder={isRegistering ? "At least 6 characters" : "••••••••"}
             value={password}
             onChange={(e) => setPassword(e.target.value)}
-            className="bg-white/5 border-white/10 text-white placeholder:text-zinc-400"
+            className="glass border-slate-600/50 text-white placeholder:text-slate-400 focus:border-indigo-500/50 focus:bg-slate-800/60"
           />
+          {isRegistering && password.length > 0 && password.length < 6 && (
+            <p className="text-xs text-red-400">Password must be at least 6 characters</p>
+          )}
         </div>
-        <Button type="submit" disabled={isLoading} className="w-full glass hover:glass-darker neon-glow text-white">
+        <Button
+          type="submit"
+          disabled={isLoading || (isRegistering && password.length < 6)}
+          className="w-full glass hover:glass-darker neon-glow text-white"
+        >
           {isLoading ? (
             <span className="flex items-center gap-2">
               <span className="h-4 w-4 animate-spin rounded-full border-2 border-zinc-400 border-t-zinc-200" />

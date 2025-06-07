@@ -39,7 +39,7 @@ export function TestConnection() {
             const firestore = db as Firestore;
 
             // Try to fetch a collection
-            const querySnapshot = await getDocs(collection(firestore, "test-collection"))
+            await getDocs(collection(firestore, "test-collection"))
             setTestStatus((prev) => ({ ...prev, database: true }))
         } catch (error) {
             console.error("Database test failed:", error)

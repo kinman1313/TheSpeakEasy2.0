@@ -4,13 +4,27 @@ const withPWA = require("next-pwa")({
   register: true,
   skipWaiting: true,
   disable: process.env.NODE_ENV === "development",
+  // Add settings for better build compatibility
+  buildExcludes: [/middleware-manifest\.json$/],
+  runtimeCaching: [
+    {
+      urlPattern: /^https?.*/,
+      handler: 'NetworkFirst',
+      options: {
+        cacheName: 'offlineCache',
+        expiration: {
+          maxEntries: 200,
+        },
+      },
+    },
+  ],
 });
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Add output standalone for better deployment compatibility
-  output: 'standalone',
+  // Keep standalone output disabled for now to avoid build issues
+  // output: 'standalone',
   images: {
     domains: ["firebasestorage.googleapis.com", "lh3.googleusercontent.com", "media.giphy.com"],
   },

@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     // Initialize Firebase Admin if not already initialized
     initAdmin()
 
-    const decodedToken = await getAuth().verifyIdToken(token)
+    await getAuth().verifyIdToken(token)
     const formData = await request.formData()
     const file = formData.get("file") as File
     const type = formData.get("type") as string

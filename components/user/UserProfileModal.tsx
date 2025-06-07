@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogC
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Camera, AlertTriangle, Bell, BellOff } from 'lucide-react'; // Added Bell, BellOff
+import { Loader2, Camera, AlertTriangle } from 'lucide-react';
 import { useToast } from "@/components/ui/toast"
 import { auth, db, messaging } from '@/lib/firebase'; // Import messaging
 import { uploadAvatar } from '@/lib/storage';
@@ -32,10 +32,9 @@ export default function UserProfileModal({ isOpen, onClose, user }: UserProfileM
   // Notification states
   const [notificationsEnabledUI, setNotificationsEnabledUI] = useState<boolean>(false);
   const [isNotificationProcessing, setIsNotificationProcessing] = useState<boolean>(false);
-  const [currentToken, setCurrentToken] = useState<string | null>(null); // Store current FCM token for disabling
+
 
   const {
-    permission,
     token: notificationToken,
     error: notificationError,
     isSupported: notificationsSupported,
@@ -53,7 +52,6 @@ export default function UserProfileModal({ isOpen, onClose, user }: UserProfileM
     // Fetch and set notification preferences when modal opens with a user
     if (isOpen && user) {
       setNotificationsEnabledUI(notificationsSupported);
-      setCurrentToken(notificationToken);
     }
   }, [isOpen, user, notificationsSupported, notificationToken]);
 
@@ -65,7 +63,6 @@ export default function UserProfileModal({ isOpen, onClose, user }: UserProfileM
         const token = await enableNotifications();
         if (token) {
           setNotificationsEnabledUI(true);
-          setCurrentToken(token);
           toast({ title: 'Notifications Enabled', description: 'You will now receive push notifications on this device.' });
         } else {
           setNotificationsEnabledUI(false);
@@ -75,7 +72,6 @@ export default function UserProfileModal({ isOpen, onClose, user }: UserProfileM
       } else {
         await disableNotifications();
         setNotificationsEnabledUI(false);
-        setCurrentToken(null);
         toast({ title: 'Notifications Disabled', description: 'You will no longer receive push notifications on this device.' });
       }
     } catch (err: any) {

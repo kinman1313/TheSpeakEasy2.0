@@ -59,7 +59,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const decodedToken = await adminAuth.verifyIdToken(token)
+        await adminAuth.verifyIdToken(token)
         const userId = request.nextUrl.searchParams.get("userId")
 
         if (!userId) {

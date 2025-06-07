@@ -449,36 +449,37 @@ export function CallControls({ isVideo, roomId, redirectUrl = "/" }: CallControl
     }
   }
 
-  const handleParticipantLeft = async (participantId: string) => {
-    try {
-      if (isFirebaseReady && db) {
-        const firestore = db as Firestore
-        const callDocRef = doc(firestore, "calls", roomId)
-        const participantsCollection = collection(callDocRef, "participants")
-        const participantDocRef = doc(participantsCollection, participantId)
+  // Commented out unused function - may be needed for future participant management
+  // const handleParticipantLeft = async (participantId: string) => {
+  //   try {
+  //     if (isFirebaseReady && db) {
+  //       const firestore = db as Firestore
+  //       const callDocRef = doc(firestore, "calls", roomId)
+  //       const participantsCollection = collection(callDocRef, "participants")
+  //       const participantDocRef = doc(participantsCollection, participantId)
 
-        await deleteDoc(participantDocRef)
-        await deleteCallIfEmpty(roomId)
-      }
+  //       await deleteDoc(participantDocRef)
+  //       await deleteCallIfEmpty(roomId)
+  //     }
 
-      // Clean up participant's peer connection
-      if (peerConnections.current[participantId]) {
-        peerConnections.current[participantId].peerConnection.close()
-        delete peerConnections.current[participantId]
-      }
+  //     // Clean up participant's peer connection
+  //     if (peerConnections.current[participantId]) {
+  //       peerConnections.current[participantId].peerConnection.close()
+  //       delete peerConnections.current[participantId]
+  //     }
 
-      // Clean up participant's stream
-      if (remoteStreams.current[participantId]) {
-        remoteStreams.current[participantId].getTracks().forEach(handleTrackStop)
-        delete remoteStreams.current[participantId]
-      }
+  //     // Clean up participant's stream
+  //     if (remoteStreams.current[participantId]) {
+  //       remoteStreams.current[participantId].getTracks().forEach(handleTrackStop)
+  //       delete remoteStreams.current[participantId]
+  //     }
 
-      setParticipants((prev: Participant[]) => prev.filter((p: Participant) => p.id !== participantId))
-    } catch (error) {
-      console.error("Error handling participant left:", error)
-      toast.error("Error removing participant from call")
-    }
-  }
+  //     setParticipants((prev: Participant[]) => prev.filter((p: Participant) => p.id !== participantId))
+  //   } catch (error) {
+  //     console.error("Error handling participant left:", error)
+  //     toast.error("Error removing participant from call")
+  //   }
+  // }
 
   const deleteCallIfEmpty = async (roomId: string) => {
     if (!isFirebaseReady || !db) return;
