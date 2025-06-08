@@ -56,6 +56,7 @@ interface WebRTCContextType {
   setLocalStream: React.Dispatch<React.SetStateAction<MediaStream | null>>;
   initializePeerConnection: (currentUserId: string, targetUserId: string) => RTCPeerConnection;
   initiateCall: (targetUserId: string, targetUserName?: string) => Promise<void>;
+  initiateAudioCall: (targetUserId: string, targetUserName?: string) => Promise<void>;
   acceptCall: () => Promise<void>;
   declineCall: () => Promise<void>;
   toggleLocalAudio: () => void;
@@ -462,19 +463,21 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const requestMediaPermissionsHandleErrors = async (): Promise<boolean> => {
+  const requestMediaPermissionsHandleErrors = async (audioOnly = false): Promise<boolean> => {
     const currentPermissions = await checkMediaPermissions();
-    if (currentPermissions.cam === 'denied' || currentPermissions.mic === 'denied') {
+    if (currentPermissions.mic === 'denied' || (!audioOnly && currentPermissions.cam === 'denied')) {
       setSignalingError(new Error("Camera/microphone access denied. Enable in browser settings."));
       setCallStatus('error');
       return false;
     }
     setCallStatus('requestingMedia');
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+      const constraints = audioOnly ? { video: false, audio: true } : { video: true, audio: true };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
       setLocalStream(stream);
-      setCameraPermission('granted');
+      if (!audioOnly) setCameraPermission('granted');
       setMicrophonePermission('granted');
+      setIsLocalVideoEnabled(!audioOnly); // Start with video disabled for audio calls
       return true;
     } catch (err: any) {
       console.error("Error acquiring media:", err.name, err.message);
@@ -490,6 +493,54 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCallStatus('error');
       setLocalStream(null);
       return false;
+    }
+  };
+
+  const initiateAudioCall = async (targetId: string, targetName?: string) => {
+    if (!currentUser) { setCallStatus('error'); setSignalingError(new Error("User not authenticated.")); return; }
+    if (callStatus !== 'idle') {
+      console.warn("Call attempt while not idle. Current status:", callStatus);
+      setSignalingError(new Error(`Cannot start a new call. Current call status: ${callStatus}`));
+      return;
+    }
+    clearOfferTimeout();
+
+    const mediaAllowed = await requestMediaPermissionsHandleErrors(true); // Audio only
+    if (!mediaAllowed) { return; }
+
+    if (!localStream) {
+      console.error("Local stream not available after permission grant.");
+      setSignalingError(new Error("Failed to acquire media stream."));
+      setCallStatus('error');
+      closePeerConnection(false, 'error');
+      return;
+    }
+
+    setCallStatus('creatingOffer');
+    setActiveCallTargetUserId(targetId);
+    setActiveCallTargetUserName(targetName || "User");
+
+    try {
+      const pc = initializePeerConnection(currentUser.uid, targetId);
+      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+
+      const offerDesc = await pc.createOffer();
+      await pc.setLocalDescription(offerDesc);
+
+      if (pc.localDescription) {
+        await sendOffer(targetId, currentUser.uid, currentUser.displayName, pc.localDescription);
+
+        offerTimeoutRef.current = setTimeout(async () => {
+          console.warn(`No answer from ${targetName || targetId} within timeout.`);
+          setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
+          const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId  
+          remove(ref(rtdb, offerPath)).catch(e => console.warn("Could not remove timed out offer", e));
+          closePeerConnection(true, 'error');
+        }, 30000);
+      } else throw new Error("Local description failed.");
+    } catch (err: any) {
+      console.error("Error initiating audio call (after media grant):", err);
+      setSignalingError(err); setCallStatus('error'); closePeerConnection(false, 'error');
     }
   };
 
@@ -602,7 +653,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     isLocalAudioMuted, isLocalVideoEnabled,
     cameraPermission, microphonePermission,
     signalingError, setLocalStream, initializePeerConnection,
-    initiateCall, acceptCall, declineCall, hangUpCall,
+    initiateCall, initiateAudioCall, acceptCall, declineCall, hangUpCall,
     toggleLocalAudio, toggleLocalVideo,
     requestMediaPermissions: requestMediaPermissionsHandleErrors,
     sendOffer, sendAnswer, listenForSignalingMessages,

@@ -11,7 +11,8 @@ import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast"
 import { db } from "@/lib/firebase"
 import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore"
-import { Plus, Users, Hash, MessageCircle, Search } from "lucide-react"
+import { Plus, Users, Hash, MessageCircle, Search, Settings } from "lucide-react"
+import { RoomMemberManager } from "./RoomMemberManager"
 
 interface Room {
     id: string
@@ -65,6 +66,7 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
     const [isPrivateRoom, setIsPrivateRoom] = useState(false)
     const [userSearchQuery, setUserSearchQuery] = useState("")
     const [isCreating, setIsCreating] = useState(false)
+    const [selectedRoomForManagement, setSelectedRoomForManagement] = useState<string | null>(null)
 
     // Fetch user's rooms
     useEffect(() => {
@@ -355,21 +357,33 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                         </h3>
                         <div className="space-y-1">
                             {rooms.map((room) => (
-                                <Button
-                                    key={room.id}
-                                    variant={currentRoomId === room.id ? "secondary" : "ghost"}
-                                    onClick={() => onRoomSelect(room.id, 'room')}
-                                    className={`w-full justify-start glass ${currentRoomId === room.id
-                                        ? "bg-indigo-600/50 text-white"
-                                        : "text-slate-300 hover:text-white"
-                                        }`}
-                                >
-                                    <Hash className="h-4 w-4 mr-2" />
-                                    <span className="truncate">{room.name}</span>
-                                    {room.isPrivate && (
-                                        <span className="ml-auto text-xs">🔒</span>
+                                <div key={room.id} className="flex items-center gap-1">
+                                    <Button
+                                        variant={currentRoomId === room.id ? "secondary" : "ghost"}
+                                        onClick={() => onRoomSelect(room.id, 'room')}
+                                        className={`flex-1 justify-start glass ${currentRoomId === room.id
+                                            ? "bg-indigo-600/50 text-white"
+                                            : "text-slate-300 hover:text-white"
+                                            }`}
+                                    >
+                                        <Hash className="h-4 w-4 mr-2" />
+                                        <span className="truncate">{room.name}</span>
+                                        {room.isPrivate && (
+                                            <span className="ml-auto text-xs">🔒</span>
+                                        )}
+                                    </Button>
+                                    {room.ownerId === user?.uid && (
+                                        <Button
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => setSelectedRoomForManagement(room.id)}
+                                            className="text-slate-400 hover:text-white hover:bg-slate-700/50 p-1"
+                                            title="Manage Room"
+                                        >
+                                            <Settings className="h-3 w-3" />
+                                        </Button>
                                     )}
-                                </Button>
+                                </div>
                             ))}
                         </div>
                     </div>
@@ -406,6 +420,22 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                     </div>
                 )}
             </div>
+
+            {/* Room Management Dialog */}
+            {selectedRoomForManagement && (
+                <Dialog
+                    open={!!selectedRoomForManagement}
+                    onOpenChange={(open) => !open && setSelectedRoomForManagement(null)}
+                >
+                    <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <RoomMemberManager
+                            roomId={selectedRoomForManagement}
+                            isOwner={true}
+                            onClose={() => setSelectedRoomForManagement(null)}
+                        />
+                    </DialogContent>
+                </Dialog>
+            )}
         </div>
     )
 } 

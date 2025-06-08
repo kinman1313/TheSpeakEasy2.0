@@ -24,39 +24,63 @@ interface GiphyPickerProps {
   onClose: () => void;
 }
 
-// Mock Giphy API Response Structure (Simplified)
-const mockGiphyData: GifObject[] = [
-  { id: '1', images: { fixed_height: { url: 'https://media.giphy.com/media/Vh8pbGX3SGRwA/giphy.gif', width: '200', height: '150' } }, title: 'Funny Cat GIF' },
-  { id: '2', images: { fixed_height: { url: 'https://media.giphy.com/media/3o7TKsWn5LzAMB4ZWM/giphy.gif', width: '200', height: '112' } }, title: 'Dancing GIF' },
-  { id: '3', images: { fixed_height: { url: 'https://media.giphy.com/media/l3q2zbskZq2P44woM/giphy.gif', width: '200', height: '112' } }, title: 'Excited GIF' },
-  { id: '4', images: { fixed_height: { url: 'https://media.giphy.com/media/d2Z9QYzA2aidiWn6/giphy.gif', width: '200', height: '150' } }, title: 'Thumbs Up GIF' },
-];
+// Giphy API configuration
+const GIPHY_API_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY || 'GlVGYHkr3WSBnllca54iNt0yFbjz7L65'; // Fallback to demo key
+const GIPHY_BASE_URL = 'https://api.giphy.com/v1/gifs';
 
 export default function GiphyPicker({ onSelectGif, onClose }: GiphyPickerProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [searchResults, setSearchResults] = useState<GifObject[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  const handleSearch = async (e?: React.FormEvent<HTMLFormElement>) => {
-    if (e) e.preventDefault();
-    if (!searchTerm.trim()) {
-      setSearchResults(mockGiphyData); // Show default mocks if search is empty
-      return;
-    }
+  const fetchGifs = async (query?: string) => {
     setIsLoading(true);
-    // Simulate API call
-    setTimeout(() => {
-      const filteredResults = mockGiphyData.filter(gif =>
-        gif.title?.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-      setSearchResults(filteredResults.length > 0 ? filteredResults : mockGiphyData.slice(0,2)); // Show some if no results
+    try {
+      let url: string;
+      if (query && query.trim()) {
+        // Search for specific GIFs
+        url = `${GIPHY_BASE_URL}/search?api_key=${GIPHY_API_KEY}&q=${encodeURIComponent(query)}&limit=20&rating=g`;
+      } else {
+        // Get trending GIFs
+        url = `${GIPHY_BASE_URL}/trending?api_key=${GIPHY_API_KEY}&limit=20&rating=g`;
+      }
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Giphy API error: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const gifs: GifObject[] = data.data.map((gif: any) => ({
+        id: gif.id,
+        images: {
+          fixed_height: {
+            url: gif.images.fixed_height.url,
+            width: gif.images.fixed_height.width,
+            height: gif.images.fixed_height.height,
+          }
+        },
+        title: gif.title || 'GIF'
+      }));
+
+      setSearchResults(gifs);
+    } catch (error) {
+      console.error('Error fetching GIFs:', error);
+      // Fallback to some default GIFs if API fails
+      setSearchResults([]);
+    } finally {
       setIsLoading(false);
-    }, 1000);
+    }
   };
 
-  // Show initial set of GIFs on mount
+  const handleSearch = async (e?: React.FormEvent<HTMLFormElement>) => {
+    if (e) e.preventDefault();
+    await fetchGifs(searchTerm);
+  };
+
+  // Load trending GIFs on mount
   useEffect(() => {
-    setSearchResults(mockGiphyData);
+    fetchGifs();
   }, []);
 
 

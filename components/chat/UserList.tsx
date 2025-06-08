@@ -5,7 +5,7 @@ import { rtdb } from '@/lib/firebase';
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database';
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button"; // Import Button
-import { Video } from "lucide-react"; // Import an icon
+import { Video, Phone } from "lucide-react"; // Import icons for video and voice calls
 import { useAuth } from '@/components/auth/AuthProvider';
 import { useWebRTC } from '@/components/providers/WebRTCProvider'; // Import useWebRTC
 
@@ -19,7 +19,7 @@ export interface UserStatus {
 
 export default function UserList() {
     const { user: currentUser } = useAuth();
-    const { initiateCall, callStatus } = useWebRTC(); // Get WebRTC context
+    const { initiateCall, initiateAudioCall, callStatus } = useWebRTC(); // Get WebRTC context
     const [onlineUsers, setOnlineUsers] = useState<UserStatus[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<Error | null>(null);
@@ -100,21 +100,39 @@ export default function UserList() {
                             </Avatar>
                             <span className="text-sm">{user.userName || 'Anonymous User'}</span>
                         </div>
-                        {user.uid && ( // Ensure user.uid is defined before showing button
-                            <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={() => {
-                                    if (user.uid) { // Check uid again for type safety inside onClick
-                                        initiateCall(user.uid, user.userName || "Anonymous");
-                                    }
-                                }}
-                                disabled={callStatus !== 'idle'}
-                                aria-label={`Call ${user.userName || 'Anonymous User'}`}
-                                className="p-1 h-auto"
-                            >
-                                <Video size={18} />
-                            </Button>
+                        {user.uid && ( // Ensure user.uid is defined before showing buttons
+                            <div className="flex gap-1">
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        if (user.uid) { // Check uid again for type safety inside onClick
+                                            initiateAudioCall(user.uid, user.userName || "Anonymous");
+                                        }
+                                    }}
+                                    disabled={callStatus !== 'idle'}
+                                    aria-label={`Voice call ${user.userName || 'Anonymous User'}`}
+                                    className="p-1 h-auto text-green-500 hover:text-green-400 hover:bg-green-500/20"
+                                    title="Voice Call"
+                                >
+                                    <Phone size={16} />
+                                </Button>
+                                <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => {
+                                        if (user.uid) { // Check uid again for type safety inside onClick
+                                            initiateCall(user.uid, user.userName || "Anonymous");
+                                        }
+                                    }}
+                                    disabled={callStatus !== 'idle'}
+                                    aria-label={`Video call ${user.userName || 'Anonymous User'}`}
+                                    className="p-1 h-auto text-blue-500 hover:text-blue-400 hover:bg-blue-500/20"
+                                    title="Video Call"
+                                >
+                                    <Video size={16} />
+                                </Button>
+                            </div>
                         )}
                     </li>
                 ))}
