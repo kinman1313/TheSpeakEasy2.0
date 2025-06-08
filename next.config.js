@@ -23,8 +23,8 @@ const withPWA = require("next-pwa")({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Keep standalone output disabled for now to avoid build issues
-  // output: 'standalone',
+  // Enable standalone output for Vercel deployment
+  output: 'standalone',
   images: {
     domains: ["firebasestorage.googleapis.com", "lh3.googleusercontent.com", "media.giphy.com"],
   },
@@ -67,7 +67,6 @@ const nextConfig = {
     });
 
     // Fix the alias path - make sure it points to your project root
-    // The current path might be incorrect if your src folder isn't at the root
     config.resolve.alias['@'] = path.resolve(__dirname);
 
     return config;
