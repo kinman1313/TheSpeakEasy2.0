@@ -8,10 +8,11 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db } from "@/lib/firebase"
 import { useToast } from "@/components/ui/toast"
 import { isToday, isYesterday, format, isValid } from 'date-fns'
-import { useMessages, Message } from "@/lib/hooks/useMessages"
-import { useSendMessage } from "@/lib/hooks/useSendMessage"
+import { useRoomMessages, Message } from "@/lib/hooks/useRoomMessages"
+import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import { MessageReactions } from "@/components/chat/MessageReactions"
 import UserList from "@/components/chat/UserList"
+import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
 import VideoCallView from "@/components/chat/VideoCallView"
 import { VoiceRecorder } from "@/components/chat/VoiceRecorder"
@@ -19,11 +20,10 @@ import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { Image as ImageIcon, User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw } from "lucide-react"
+import { Image as ImageIcon, User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
-
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -35,10 +35,27 @@ export default function ChatApp() {
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  // Hook for fetching messages
-  const { messages, error: messagesError, isConnected, isLoading, retryConnection } = useMessages(db, firebaseStatus)
-  // Hook for sending messages
-  const { sendMessage, isSending, error: sendMessageError } = useSendMessage(db, firebaseStatus)
+  // Room management state
+  const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
+  const [currentRoomType, setCurrentRoomType] = useState<'lobby' | 'room' | 'dm'>('lobby')
+  const [currentRoomName, setCurrentRoomName] = useState<string>("Lobby")
+
+  // Hook for fetching messages (room-aware)
+  const { messages, error: messagesError, isConnected, isLoading, retryConnection } = useRoomMessages(
+    db,
+    firebaseStatus,
+    currentRoomId,
+    currentRoomType
+  )
+
+  // Hook for sending messages (room-aware)
+  const { sendMessage, isSending, error: sendMessageError } = useRoomSendMessage(
+    db,
+    firebaseStatus,
+    currentRoomId,
+    currentRoomType
+  )
+
   // WebRTC Context
   const {
     callStatus: webRTCCallStatus,
@@ -105,7 +122,6 @@ export default function ChatApp() {
       )
       return cleanupListeners
     }
-    // Return undefined when condition is not met
     return undefined
   }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus])
 
@@ -119,12 +135,11 @@ export default function ChatApp() {
     }
   }, [])
 
-  // Effect to handle errors from useMessages hook
+  // Effect to handle errors from useRoomMessages hook
   useEffect(() => {
     if (messagesError) {
-      console.error("Error from useMessages hook:", messagesError)
+      console.error("Error from useRoomMessages hook:", messagesError)
 
-      // Only show toast for non-network errors or after retry attempts fail
       if (!messagesError.message.includes('transport errored') && !messagesError.message.includes('Failed to connect after')) {
         toast({
           title: "Chat Error",
@@ -150,15 +165,14 @@ export default function ChatApp() {
         variant: "destructive",
       })
     } else if (isConnected && firebaseStatus === 'ready') {
-      // Connection restored - could show a success message if desired
       console.log("Chat connection restored")
     }
   }, [isConnected, isLoading, firebaseStatus, toast])
 
-  // Effect to handle errors from useSendMessage hook
+  // Effect to handle errors from useRoomSendMessage hook
   useEffect(() => {
     if (sendMessageError) {
-      console.error("Error from useSendMessage hook:", sendMessageError)
+      console.error("Error from useRoomSendMessage hook:", sendMessageError)
       toast({
         title: "Error Sending Message",
         description: sendMessageError.message || "Could not send your message. Please try again.",
@@ -171,6 +185,25 @@ export default function ChatApp() {
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
+
+  // Room management functions
+  const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
+    setCurrentRoomId(roomId)
+    setCurrentRoomType(roomType)
+
+    // For demo purposes, set room name. In a real app, you'd fetch this from the room data
+    if (roomType === 'room') {
+      setCurrentRoomName(`Room ${roomId.slice(-6)}`)
+    } else {
+      setCurrentRoomName("Direct Message")
+    }
+  }
+
+  const handleLobbySelect = () => {
+    setCurrentRoomId(null)
+    setCurrentRoomType('lobby')
+    setCurrentRoomName("Lobby")
+  }
 
   const handleFormSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -275,10 +308,10 @@ export default function ChatApp() {
           </Avatar>
           <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'}`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-medium">{message.userName}</span>
-              <span className="text-xs text-muted-foreground">{formattedDate}</span>
+              <span className="text-sm font-medium text-white">{message.userName}</span>
+              <span className="text-xs text-slate-400">{formattedDate}</span>
             </div>
-            <div className={`rounded-lg px-4 py-2 ${isCurrentUser ? 'bg-primary text-primary-foreground' : 'bg-muted'
+            <div className={`rounded-lg px-4 py-2 ${isCurrentUser ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white'
               }`}>
               {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
               {message.voiceMessageUrl && (
@@ -335,11 +368,22 @@ export default function ChatApp() {
     )
   }
 
+  const getRoomIcon = () => {
+    if (currentRoomType === 'lobby') return <Hash className="h-5 w-5" />
+    if (currentRoomType === 'room') return <Users className="h-5 w-5" />
+    if (currentRoomType === 'dm') return <MessageCircle className="h-5 w-5" />
+    return <Hash className="h-5 w-5" />
+  }
+
   return (
     <div className="flex h-screen bg-gradient-to-br from-slate-900 to-slate-800">
-      {/* User List Sidebar */}
-      <div className="w-64 border-r border-slate-700/50 bg-gradient-to-b from-slate-900/90 to-slate-800/90 backdrop-blur-md">
-        <UserList />
+      {/* Room Manager Sidebar */}
+      <div className="w-80 border-r border-slate-700/50">
+        <RoomManager
+          currentRoomId={currentRoomId}
+          onRoomSelect={handleRoomSelect}
+          onLobbySelect={handleLobbySelect}
+        />
       </div>
 
       {/* Main Chat Area */}
@@ -347,7 +391,8 @@ export default function ChatApp() {
         {/* Chat Header */}
         <div className="h-16 border-b border-slate-700/50 flex items-center justify-between px-4 bg-gradient-to-r from-slate-900/90 to-slate-800/90 backdrop-blur-md glass">
           <div className="flex items-center gap-3">
-            <h1 className="text-xl font-semibold text-white">The SpeakEasy</h1>
+            {getRoomIcon()}
+            <h1 className="text-xl font-semibold text-white">{currentRoomName}</h1>
 
             {/* Connection Status Indicator */}
             <div className="flex items-center gap-2">
@@ -427,8 +472,26 @@ export default function ChatApp() {
             <div className="mb-4 p-3 bg-yellow-900/50 border border-yellow-600/50 rounded-lg glass">
               <div className="flex items-center gap-2 text-yellow-300">
                 <RefreshCw className="h-4 w-4 animate-spin" />
-                <span className="text-sm">Reconnecting to chat...</span>
+                <span className="text-sm">Loading messages...</span>
               </div>
+            </div>
+          )}
+
+          {messages.length === 0 && !isLoading && (
+            <div className="text-center text-slate-400 mt-8">
+              <div className="mb-4">
+                {getRoomIcon()}
+              </div>
+              <p className="text-lg font-medium mb-2">
+                {currentRoomType === 'lobby' && "Welcome to the Lobby!"}
+                {currentRoomType === 'room' && "Welcome to this room!"}
+                {currentRoomType === 'dm' && "Start your conversation!"}
+              </p>
+              <p className="text-sm">
+                {currentRoomType === 'lobby' && "This is the main chat room where everyone can talk."}
+                {currentRoomType === 'room' && "This is a private room. Only members can see messages here."}
+                {currentRoomType === 'dm' && "Messages here are private between you and the other person."}
+              </p>
             </div>
           )}
 
@@ -442,7 +505,7 @@ export default function ChatApp() {
             <Input
               value={textMessage}
               onChange={(e) => setTextMessage(e.target.value)}
-              placeholder="Type a message..."
+              placeholder={`Message ${currentRoomName}...`}
               className="flex-1 glass text-white placeholder:text-slate-400 border-slate-600/50 focus:border-indigo-500/50"
             />
             <Button
@@ -461,16 +524,13 @@ export default function ChatApp() {
             >
               <ImageIcon className="h-4 w-4" />
             </Button>
-            <Button
-              type="button"
-              variant="outline"
-              onClick={() => setIsProfileModalOpen(true)}
-              className="glass hover:glass-darker text-slate-300 hover:text-white border-slate-600/50"
-            >
-              <UserIcon className="h-4 w-4" />
-            </Button>
           </form>
         </div>
+      </div>
+
+      {/* User List - moved to right side for better UX */}
+      <div className="w-64 border-l border-slate-700/50 bg-gradient-to-b from-slate-900/90 to-slate-800/90 backdrop-blur-md">
+        <UserList />
       </div>
 
       {/* Video Call View */}
