@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import React, { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { useRoom } from "@/components/room/room-provider"
 import { db } from "@/lib/firebase"

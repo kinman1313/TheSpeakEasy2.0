@@ -178,7 +178,7 @@ export default function EnhancedUserList({
                     <Input
                         placeholder="Search users..."
                         value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
+                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                         className="pl-8"
                     />
                 </div>
@@ -215,7 +215,7 @@ export default function EnhancedUserList({
                                     <Input
                                         placeholder="Search users..."
                                         value={searchTerm}
-                                        onChange={(e) => setSearchTerm(e.target.value)}
+                                        onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                                         className="pl-8"
                                     />
                                 </div>
@@ -249,7 +249,7 @@ export default function EnhancedUserList({
                 <Input
                     placeholder="Search users..."
                     value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
+                    onChange={(e: React.ChangeEvent<HTMLInputElement>) => setSearchTerm(e.target.value)}
                     className="pl-8"
                 />
             </div>

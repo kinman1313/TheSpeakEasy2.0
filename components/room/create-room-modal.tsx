@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import React, { useState } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -90,7 +90,7 @@ export function CreateRoomModal({ onRoomCreated }: CreateRoomModalProps) {
               id="room-name"
               placeholder="Enter room name..."
               value={roomName}
-              onChange={(e) => setRoomName(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLInputElement>) => setRoomName(e.target.value)}
               disabled={isLoading}
             />
           </div>
