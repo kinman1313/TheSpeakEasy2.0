@@ -297,9 +297,22 @@ export default function ChatApp() {
   const handleReaction = async (messageId: string, emoji: string) => {
     if (!user) return
 
+    console.log('Adding reaction:', { messageId, emoji, currentRoomId, currentRoomType })
+
     try {
       const token = await user.getIdToken()
-      const response = await fetch(`/api/rooms/${currentRoomId}/messages`, {
+
+      // Use different API endpoint based on message type
+      let apiUrl: string
+      if (currentRoomType === 'lobby') {
+        apiUrl = '/api/messages/reactions'
+      } else if (currentRoomType === 'dm') {
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages`
+      } else {
+        apiUrl = `/api/rooms/${currentRoomId}/messages`
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -313,12 +326,16 @@ export default function ChatApp() {
       })
 
       if (!response.ok) {
-        console.error('Failed to add reaction')
+        const errorText = await response.text()
+        console.error('Failed to add reaction:', response.status, errorText)
         toast({
           title: "Error",
-          description: "Failed to add reaction",
+          description: `Failed to add reaction: ${response.status}`,
           variant: "destructive"
         })
+      } else {
+        const result = await response.json()
+        console.log('Reaction added successfully:', result)
       }
     } catch (error) {
       console.error('Error adding reaction:', error)
@@ -333,9 +350,22 @@ export default function ChatApp() {
   const handleRemoveReaction = async (messageId: string, emoji: string) => {
     if (!user) return
 
+    console.log('Removing reaction:', { messageId, emoji, currentRoomId, currentRoomType })
+
     try {
       const token = await user.getIdToken()
-      const response = await fetch(`/api/rooms/${currentRoomId}/messages`, {
+
+      // Use different API endpoint based on message type
+      let apiUrl: string
+      if (currentRoomType === 'lobby') {
+        apiUrl = '/api/messages/reactions'
+      } else if (currentRoomType === 'dm') {
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages`
+      } else {
+        apiUrl = `/api/rooms/${currentRoomId}/messages`
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -349,12 +379,16 @@ export default function ChatApp() {
       })
 
       if (!response.ok) {
-        console.error('Failed to remove reaction')
+        const errorText = await response.text()
+        console.error('Failed to remove reaction:', response.status, errorText)
         toast({
           title: "Error",
-          description: "Failed to remove reaction",
+          description: `Failed to remove reaction: ${response.status}`,
           variant: "destructive"
         })
+      } else {
+        const result = await response.json()
+        console.log('Reaction removed successfully:', result)
       }
     } catch (error) {
       console.error('Error removing reaction:', error)

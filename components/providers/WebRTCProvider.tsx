@@ -110,6 +110,23 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
   const offerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const disconnectedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const callStatusRef = useRef<CallStatus>(callStatus);
+
+  // Update the ref whenever callStatus changes
+  useEffect(() => {
+    callStatusRef.current = callStatus;
+    console.log(`WebRTC Provider: Call status changed to: ${callStatus}`);
+  }, [callStatus]);
+
+  // Clean up any stale offers when component initializes
+  useEffect(() => {
+    if (currentUser && rtdb && callStatus === 'idle') {
+      const offerPath = `signaling/${currentUser.uid}/offer`;
+      remove(ref(rtdb, offerPath)).catch(e =>
+        console.warn("Could not remove stale offer on init:", e)
+      );
+    }
+  }, [currentUser, rtdb]); // Only run when user or rtdb changes
 
   const clearOfferTimeout = () => {
     if (offerTimeoutRef.current) {
@@ -556,8 +573,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const offerPayload = data as SignalingPayload;
             if (offerPayload.sdp && offerPayload.senderId && offerPayload.receiverId === currentUserId) {
               // Call Collision Handling: Option A (Ignore if not idle)
-              if (callStatus === 'idle' || callStatus === 'callEnded' || callStatus === 'callDeclined') {
-                console.log("Provider: Received offer:", offerPayload);
+              const currentCallStatus = callStatusRef.current;
+              console.log(`Provider: Received offer from ${offerPayload.senderId}, current call status: ${currentCallStatus}`);
+
+              if (currentCallStatus === 'idle' || currentCallStatus === 'callEnded' || currentCallStatus === 'callDeclined') {
+                console.log("Provider: Processing incoming offer:", offerPayload);
 
                 // Set incoming call state
                 setIncomingOffer({ type: 'offer', sdp: offerPayload.sdp });
@@ -568,7 +588,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 // Also call the callback for additional handling (like sound/toast)
                 onOfferReceivedCb({ type: 'offer', sdp: offerPayload.sdp }, offerPayload.senderId, offerPayload.senderName);
               } else {
-                console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${callStatus}`);
+                console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${currentCallStatus}`);
                 // TODO: Optionally send a 'busy' signal back to offerPayload.senderId
                 // For now, sender's offer timeout should handle this.
                 // The offer will remain in RTDB until sender times out and removes it, or callee becomes idle and processes it (if not removed by sender).
@@ -625,7 +645,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeRTDBListeners.current.forEach(l => off(ref(rtdb, l.path), l.listener));
       activeRTDBListeners.current = [];
     };
-  }, [rtdb, callStatus, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState]); // Added resetCallState
+  }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState]); // Removed callStatus from deps to avoid stale closures
 
 
   const contextValue: WebRTCContextType = {

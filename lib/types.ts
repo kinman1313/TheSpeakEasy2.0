@@ -64,6 +64,7 @@ export interface Message {
   replyTo?: string
   vanishAt?: Date
   isEdited?: boolean
+  reactions?: Record<string, string[]> // emoji -> array of userIds
 }
 
 // Add the GiphyImage interface to match the Giphy API response

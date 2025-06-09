@@ -113,4 +113,84 @@ export async function GET(
         console.error("DM messages fetch error:", error)
         return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
     }
+}
+
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    try {
+        await limiter.check(request, 120, "UPDATE_DM_MESSAGE_REACTION") // 120 reactions per minute
+
+        const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const { id: dmId } = await params
+        const decodedToken = await adminAuth.verifyIdToken(token)
+
+        // Check if user is a participant in the DM
+        const dmRef = adminDb.collection("directMessages").doc(dmId)
+        const dmSnap = await dmRef.get()
+
+        if (!dmSnap.exists) {
+            return NextResponse.json({ error: "Direct message not found" }, { status: 404 })
+        }
+
+        const dmData = dmSnap.data() as { participants: string[] }
+
+        if (!dmData.participants || !dmData.participants.includes(decodedToken.uid)) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
+        }
+
+        const { messageId, emoji, action } = await request.json()
+
+        if (!messageId || !emoji || !action) {
+            return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+        }
+
+        if (action !== 'add' && action !== 'remove') {
+            return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+        }
+
+        // Get the message
+        const messageRef = adminDb.collection("messages").doc(messageId)
+        const messageSnap = await messageRef.get()
+
+        if (!messageSnap.exists) {
+            return NextResponse.json({ error: "Message not found" }, { status: 404 })
+        }
+
+        const messageData = messageSnap.data() as { dmId?: string; reactions?: Record<string, string[]> }
+        if (messageData?.dmId !== dmId) {
+            return NextResponse.json({ error: "Message not in this direct message" }, { status: 403 })
+        }
+
+        // Update reactions
+        const reactions = messageData?.reactions || {}
+
+        if (action === 'add') {
+            if (!reactions[emoji]) {
+                reactions[emoji] = []
+            }
+            if (!reactions[emoji].includes(decodedToken.uid)) {
+                reactions[emoji].push(decodedToken.uid)
+            }
+        } else {
+            if (reactions[emoji]) {
+                reactions[emoji] = reactions[emoji].filter((uid: string) => uid !== decodedToken.uid)
+                if (reactions[emoji].length === 0) {
+                    delete reactions[emoji]
+                }
+            }
+        }
+
+        await messageRef.update({ reactions })
+
+        return NextResponse.json({ success: true, reactions })
+    } catch (error) {
+        console.error("DM message reaction update error:", error)
+        return NextResponse.json({ error: "Failed to update reaction" }, { status: 500 })
+    }
 } 
