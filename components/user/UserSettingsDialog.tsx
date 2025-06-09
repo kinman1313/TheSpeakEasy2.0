@@ -6,6 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
 import { Settings, Volume2, User, Bell } from 'lucide-react'
 import { SoundSettings } from './SoundSettings'
+import { ProfileSettings } from './ProfileSettings'
+import { NotificationSettings } from './NotificationSettings'
 import { useAuth } from '@/components/auth/AuthProvider'
 
 interface UserSettingsDialogProps {
@@ -13,7 +15,6 @@ interface UserSettingsDialogProps {
 }
 
 export function UserSettingsDialog({ trigger }: UserSettingsDialogProps) {
-    const { user } = useAuth()
     const [open, setOpen] = useState(false)
 
     return (
@@ -51,29 +52,11 @@ export function UserSettingsDialog({ trigger }: UserSettingsDialogProps) {
                     </TabsContent>
 
                     <TabsContent value="profile" className="mt-6">
-                        <div className="space-y-4 text-white">
-                            <h3 className="text-lg font-semibold">Profile Settings</h3>
-                            <div className="p-4 bg-slate-800/50 rounded-lg">
-                                <p className="text-sm text-slate-400">
-                                    Display Name: {user?.displayName || 'Anonymous'}
-                                </p>
-                                <p className="text-sm text-slate-400 mt-2">
-                                    Email: {user?.email || 'Not set'}
-                                </p>
-                            </div>
-                            <p className="text-sm text-slate-400">
-                                Profile settings coming soon...
-                            </p>
-                        </div>
+                        <ProfileSettings />
                     </TabsContent>
 
                     <TabsContent value="notifications" className="mt-6">
-                        <div className="space-y-4 text-white">
-                            <h3 className="text-lg font-semibold">Notification Settings</h3>
-                            <p className="text-sm text-slate-400">
-                                Notification preferences coming soon...
-                            </p>
-                        </div>
+                        <NotificationSettings />
                     </TabsContent>
                 </Tabs>
             </DialogContent>

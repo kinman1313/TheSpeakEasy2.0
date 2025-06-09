@@ -17,7 +17,7 @@ import VideoCallView from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
-import UserProfileModal from "@/components/user/UserProfileModal"
+import UserSettingsModal from "@/components/user/UserSettingsModal"
 import { MessageInput } from "@/components/MessageInput"
 import { uploadVoiceMessage } from "@/lib/storage"
 import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
@@ -917,9 +917,9 @@ export default function ChatApp() {
         }}
       />
 
-      {/* User Profile Modal */}
+      {/* User Settings Modal */}
       {isProfileModalOpen && (
-        <UserProfileModal
+        <UserSettingsModal
           isOpen={isProfileModalOpen}
           onClose={() => setIsProfileModalOpen(false)}
           user={user}
