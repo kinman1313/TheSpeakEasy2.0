@@ -47,6 +47,10 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
+  // Optimize build output
+  experimental: {
+    optimizePackageImports: ['@/components', '@/lib'],
+  },
   webpack: (config, { isServer, dev }) => {
     // Add a rule to handle the undici package
     config.module.rules.push({

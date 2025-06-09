@@ -61,7 +61,7 @@ interface WebRTCContextType {
   declineCall: () => Promise<void>;
   toggleLocalAudio: () => void;
   toggleLocalVideo: () => void;
-  requestMediaPermissions: () => Promise<boolean>;
+  requestMediaPermissions: (audioOnly?: boolean) => Promise<MediaStream | null>;
   sendOffer: (targetUserId: string, currentUserId: string, currentUserDisplayName: string | null | undefined, offer: RTCSessionDescriptionInit) => Promise<void>;
   sendAnswer: (callerUserId: string, currentUserId: string, currentUserDisplayName: string | null | undefined, answer: RTCSessionDescriptionInit) => Promise<void>;
   listenForSignalingMessages: (
@@ -291,16 +291,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     clearOfferTimeout();
 
-    const mediaAllowed = await requestMediaPermissionsHandleErrors();
-    if (!mediaAllowed) { return; }
-
-    if (!localStream) {
-      console.error("Local stream not available after permission grant.");
-      setSignalingError(new Error("Failed to acquire media stream."));
-      setCallStatus('error');
-      closePeerConnection(false, 'error');
-      return;
-    }
+    const stream = await requestMediaPermissionsHandleErrors();
+    if (!stream) { return; }
 
     setCallStatus('creatingOffer');
     setActiveCallTargetUserId(targetId);
@@ -308,7 +300,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       const pc = initializePeerConnection(currentUser.uid, targetId);
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       const offerDesc = await pc.createOffer();
       await pc.setLocalDescription(offerDesc);
@@ -336,23 +328,15 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     clearOfferTimeout(); // Clear any outgoing offer timeout from this client
 
-    const mediaAllowed = await requestMediaPermissionsHandleErrors();
-    if (!mediaAllowed) {
+    const stream = await requestMediaPermissionsHandleErrors();
+    if (!stream) {
       declineCall(); // Auto-decline if permissions are not granted for an incoming call
-      return;
-    }
-
-    if (!localStream) {
-      console.error("Local stream not available after permission grant for acceptCall.");
-      setSignalingError(new Error("Failed to acquire media stream for accepting call."));
-      setCallStatus('error');
-      closePeerConnection(false, 'error');
       return;
     }
 
     try {
       const pc = initializePeerConnection(currentUser.uid, callerUserId);
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       setCallStatus('processingOffer');
       await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer));
@@ -463,12 +447,12 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   }, []);
 
-  const requestMediaPermissionsHandleErrors = async (audioOnly = false): Promise<boolean> => {
+  const requestMediaPermissionsHandleErrors = async (audioOnly = false): Promise<MediaStream | null> => {
     const currentPermissions = await checkMediaPermissions();
     if (currentPermissions.mic === 'denied' || (!audioOnly && currentPermissions.cam === 'denied')) {
       setSignalingError(new Error("Camera/microphone access denied. Enable in browser settings."));
       setCallStatus('error');
-      return false;
+      return null;
     }
     setCallStatus('requestingMedia');
     try {
@@ -478,7 +462,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (!audioOnly) setCameraPermission('granted');
       setMicrophonePermission('granted');
       setIsLocalVideoEnabled(!audioOnly); // Start with video disabled for audio calls
-      return true;
+      return stream; // Return the stream directly
     } catch (err: any) {
       console.error("Error acquiring media:", err.name, err.message);
       if (err.name === "NotFoundError" || err.name === "DevicesNotFoundError") {
@@ -492,7 +476,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setMicrophonePermission('denied');
       setCallStatus('error');
       setLocalStream(null);
-      return false;
+      return null;
     }
   };
 
@@ -505,16 +489,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     clearOfferTimeout();
 
-    const mediaAllowed = await requestMediaPermissionsHandleErrors(true); // Audio only
-    if (!mediaAllowed) { return; }
-
-    if (!localStream) {
-      console.error("Local stream not available after permission grant.");
-      setSignalingError(new Error("Failed to acquire media stream."));
-      setCallStatus('error');
-      closePeerConnection(false, 'error');
-      return;
-    }
+    const stream = await requestMediaPermissionsHandleErrors(true); // Audio only
+    if (!stream) { return; }
 
     setCallStatus('creatingOffer');
     setActiveCallTargetUserId(targetId);
@@ -522,7 +498,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     try {
       const pc = initializePeerConnection(currentUser.uid, targetId);
-      localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+      stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       const offerDesc = await pc.createOffer();
       await pc.setLocalDescription(offerDesc);

@@ -2,7 +2,7 @@
 import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
-import { collection, query, orderBy, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
 import { MessageList } from "./MessageList"
 import { MessageInput } from "./MessageInput"
 import type { Message, SimpleUser } from "@/lib/types"
@@ -67,7 +67,7 @@ export function ChatInterface({ roomId }: ChatInterfaceProps) {
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
-        <MessageList messages={messages} currentUser={customUser} />
+        <MessageList messages={messages} currentUser={customUser} roomId={roomId} />
       </div>
       <MessageInput onSend={sendMessage} />
     </div>

@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast"
 import { db } from "@/lib/firebase"
-import { collection, query, where, onSnapshot, orderBy, limit } from "firebase/firestore"
+import { collection, query, where, onSnapshot, limit } from "firebase/firestore"
 import { Plus, Users, Hash, MessageCircle, Search, Settings } from "lucide-react"
 import { RoomMemberManager } from "./RoomMemberManager"
 
@@ -79,14 +79,21 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
         )
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const roomsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-                createdAt: doc.data().createdAt?.toDate() || new Date(),
-                updatedAt: doc.data().updatedAt?.toDate() || new Date(),
-            })) as Room[]
+            const roomsData = snapshot.docs.map(doc => {
+                const data = doc.data()
+                return {
+                    id: doc.id,
+                    ...data,
+                    createdAt: data.createdAt?.toDate?.() || data.createdAt || new Date(),
+                    updatedAt: data.updatedAt?.toDate?.() || data.updatedAt || new Date(),
+                } as Room
+            })
             // Sort client-side by updatedAt
-            roomsData.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
+            roomsData.sort((a, b) => {
+                const aTime = a.updatedAt instanceof Date ? a.updatedAt.getTime() : 0
+                const bTime = b.updatedAt instanceof Date ? b.updatedAt.getTime() : 0
+                return bTime - aTime
+            })
             setRooms(roomsData)
         })
 
@@ -104,14 +111,26 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
         )
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const dmsData = snapshot.docs.map(doc => ({
-                id: doc.id,
-                ...doc.data(),
-            })) as DirectMessage[]
-            // Sort client-side by updatedAt if available
+            const dmsData = snapshot.docs.map(doc => {
+                const data = doc.data()
+                const dm = {
+                    id: doc.id,
+                    ...data,
+                } as DirectMessage
+
+                // Handle lastMessage timestamp safely
+                if (dm.lastMessage?.timestamp) {
+                    const ts = dm.lastMessage.timestamp as any
+                    dm.lastMessage.timestamp = ts?.toDate?.() || ts || new Date()
+                }
+
+                return dm
+            })
+
+            // Sort client-side by lastMessage timestamp
             dmsData.sort((a, b) => {
-                const aTime = a.lastMessage?.timestamp?.getTime() || 0
-                const bTime = b.lastMessage?.timestamp?.getTime() || 0
+                const aTime = a.lastMessage?.timestamp instanceof Date ? a.lastMessage.timestamp.getTime() : 0
+                const bTime = b.lastMessage?.timestamp instanceof Date ? b.lastMessage.timestamp.getTime() : 0
                 return bTime - aTime
             })
             setDirectMessages(dmsData)

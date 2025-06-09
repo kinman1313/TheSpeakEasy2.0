@@ -19,10 +19,12 @@ import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { MessageInput } from "@/components/MessageInput"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle } from "lucide-react"
+import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
+import { soundManager } from "@/lib/soundManager"
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -32,6 +34,7 @@ export default function ChatApp() {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const previousMessageCount = useRef<number>(0)
 
   // Room management state
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
@@ -80,6 +83,7 @@ export default function ChatApp() {
         user.uid,
         (_, fromUserId, fromUserName) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
+          soundManager.playCall()
           toast({
             title: "Incoming Call",
             description: `Call from ${fromUserName || "Unknown User"}. Check call UI.`,
@@ -179,10 +183,26 @@ export default function ChatApp() {
     }
   }, [sendMessageError, toast])
 
-  // Scroll to bottom when messages change
+  // Scroll to bottom when messages change and play sound for new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
-  }, [messages])
+
+    // Play sound for new messages from others
+    if (messages.length > previousMessageCount.current && previousMessageCount.current > 0) {
+      const newMessages = messages.slice(previousMessageCount.current)
+      const hasNewMessageFromOthers = newMessages.some(msg => msg.userId !== user?.uid)
+
+      if (hasNewMessageFromOthers) {
+        if (currentRoomType === 'dm') {
+          soundManager.playDM()
+        } else {
+          soundManager.playMessage()
+        }
+      }
+    }
+
+    previousMessageCount.current = messages.length
+  }, [messages, user, currentRoomType])
 
   // Room management functions
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
@@ -271,6 +291,78 @@ export default function ChatApp() {
     }
   }
 
+  const handleReaction = async (messageId: string, emoji: string) => {
+    if (!user) return
+
+    try {
+      const token = await user.getIdToken()
+      const response = await fetch(`/api/rooms/${currentRoomId}/messages`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messageId,
+          emoji,
+          action: 'add'
+        })
+      })
+
+      if (!response.ok) {
+        console.error('Failed to add reaction')
+        toast({
+          title: "Error",
+          description: "Failed to add reaction",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error adding reaction:', error)
+      toast({
+        title: "Error",
+        description: "Failed to add reaction",
+        variant: "destructive"
+      })
+    }
+  }
+
+  const handleRemoveReaction = async (messageId: string, emoji: string) => {
+    if (!user) return
+
+    try {
+      const token = await user.getIdToken()
+      const response = await fetch(`/api/rooms/${currentRoomId}/messages`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messageId,
+          emoji,
+          action: 'remove'
+        })
+      })
+
+      if (!response.ok) {
+        console.error('Failed to remove reaction')
+        toast({
+          title: "Error",
+          description: "Failed to remove reaction",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      console.error('Error removing reaction:', error)
+      toast({
+        title: "Error",
+        description: "Failed to remove reaction",
+        variant: "destructive"
+      })
+    }
+  }
+
   const renderMessage = (message: Message) => {
     const isCurrentUser = message.userId === user?.uid
     const messageDate = message.timestamp?.toDate()
@@ -311,11 +403,13 @@ export default function ChatApp() {
                 />
               )}
             </div>
-            {message.reactions && Object.keys(message.reactions).length > 0 && (
-              <MessageReactions
-                message={message}
-              />
-            )}
+            <MessageReactions
+              messageId={message.id}
+              reactions={message.reactions || {}}
+              currentUserId={user?.uid || ''}
+              onReact={handleReaction}
+              onRemoveReaction={handleRemoveReaction}
+            />
           </div>
         </div>
       </div>
@@ -414,6 +508,18 @@ export default function ChatApp() {
               <span className="text-sm text-slate-300 mr-2">
                 {user?.displayName || user?.email || "User"}
               </span>
+              <UserSettingsDialog
+                trigger={
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                    title="Settings"
+                  >
+                    <Settings className="h-5 w-5" />
+                  </Button>
+                }
+              />
               <Button
                 variant="ghost"
                 size="icon"

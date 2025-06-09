@@ -18,9 +18,6 @@ const AuthContext = createContext<AuthContextType>({
     loading: true,
 })
 
-// Store the previous user's UID to correctly update status on logout
-let previousUserUid: string | null = null;
-
 // Custom hook to use the auth context
 export const useAuth = () => useContext(AuthContext)
 
@@ -76,7 +73,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (authUser) {
                     // User is logged in
-                    previousUserUid = authUser.uid;
 
                     // Create/update user document in Firestore
                     if (db) {
@@ -147,17 +143,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 } else {
                     // User is logged out
-                    if (previousUserUid && rtdb) {
-                        const userStatusRef = ref(rtdb, `status/${previousUserUid}`);
-                        set(userStatusRef, {
-                            isOnline: false,
-                            lastChanged: serverTimestamp(),
-                            // Optionally clear userName and photoURL or keep them
-                        }).catch(error =>
-                            console.error("Error setting offline status:", error)
-                        );
-                    }
-                    previousUserUid = null;
+                    // Note: We don't need to manually set offline status here
+                    // The onDisconnect handler we set up when the user logged in
+                    // will automatically handle setting them as offline
                 }
             });
         } catch (error) {

@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react"
 // Update the import path to point to the correct location
 import { Sidebar } from "@/components/Sidebar"
 import { useAuth } from "@/components/auth/AuthProvider"
-import { collection, addDoc, serverTimestamp, query, orderBy, onSnapshot } from "firebase/firestore"
+import { collection, addDoc, serverTimestamp, query, onSnapshot } from "firebase/firestore"
 import { getFirestore } from "firebase/firestore"
 import { app } from "@/lib/firebase"
 
