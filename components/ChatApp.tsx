@@ -107,27 +107,15 @@ export default function ChatApp() {
     currentRoomType
   )
 
-  // WebRTC Context
+  // WebRTC Hooks
   const {
-    callStatus: webRTCCallStatus,
-    activeCallTargetUserName,
-    localStream,
-    remoteStream,
-    callerUserName,
-    listenForSignalingMessages,
-    peerConnection,
-    setCallStatus,
-    closePeerConnection,
-    hangUpCall,
-    acceptCall,
-    declineCall,
-    isLocalAudioMuted,
-    isLocalVideoEnabled,
-    toggleLocalAudio,
-    toggleLocalVideo,
-    initiateCall,
-    initiateAudioCall,
+    peerConnection, localStream, remoteStream, callStatus: webRTCCallStatus,
+    activeCallTargetUserName, callerUserName, isLocalAudioMuted, isLocalVideoEnabled,
+    initiateCall, initiateAudioCall, acceptCall, declineCall, hangUpCall, toggleLocalAudio, toggleLocalVideo,
+    listenForSignalingMessages, closePeerConnection, setCallStatus
   } = useWebRTC()
+
+  console.log('ChatApp: Current webRTCCallStatus from hook:', webRTCCallStatus)
 
   // Effect for WebRTC signaling listeners
   useEffect(() => {
@@ -137,6 +125,15 @@ export default function ChatApp() {
         user.uid,
         (_, fromUserId, fromUserName) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
+          console.log(`ChatApp: Current webRTCCallStatus after offer: ${webRTCCallStatus}`)
+          console.log(`ChatApp: Should show IncomingCallDialog: ${webRTCCallStatus === 'receivingCall'}`)
+
+          // Check status after a short delay to see if it updates
+          setTimeout(() => {
+            console.log(`ChatApp: webRTCCallStatus after timeout: ${webRTCCallStatus}`)
+            console.log(`ChatApp: Should show IncomingCallDialog after timeout: ${webRTCCallStatus === 'receivingCall'}`)
+          }, 100)
+
           soundManager.playCall()
           toast({
             title: "Incoming Call",
