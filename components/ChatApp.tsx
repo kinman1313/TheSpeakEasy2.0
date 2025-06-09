@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { app, db } from "@/lib/firebase"
+import { app, db, rtdb } from "@/lib/firebase"
 import { useToast } from "@/components/ui/toast"
 import { isToday, isYesterday, format, isValid } from 'date-fns'
 import { useRoomMessages, Message } from "@/lib/hooks/useRoomMessages"
@@ -20,12 +20,13 @@ import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { MessageInput } from "@/components/MessageInput"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, ChevronLeft } from "lucide-react"
+import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
+import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -45,6 +46,50 @@ export default function ChatApp() {
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
   const [showUserList, setShowUserList] = useState(false)
+  const [showMobileCallPicker, setShowMobileCallPicker] = useState(false)
+  const [onlineUsers, setOnlineUsers] = useState<Array<{ uid: string, userName?: string, photoURL?: string }>>([])
+
+  // Effect to fetch online users for mobile call picker
+  useEffect(() => {
+    if (!rtdb || !user) return
+
+    const statusRef = query(ref(rtdb, 'status'), orderByChild('isOnline'), equalTo(true))
+    const unsubscribe = onValue(statusRef, (snapshot) => {
+      const usersData = snapshot.val()
+      const loadedUsers: Array<{ uid: string, userName?: string, photoURL?: string }> = []
+
+      if (usersData) {
+        Object.keys(usersData).forEach((uid) => {
+          if (uid !== user.uid) { // Filter out current user
+            loadedUsers.push({
+              uid,
+              userName: usersData[uid].userName,
+              photoURL: usersData[uid].photoURL
+            })
+          }
+        })
+      }
+      setOnlineUsers(loadedUsers)
+    })
+
+    return unsubscribe
+  }, [user, rtdb])
+
+  // Effect to close mobile overlays when screen size changes
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 768) { // md breakpoint
+        setShowMobileCallPicker(false)
+      }
+      if (window.innerWidth >= 1024) { // lg breakpoint
+        setIsMobileMenuOpen(false)
+        setShowUserList(false)
+      }
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
 
   // Hook for fetching messages (room-aware)
   const { messages, error: messagesError, isConnected, isLoading, retryConnection } = useRoomMessages(
@@ -80,6 +125,8 @@ export default function ChatApp() {
     isLocalVideoEnabled,
     toggleLocalAudio,
     toggleLocalVideo,
+    initiateCall,
+    initiateAudioCall,
   } = useWebRTC()
 
   // Effect for WebRTC signaling listeners
@@ -577,6 +624,19 @@ export default function ChatApp() {
             </div>
 
             <div className="flex items-center gap-1 md:gap-2 shrink-0">
+              {/* Mobile Call Button - Show only when there are online users */}
+              {onlineUsers.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="md:hidden text-green-400 hover:text-green-300 hover:bg-green-500/20"
+                  onClick={() => setShowMobileCallPicker(!showMobileCallPicker)}
+                  title="Make Call"
+                >
+                  <Phone className="h-4 w-4" />
+                </Button>
+              )}
+
               {/* User List Toggle - Mobile Only */}
               <Button
                 variant="ghost"
@@ -646,6 +706,75 @@ export default function ChatApp() {
                       </Button>
                     </div>
                     <UserList />
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Call Picker Overlay */}
+              {showMobileCallPicker && (
+                <div className="md:hidden">
+                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileCallPicker(false)} />
+                  <div className="fixed bottom-0 left-0 right-0 glass-panel z-50 rounded-t-xl max-h-96">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                      <h2 className="text-lg font-semibold text-white">Call Someone</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowMobileCallPicker(false)}
+                        className="text-slate-300 hover:text-white"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="p-4 overflow-y-auto max-h-80">
+                      {onlineUsers.length === 0 ? (
+                        <div className="text-center text-slate-400 py-8">
+                          No users online to call
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {onlineUsers.map((onlineUser) => (
+                            <div key={onlineUser.uid} className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 touch-manipulation">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={onlineUser.photoURL || ""} alt={onlineUser.userName || 'User'} />
+                                  <AvatarFallback>{onlineUser.userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-white font-medium">{onlineUser.userName || 'Anonymous User'}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    initiateAudioCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                    setShowMobileCallPicker(false)
+                                  }}
+                                  disabled={webRTCCallStatus !== 'idle'}
+                                  className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
+                                  title="Voice Call"
+                                >
+                                  <Phone size={20} />
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    initiateCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                    setShowMobileCallPicker(false)
+                                  }}
+                                  disabled={webRTCCallStatus !== 'idle'}
+                                  className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
+                                  title="Video Call"
+                                >
+                                  <Video size={20} />
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
               )}
