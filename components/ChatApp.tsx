@@ -14,6 +14,7 @@ import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
 import VideoCallView from "@/components/chat/VideoCallView"
+import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
@@ -69,6 +70,8 @@ export default function ChatApp() {
     setCallStatus,
     closePeerConnection,
     hangUpCall,
+    acceptCall,
+    declineCall,
     isLocalAudioMuted,
     isLocalVideoEnabled,
     toggleLocalAudio,
@@ -633,6 +636,48 @@ export default function ChatApp() {
           onClose={handleCloseGiphyPicker}
         />
       )}
+
+      {/* Incoming Call Dialog */}
+      <IncomingCallDialog
+        open={webRTCCallStatus === 'receivingCall'}
+        callerName={callerUserName || 'Unknown User'}
+        onAcceptVideo={async () => {
+          try {
+            await acceptCall()
+          } catch (error) {
+            console.error('Error accepting video call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to accept call. Please try again.",
+              variant: "destructive",
+            })
+          }
+        }}
+        onAcceptAudio={async () => {
+          try {
+            await acceptCall()
+          } catch (error) {
+            console.error('Error accepting audio call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to accept call. Please try again.",
+              variant: "destructive",
+            })
+          }
+        }}
+        onDecline={async () => {
+          try {
+            await declineCall()
+          } catch (error) {
+            console.error('Error declining call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to decline call.",
+              variant: "destructive",
+            })
+          }
+        }}
+      />
 
       {/* User Profile Modal */}
       {isProfileModalOpen && (

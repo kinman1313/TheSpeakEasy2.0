@@ -558,8 +558,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               // Call Collision Handling: Option A (Ignore if not idle)
               if (callStatus === 'idle' || callStatus === 'callEnded' || callStatus === 'callDeclined') {
                 console.log("Provider: Received offer:", offerPayload);
-                // These are now passed to the callback for ChatApp to handle if needed,
-                // but provider also sets its own state for incoming calls.
+
+                // Set incoming call state
+                setIncomingOffer({ type: 'offer', sdp: offerPayload.sdp });
+                setCallerUserId(offerPayload.senderId);
+                setCallerUserName(offerPayload.senderName || 'Unknown User');
+                setCallStatus('receivingCall');
+
+                // Also call the callback for additional handling (like sound/toast)
                 onOfferReceivedCb({ type: 'offer', sdp: offerPayload.sdp }, offerPayload.senderId, offerPayload.senderName);
               } else {
                 console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${callStatus}`);
