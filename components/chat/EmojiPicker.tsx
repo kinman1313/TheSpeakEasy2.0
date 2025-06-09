@@ -68,7 +68,7 @@ export default function EmojiPicker({ onSelectEmoji, onClose }: EmojiPickerProps
     };
 
     return (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={onClose}>
+        <div className="fixed inset-0 bg-black/50 z-[9999] flex items-center justify-center p-4" onClick={onClose}>
             <div
                 className="bg-slate-800 border border-slate-700 p-4 rounded-lg shadow-xl w-full max-w-md max-h-[80vh] flex flex-col glass"
                 onClick={(e) => e.stopPropagation()}

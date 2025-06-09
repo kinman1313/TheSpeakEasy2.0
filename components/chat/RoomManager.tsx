@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { Switch } from "@/components/ui/switch"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/toast"
@@ -244,21 +244,24 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
     }
 
     return (
-        <div className="h-full flex flex-col bg-gradient-to-b from-slate-900/90 to-slate-800/90 backdrop-blur-md">
+        <div className="h-full flex flex-col">
             {/* Header */}
-            <div className="p-4 border-b border-slate-700/50">
+            <div className="p-6">
                 <div className="flex items-center justify-between mb-4">
                     <h2 className="text-lg font-semibold text-white">Conversations</h2>
                     <div className="flex gap-2">
                         <Dialog open={isCreateRoomOpen} onOpenChange={setIsCreateRoomOpen}>
                             <DialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white">
+                                <Button size="sm" variant="ghost" className="btn-glass neon-glow text-white">
                                     <Plus className="h-4 w-4" />
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="glass">
+                            <DialogContent className="glass-card">
                                 <DialogHeader>
                                     <DialogTitle className="text-white">Create New Room</DialogTitle>
+                                    <DialogDescription className="text-slate-300">
+                                        Create a new room for group conversations. Choose between public and private rooms.
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="space-y-2">
@@ -292,13 +295,16 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
 
                         <Dialog open={isUserSearchOpen} onOpenChange={setIsUserSearchOpen}>
                             <DialogTrigger asChild>
-                                <Button size="sm" variant="ghost" className="text-slate-300 hover:text-white">
+                                <Button size="sm" variant="ghost" className="btn-glass neon-glow text-white">
                                     <MessageCircle className="h-4 w-4" />
                                 </Button>
                             </DialogTrigger>
-                            <DialogContent className="glass">
+                            <DialogContent className="glass-card">
                                 <DialogHeader>
                                     <DialogTitle className="text-white">Start Direct Message</DialogTitle>
+                                    <DialogDescription className="text-slate-300">
+                                        Search for users to start a private conversation with them.
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="relative">
@@ -338,7 +344,7 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                 <Button
                     variant={currentRoomId === null ? "secondary" : "ghost"}
                     onClick={onLobbySelect}
-                    className={`w-full justify-start glass ${currentRoomId === null ? "bg-indigo-600/50 text-white" : "text-slate-300 hover:text-white"
+                    className={`w-full justify-start btn-glass ${currentRoomId === null ? "neon-glow bg-indigo-600/50 text-white" : "text-slate-300 hover:text-white"
                         }`}
                 >
                     <Hash className="h-4 w-4 mr-2" />
@@ -428,6 +434,12 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                     onOpenChange={(open) => !open && setSelectedRoomForManagement(null)}
                 >
                     <DialogContent className="glass max-w-2xl max-h-[90vh] overflow-y-auto">
+                        <DialogHeader className="sr-only">
+                            <DialogTitle>Room Management</DialogTitle>
+                            <DialogDescription>
+                                Manage room members and settings.
+                            </DialogDescription>
+                        </DialogHeader>
                         <RoomMemberManager
                             roomId={selectedRoomForManagement}
                             isOwner={true}

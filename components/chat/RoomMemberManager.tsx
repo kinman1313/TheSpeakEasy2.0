@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/components/ui/toast"
 // Badge component not available - using inline styling
 import { db } from "@/lib/firebase"
@@ -250,6 +250,9 @@ export function RoomMemberManager({ roomId, isOwner, onClose }: RoomMemberManage
                             <DialogContent className="glass">
                                 <DialogHeader>
                                     <DialogTitle className="text-white">Invite Users to Room</DialogTitle>
+                                    <DialogDescription className="text-slate-300">
+                                        Search and invite users to join this room.
+                                    </DialogDescription>
                                 </DialogHeader>
                                 <div className="space-y-4 py-4">
                                     <div className="relative">

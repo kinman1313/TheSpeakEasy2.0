@@ -7,19 +7,19 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Smile, Paperclip, Mic, Send, ImageIcon } from "lucide-react"
 import EmojiPicker from "@/components/chat/EmojiPicker"
-import GiphyPicker from "@/components/chat/GiphyPicker"
 import { VoiceRecorder } from "@/components/audio/VoiceRecorder"
 
 interface MessageInputProps {
   onSend: (message: string) => void
+  onVoiceRecording?: (audioBlob: Blob) => void
+  onGifSelect?: (gifUrl: string) => void
   // Add other props as needed
 }
 
-export function MessageInput({ onSend }: MessageInputProps) {
+export function MessageInput({ onSend, onVoiceRecording, onGifSelect }: MessageInputProps) {
   const [message, setMessage] = useState("")
   const [isEmojiPickerOpen, setIsEmojiPickerOpen] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
-  const [isGifPickerOpen, setIsGifPickerOpen] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
 
   // Handle sending a message
@@ -46,18 +46,15 @@ export function MessageInput({ onSend }: MessageInputProps) {
   }
 
   // Handle GIF selection
-  const handleGifSelect = (gifUrl: string) => {
-    onSend(`[GIF] ${gifUrl}`)
-    setIsGifPickerOpen(false)
+  const handleGifClick = () => {
+    if (onGifSelect) {
+      // Trigger parent component's GIF picker
+      onGifSelect('') // This will open the picker, actual selection handled by parent
+    }
   }
 
   return (
     <div className="border-t p-4 bg-background">
-      {/* Giphy Picker Modal */}
-      {isGifPickerOpen && (
-        <GiphyPicker onSelectGif={handleGifSelect} onClose={() => setIsGifPickerOpen(false)} />
-      )}
-
       {/* Emoji Picker Modal */}
       {isEmojiPickerOpen && (
         <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
@@ -67,10 +64,9 @@ export function MessageInput({ onSend }: MessageInputProps) {
       {isRecording && (
         <VoiceRecorder
           onRecordingComplete={(audioBlob) => {
-            // Create a URL for the audio blob
-            const audioUrl = URL.createObjectURL(audioBlob)
-            // Send the audio message
-            onSend(`[AUDIO] ${audioUrl}`)
+            if (onVoiceRecording) {
+              onVoiceRecording(audioBlob)
+            }
             setIsRecording(false)
           }}
         />
@@ -80,7 +76,7 @@ export function MessageInput({ onSend }: MessageInputProps) {
         <Button
           variant="ghost"
           size="icon"
-          onClick={() => setIsGifPickerOpen(!isGifPickerOpen)}
+          onClick={handleGifClick}
           className="text-muted-foreground hover:text-foreground"
           title="Add GIF"
         >

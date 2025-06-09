@@ -11,6 +11,11 @@ export const metadata: Metadata = {
   title: "The SpeakEasy 2.0",
   description: "A modern chat application with voice and video calls",
   manifest: "/manifest.json",
+  icons: {
+    icon: "/favicon.svg",
+    shortcut: "/favicon.svg",
+    apple: "/favicon.svg",
+  },
 }
 
 export default function RootLayout({
