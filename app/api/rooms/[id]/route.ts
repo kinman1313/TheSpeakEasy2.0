@@ -19,7 +19,7 @@ const limiter = rateLimit({
 
 export async function GET(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 60, "GET_ROOM") // 60 requests per minute
@@ -29,7 +29,7 @@ export async function GET(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id } = params
+        const { id } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
         const roomRef = adminDb.collection("rooms").doc(id)
@@ -59,7 +59,7 @@ export async function GET(
 
 export async function PUT(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 30, "UPDATE_ROOM") // 30 updates per minute
@@ -69,7 +69,7 @@ export async function PUT(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id } = params
+        const { id } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
         const roomRef = adminDb.collection("rooms").doc(id)
@@ -104,7 +104,7 @@ export async function PUT(
 
 export async function DELETE(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 10, "DELETE_ROOM") // 10 deletions per minute
@@ -114,7 +114,7 @@ export async function DELETE(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id } = params
+        const { id } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
         const roomRef = adminDb.collection("rooms").doc(id)

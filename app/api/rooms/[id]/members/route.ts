@@ -22,7 +22,7 @@ const limiter = rateLimit({
 
 export async function POST(
     request: NextRequest,
-    { params }: { params: { id: string } }
+    { params }: { params: Promise<{ id: string }> }
 ) {
     try {
         await limiter.check(request, 30, "MANAGE_ROOM_MEMBERS") // 30 operations per minute
@@ -32,7 +32,7 @@ export async function POST(
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
 
-        const { id } = params
+        const { id } = await params
 
         const decodedToken = await adminAuth.verifyIdToken(token)
         const roomRef = adminDb.collection("rooms").doc(id)
