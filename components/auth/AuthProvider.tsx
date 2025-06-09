@@ -2,8 +2,9 @@
 
 import { createContext, useContext, useEffect, useState } from "react"
 import { onAuthStateChanged, User as FirebaseUser } from "firebase/auth"
-import { rtdb, auth } from "@/lib/firebase"
+import { rtdb, auth, db } from "@/lib/firebase"
 import { ref, set, onDisconnect, serverTimestamp, goOnline } from "firebase/database"
+import { doc, setDoc, getDoc } from "firebase/firestore"
 
 // Define the shape of our context
 interface AuthContextType {
@@ -28,16 +29,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true)
 
     useEffect(() => {
+        console.log("AuthProvider: Starting initialization...")
+
         if (typeof window === 'undefined') {
+            console.log("AuthProvider: Server-side, setting loading to false")
             setLoading(false);
             return;
         }
 
         if (!auth) {
-            console.error("Auth not available");
+            console.error("AuthProvider: Firebase auth not available, setting loading to false");
             setLoading(false);
             return;
         }
+
+        console.log("AuthProvider: Firebase auth is available, setting up listener...")
 
         // Clear any stuck authentication state
         const clearAuthCache = () => {
@@ -52,7 +58,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         // Timeout to prevent infinite loading
         const authTimeout = setTimeout(() => {
-            console.warn("Auth timeout - clearing cache and forcing loading to false")
+            console.warn("🚨 AuthProvider: 8-second timeout reached! Forcing loading to false")
+            console.warn("This usually means Firebase auth failed to initialize properly")
             clearAuthCache()
             setLoading(false)
         }, 8000)
@@ -70,6 +77,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (authUser) {
                     // User is logged in
                     previousUserUid = authUser.uid;
+
+                    // Create/update user document in Firestore
+                    if (db) {
+                        const userRef = doc(db, "users", authUser.uid);
+                        getDoc(userRef).then(docSnap => {
+                            if (!docSnap.exists()) {
+                                // User document doesn't exist, create it
+                                const userData = {
+                                    uid: authUser.uid,
+                                    email: authUser.email,
+                                    displayName: authUser.displayName || "",
+                                    photoURL: authUser.photoURL || "",
+                                    chatColor: "#00f3ff",
+                                    settings: {
+                                        enterToSend: true,
+                                        showTypingIndicators: true,
+                                        showReadReceipts: true,
+                                        notificationsEnabled: true,
+                                    },
+                                    createdAt: new Date(),
+                                    updatedAt: new Date()
+                                };
+
+                                setDoc(userRef, userData).then(() => {
+                                    console.log("User document created in Firestore");
+                                }).catch(error => {
+                                    console.error("Error creating user document:", error);
+                                });
+                            } else {
+                                // User exists, optionally update last login
+                                setDoc(userRef, {
+                                    lastLoginAt: new Date()
+                                }, { merge: true }).catch(error => {
+                                    console.error("Error updating user last login:", error);
+                                });
+                            }
+                        }).catch(error => {
+                            console.error("Error checking user document:", error);
+                        });
+                    }
 
                     // Only handle presence if rtdb is available
                     if (rtdb) {
@@ -114,7 +161,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
             });
         } catch (error) {
-            console.error("Error initializing Firebase Auth:", error);
+            console.error("🚨 AuthProvider: Critical error initializing Firebase Auth:", error);
+            console.error("Error details:", {
+                message: error instanceof Error ? error.message : String(error),
+                stack: error instanceof Error ? error.stack : undefined
+            });
             clearTimeout(authTimeout);
             clearAuthCache();
             setLoading(false);

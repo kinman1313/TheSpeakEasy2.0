@@ -16,23 +16,23 @@ export function ChatInterface({ roomId }: ChatInterfaceProps) {
   const [messages, setMessages] = useState<Message[]>([])
 
   useEffect(() => {
-    // Query messages for this specific room
-    const q = query(collection(db, "rooms", roomId, "messages"), orderBy("createdAt"))
+    if (!roomId || !db) return
+
+    const q = query(collection(db, "rooms", roomId, "messages"))
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const messagesData: Message[] = []
+      const messagesData: any[] = []
       querySnapshot.forEach((doc) => {
-        const data = doc.data()
         messagesData.push({
           id: doc.id,
-          text: data.text,
-          uid: data.uid,
-          createdAt: data.createdAt?.toDate() || new Date(),
-          updatedAt: data.updatedAt?.toDate() || new Date(),
-          readBy: data.readBy || [],
-          displayName: data.displayName || "Anonymous",
-          photoURL: data.photoURL || "",
+          ...doc.data()
         })
+      })
+      // Sort messages client-side by createdAt
+      messagesData.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0
+        return aTime - bTime
       })
       setMessages(messagesData)
     })
@@ -57,11 +57,11 @@ export function ChatInterface({ roomId }: ChatInterfaceProps) {
   // Convert the Firebase user to our simplified user type
   const customUser: SimpleUser | null = user
     ? {
-        uid: user.uid,
-        email: user.email,
-        displayName: user.displayName,
-        photoURL: user.photoURL,
-      }
+      uid: user.uid,
+      email: user.email,
+      displayName: user.displayName,
+      photoURL: user.photoURL,
+    }
     : null
 
   return (

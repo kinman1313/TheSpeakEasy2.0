@@ -35,7 +35,7 @@ const ChatApp = () => {
   ]
 
   useEffect(() => {
-    const q = query(collection(db, "messages"), orderBy("createdAt"))
+    const q = query(collection(db, "messages"))
 
     const unsubscribe = onSnapshot(q, (querySnapshot) => {
       const messages: Message[] = []
@@ -48,6 +48,12 @@ const ChatApp = () => {
           displayName: doc.data().displayName,
           photoURL: doc.data().photoURL,
         })
+      })
+      // Sort messages client-side by createdAt
+      messages.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0
+        return aTime - bTime
       })
       setMessages(messages)
     })

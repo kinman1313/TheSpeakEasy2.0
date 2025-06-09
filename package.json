@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "custom-dev": "node server.js",
-    "custom-start": "NODE_ENV=production node server.js"
+    "custom-start": "NODE_ENV=production node server.js",
+    "deploy:firestore-rules": "node scripts/deploy-firestore-rules.js",
+    "debug:firestore": "node scripts/debug-firestore-400.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

@@ -19,11 +19,13 @@ export function AuthenticatedApp() {
 
     // Show loading state while checking authentication
     if (loading) {
+        console.log("AuthenticatedApp: Still loading auth state...")
         return (
             <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-slate-900 to-slate-800">
                 <div className="flex flex-col items-center gap-4">
                     <div className="h-8 w-8 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    <p className="text-white">Loading...</p>
+                    <p className="text-white">Loading authentication...</p>
+                    <p className="text-slate-400 text-sm">If this takes too long, check console for errors</p>
                 </div>
             </div>
         )

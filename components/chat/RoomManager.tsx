@@ -75,8 +75,7 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
         const roomsRef = collection(db, "rooms")
         const q = query(
             roomsRef,
-            where("members", "array-contains", user.uid),
-            orderBy("updatedAt", "desc")
+            where("members", "array-contains", user.uid)
         )
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -86,6 +85,8 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                 createdAt: doc.data().createdAt?.toDate() || new Date(),
                 updatedAt: doc.data().updatedAt?.toDate() || new Date(),
             })) as Room[]
+            // Sort client-side by updatedAt
+            roomsData.sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
             setRooms(roomsData)
         })
 
@@ -99,8 +100,7 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
         const dmRef = collection(db, "directMessages")
         const q = query(
             dmRef,
-            where("participants", "array-contains", user.uid),
-            orderBy("updatedAt", "desc")
+            where("participants", "array-contains", user.uid)
         )
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -108,6 +108,12 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
                 id: doc.id,
                 ...doc.data(),
             })) as DirectMessage[]
+            // Sort client-side by updatedAt if available
+            dmsData.sort((a, b) => {
+                const aTime = a.lastMessage?.timestamp?.getTime() || 0
+                const bTime = b.lastMessage?.timestamp?.getTime() || 0
+                return bTime - aTime
+            })
             setDirectMessages(dmsData)
         })
 
@@ -152,7 +158,19 @@ export function RoomManager({ currentRoomId, onRoomSelect, onLobbySelect }: Room
             })
 
             if (!response.ok) {
-                throw new Error('Failed to create room')
+                let errorData;
+                try {
+                    errorData = await response.json()
+                } catch {
+                    errorData = await response.text()
+                }
+                console.error('Room creation API error:', {
+                    status: response.status,
+                    statusText: response.statusText,
+                    data: errorData,
+                    headers: Object.fromEntries(response.headers)
+                })
+                throw new Error(`Failed to create room: ${response.status} - ${JSON.stringify(errorData)}`)
             }
 
             const { id } = await response.json()

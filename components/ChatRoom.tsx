@@ -6,11 +6,12 @@ import { db } from "@/lib/firebase"
 import {
   collection,
   query,
-  orderBy,
   onSnapshot,
   addDoc,
   serverTimestamp,
   type Firestore,
+  QuerySnapshot,
+  DocumentData,
 } from "firebase/firestore"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
@@ -42,17 +43,20 @@ export default function ChatRoom() {
     const firestore = db as Firestore;
 
     // Use firestore instead of db directly
-    const q = query(collection(firestore, "messages"), orderBy("createdAt"));
+    const q = query(collection(firestore, "messages"));
 
-    const unsubscribe = onSnapshot(q, (querySnapshot) => {
-      const messagesData: Message[] = []
+    const unsubscribe = onSnapshot(q, (querySnapshot: QuerySnapshot<DocumentData>) => {
+      const msgs: Message[] = [];
       querySnapshot.forEach((doc) => {
-        messagesData.push({
-          id: doc.id,
-          ...doc.data(),
-        } as Message)
-      })
-      setMessages(messagesData)
+        msgs.push({ id: doc.id, ...doc.data() } as Message);
+      });
+      // Sort messages client-side by createdAt
+      msgs.sort((a, b) => {
+        const aTime = a.createdAt?.toMillis?.() || a.createdAt?.seconds * 1000 || 0;
+        const bTime = b.createdAt?.toMillis?.() || b.createdAt?.seconds * 1000 || 0;
+        return aTime - bTime;
+      });
+      setMessages(msgs);
 
       // Scroll to bottom of messages
       setTimeout(() => {
@@ -98,20 +102,18 @@ export default function ChatRoom() {
         {messages.map((message) => (
           <div
             key={message.id}
-            className={`flex items-start gap-2 ${
-              message.userId === user?.uid ? "flex-row-reverse" : "flex-row"
-            }`}
+            className={`flex items-start gap-2 ${message.userId === user?.uid ? "flex-row-reverse" : "flex-row"
+              }`}
           >
             <Avatar className="h-8 w-8">
               <AvatarImage src={message.userPhotoURL || ""} />
               <AvatarFallback>{message.userName?.[0] || "?"}</AvatarFallback>
             </Avatar>
             <div
-              className={`px-3 py-2 rounded-lg max-w-xs ${
-                message.userId === user?.uid
-                  ? "bg-primary text-primary-foreground"
-                  : "bg-muted"
-              }`}
+              className={`px-3 py-2 rounded-lg max-w-xs ${message.userId === user?.uid
+                ? "bg-primary text-primary-foreground"
+                : "bg-muted"
+                }`}
             >
               <p className="text-sm font-medium">{message.userName}</p>
               <p>{message.text}</p>
