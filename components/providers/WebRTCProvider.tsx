@@ -226,6 +226,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, [callStatus, activeCallTargetUserId, callerUserId]); // Removed peerConnection from its own init deps.
 
   const resetCallState = useCallback(() => { // Wrapped in useCallback
+    console.log('Provider: Resetting call state');
     clearOfferTimeout();
     clearDisconnectedTimeout();
     localStream?.getTracks().forEach(track => track.stop());
@@ -242,8 +243,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setIsLocalAudioMuted(false);
     setIsLocalVideoEnabled(true);
     setSignalingError(null);
+    console.log('Provider: Call state reset completed');
     // Do not setPeerConnection(null) here, closePeerConnection handles it.
-  }, [localStream, remoteStream]); // Dependencies for resetCallState
+  }, [localStream, remoteStream]);
 
   const closePeerConnection = useCallback((_isInitiatorCleanUp = false, reason?: CallStatus) => {
     console.log(`Closing peer connection and related state. Reason: ${reason || 'general cleanup'}`);
@@ -403,6 +405,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const hangUpCall = async () => {
     console.log("Hang Up Call invoked.");
     const peerToSignalHangUp = activeCallTargetUserId || callerUserId;
+
+    // Send hangup signal to the other party
     if (currentUser && peerToSignalHangUp) {
       console.log(`Sending callEnd signal to ${peerToSignalHangUp}`);
       const hangUpPath = `signaling/${peerToSignalHangUp}/callEnd/${currentUser.uid}`;
@@ -413,8 +417,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         setSignalingError(new Error(`Failed to send hang up signal: ${e.message}`));
       }
     }
+
+    // Close our own connection and reset state
     const wasInitiator = !!activeCallTargetUserId;
-    closePeerConnection(wasInitiator, 'callEnded');
+    console.log("Hang Up: Closing local peer connection and resetting state");
+    closePeerConnection(wasInitiator, 'idle');
   };
 
   const toggleLocalAudio = useCallback(() => {
@@ -575,6 +582,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               // Call Collision Handling: Option A (Ignore if not idle)
               const currentCallStatus = callStatusRef.current;
               console.log(`Provider: Received offer from ${offerPayload.senderId}, current call status: ${currentCallStatus}`);
+              console.log('Provider: Full offer payload:', offerPayload);
 
               if (currentCallStatus === 'idle' || currentCallStatus === 'callEnded' || currentCallStatus === 'callDeclined') {
                 console.log("Provider: Processing incoming offer:", offerPayload);
@@ -586,7 +594,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setCallStatus('receivingCall');
 
                 // Also call the callback for additional handling (like sound/toast)
+                console.log('Provider: Calling onOfferReceivedCb for UI notification');
                 onOfferReceivedCb({ type: 'offer', sdp: offerPayload.sdp }, offerPayload.senderId, offerPayload.senderName);
+
+                // Remove the offer from database after processing
+                remove(dbRef).catch(e => console.warn("Could not remove processed offer", e));
               } else {
                 console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${currentCallStatus}`);
                 // TODO: Optionally send a 'busy' signal back to offerPayload.senderId
@@ -631,6 +643,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           case 'callEnd':
             snapshot.forEach((enderSnapshot) => {
               console.log("Provider: Received call ended signal from:", enderSnapshot.key);
+              // Properly reset call state when receiving call end signal
+              closePeerConnection(false, 'idle');
               onCallEndedSignalCb();
               remove(enderSnapshot.ref).catch(e => console.warn("Could not remove callEnd signal", e));
             });

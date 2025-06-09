@@ -173,6 +173,7 @@ export default function ChatApp() {
         },
         () => {
           toast({ title: "Call Ended", description: "The other user ended the call." })
+          setCallStatus('idle')
           closePeerConnection()
         }
       )
@@ -557,7 +558,7 @@ export default function ChatApp() {
           md:translate-x-0 
           fixed md:relative z-40 md:z-auto
           w-80 h-full md:h-auto
-          glass-panel rounded-none md:rounded-xl glass-float
+          glass-panel rounded-none md:rounded-xl glass-float md:mr-4
           transition-transform duration-300 ease-in-out
           ${isMobileMenuOpen ? 'shadow-2xl' : ''}
         `}>
@@ -577,15 +578,15 @@ export default function ChatApp() {
         )}
 
         {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col min-w-0 md:ml-3">
+        <div className="flex-1 flex flex-col min-w-0 md:ml-2">
           {/* Chat Header */}
-          <div className="h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow">
+          <div className="h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow md:mb-6">
             <div className="flex items-center gap-2 md:gap-3 min-w-0">
               {/* Mobile Menu Button */}
               <Button
                 variant="ghost"
                 size="icon"
-                className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50 shrink-0"
+                className="md:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20 shrink-0"
                 onClick={() => setIsMobileMenuOpen(true)}
               >
                 <Menu className="h-5 w-5" />
@@ -614,7 +615,7 @@ export default function ChatApp() {
                       variant="ghost"
                       size="sm"
                       onClick={retryConnection}
-                      className="text-red-400 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2"
+                      className="text-red-400 hover:text-red-300 hover:bg-red-600/20 text-xs h-6 px-2"
                     >
                       Retry
                     </Button>
@@ -641,7 +642,7 @@ export default function ChatApp() {
               <Button
                 variant="ghost"
                 size="icon"
-                className="lg:hidden text-slate-300 hover:text-white hover:bg-slate-700/50"
+                className="lg:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20"
                 onClick={() => setShowUserList(!showUserList)}
                 title="Toggle User List"
               >
@@ -658,7 +659,7 @@ export default function ChatApp() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
                     title="Settings"
                   >
                     <Settings className="h-4 md:h-5 w-4 md:w-5" />
@@ -669,7 +670,7 @@ export default function ChatApp() {
                 variant="ghost"
                 size="icon"
                 onClick={() => setIsProfileModalOpen(true)}
-                className="text-slate-300 hover:text-white hover:bg-slate-700/50"
+                className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
               >
                 <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
               </Button>
@@ -677,7 +678,7 @@ export default function ChatApp() {
                 variant="ghost"
                 size="icon"
                 onClick={handleLogout}
-                className="text-slate-300 hover:text-white hover:bg-red-600/50"
+                className="text-slate-300 hover:text-red-400 hover:bg-red-600/20"
                 title="Sign Out"
               >
                 <LogOut className="h-4 md:h-5 w-4 md:w-5" />
@@ -686,7 +687,7 @@ export default function ChatApp() {
           </div>
 
           {/* Messages Area with Mobile User List */}
-          <div className="flex-1 flex flex-col md:flex-row md:gap-3 min-h-0">
+          <div className="flex-1 flex flex-col md:flex-row md:gap-6 min-h-0">
             {/* Messages Container */}
             <div className="flex-1 flex flex-col min-h-0">
               {/* Mobile User List Overlay */}
@@ -700,7 +701,7 @@ export default function ChatApp() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowUserList(false)}
-                        className="text-slate-300 hover:text-white"
+                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
                       >
                         <X className="h-5 w-5" />
                       </Button>
@@ -721,7 +722,7 @@ export default function ChatApp() {
                         variant="ghost"
                         size="icon"
                         onClick={() => setShowMobileCallPicker(false)}
-                        className="text-slate-300 hover:text-white"
+                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
                       >
                         <X className="h-5 w-5" />
                       </Button>
@@ -780,7 +781,7 @@ export default function ChatApp() {
               )}
 
               {/* Messages Area */}
-              <div className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6">
+              <div className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6">
                 {/* Connection Status Banner */}
                 {!isConnected && !isLoading && firebaseStatus === 'ready' && (
                   <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
@@ -791,7 +792,7 @@ export default function ChatApp() {
                         variant="ghost"
                         size="sm"
                         onClick={retryConnection}
-                        className="text-red-300 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2 ml-auto"
+                        className="text-red-300 hover:text-red-200 hover:bg-red-600/20 text-xs h-6 px-2 ml-auto"
                       >
                         <RefreshCw className="h-3 w-3 mr-1" />
                         Retry

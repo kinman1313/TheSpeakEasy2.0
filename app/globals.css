@@ -75,14 +75,14 @@
     @apply bg-background text-foreground;
   }
 
-  /* Fix bright white focus states for dark theme */
+  /* Fix bright white focus states for dark theme with neon green */
   input:focus,
   textarea:focus,
   button:focus,
   select:focus,
   [role="button"]:focus {
     outline: none !important;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5) !important;
+    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5) !important;
     background-color: rgba(30, 41, 59, 0.8) !important;
   }
 
@@ -115,13 +115,13 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
   }
 
-  /* Neon glow effect */
+  /* Neon glow effect - updated to green */
   .neon-glow {
-    box-shadow: 0 0 5px rgba(99, 102, 241, 0.3), 0 0 10px rgba(99, 102, 241, 0.2), 0 0 15px rgba(99, 102, 241, 0.1);
+    box-shadow: 0 0 5px rgba(34, 197, 94, 0.3), 0 0 10px rgba(34, 197, 94, 0.2), 0 0 15px rgba(34, 197, 94, 0.1);
   }
 
   .neon-glow:hover {
-    box-shadow: 0 0 10px rgba(99, 102, 241, 0.4), 0 0 20px rgba(99, 102, 241, 0.3), 0 0 30px rgba(99, 102, 241, 0.2);
+    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4), 0 0 20px rgba(34, 197, 94, 0.3), 0 0 30px rgba(34, 197, 94, 0.2);
   }
 
   /* Mobile-specific improvements */
@@ -152,8 +152,10 @@
   }
 
   .btn-glass:hover {
-    background: rgba(30, 41, 59, 0.5);
+    background: rgba(34, 197, 94, 0.15);
+    color: rgba(34, 197, 94, 1);
     transform: translateY(-1px);
+    box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
   }
 
   /* Touch-friendly improvements */
@@ -191,6 +193,18 @@
     input[type="password"],
     textarea {
       font-size: 16px !important;
+    }
+  }
+
+  /* Enhanced desktop spacing */
+  @media (min-width: 768px) {
+    .desktop-spacing {
+      padding: 1.5rem;
+      gap: 1.5rem;
+    }
+
+    .desktop-panel-spacing {
+      margin: 1rem;
     }
   }
 }
