@@ -23,8 +23,6 @@ const withPWA = require("next-pwa")({
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Enable standalone output for Vercel deployment
-  output: 'standalone',
   images: {
     domains: ["firebasestorage.googleapis.com", "lh3.googleusercontent.com", "media.giphy.com"],
   },
@@ -40,9 +38,6 @@ const nextConfig = {
         ]
       }
     ]
-  },
-  experimental: {
-    webpackBuildWorker: true,
   },
   serverExternalPackages: ["undici", "firebase", "firebase-admin"],
   // Skip TS and ESLint checks during build to avoid issues
