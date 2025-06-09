@@ -20,7 +20,7 @@ import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserProfileModal from "@/components/user/UserProfileModal"
 import { MessageInput } from "@/components/MessageInput"
 import { uploadVoiceMessage } from "@/lib/storage"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings } from "lucide-react"
+import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, ChevronLeft } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
@@ -41,6 +41,10 @@ export default function ChatApp() {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
   const [currentRoomType, setCurrentRoomType] = useState<'lobby' | 'room' | 'dm'>('lobby')
   const [currentRoomName, setCurrentRoomName] = useState<string>("Lobby")
+
+  // Mobile navigation state
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
+  const [showUserList, setShowUserList] = useState(false)
 
   // Hook for fetching messages (room-aware)
   const { messages, error: messagesError, isConnected, isLoading, retryConnection } = useRoomMessages(
@@ -211,6 +215,7 @@ export default function ChatApp() {
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
     setCurrentRoomId(roomId)
     setCurrentRoomType(roomType)
+    setIsMobileMenuOpen(false) // Close mobile menu when selecting room
 
     // For demo purposes, set room name. In a real app, you'd fetch this from the room data
     if (roomType === 'room') {
@@ -224,6 +229,7 @@ export default function ChatApp() {
     setCurrentRoomId(null)
     setCurrentRoomType('lobby')
     setCurrentRoomName("Lobby")
+    setIsMobileMenuOpen(false) // Close mobile menu when selecting lobby
   }
 
   const handleRecordingComplete = async (audioBlob: Blob) => {
@@ -414,21 +420,21 @@ export default function ChatApp() {
     return (
       <div
         key={message.id}
-        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-4`}
+        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3 md:mb-4`}
       >
-        <div className={`flex ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[80%]`}>
-          <Avatar className="h-8 w-8">
+        <div className={`flex ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[85%] md:max-w-[80%]`}>
+          <Avatar className="h-6 w-6 md:h-8 md:w-8 shrink-0">
             <AvatarImage src={message.userPhotoURL || undefined} />
-            <AvatarFallback>{message.userName?.[0] || 'U'}</AvatarFallback>
+            <AvatarFallback className="text-xs">{message.userName?.[0] || 'U'}</AvatarFallback>
           </Avatar>
-          <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'}`}>
+          <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} min-w-0`}>
             <div className="flex items-center gap-2 mb-1">
-              <span className="text-sm font-medium text-white">{message.userName}</span>
-              <span className="text-xs text-slate-400">{formattedDate}</span>
+              <span className="text-xs md:text-sm font-medium text-white truncate">{message.userName}</span>
+              <span className="text-xs text-slate-400 shrink-0">{formattedDate}</span>
             </div>
-            <div className={`rounded-lg px-4 py-2 ${isCurrentUser ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white'
+            <div className={`rounded-lg px-3 md:px-4 py-2 min-w-0 ${isCurrentUser ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white'
               }`}>
-              {message.text && <p className="whitespace-pre-wrap">{message.text}</p>}
+              {message.text && <p className="whitespace-pre-wrap text-sm md:text-base break-words">{message.text}</p>}
               {message.voiceMessageUrl && (
                 <AudioPlayer src={message.voiceMessageUrl} />
               )}
@@ -440,13 +446,15 @@ export default function ChatApp() {
                 />
               )}
             </div>
-            <MessageReactions
-              messageId={message.id}
-              reactions={message.reactions || {}}
-              currentUserId={user?.uid || ''}
-              onReact={handleReaction}
-              onRemoveReaction={handleRemoveReaction}
-            />
+            <div className="mt-1">
+              <MessageReactions
+                messageId={message.id}
+                reactions={message.reactions || {}}
+                currentUserId={user?.uid || ''}
+                onReact={handleReaction}
+                onRemoveReaction={handleRemoveReaction}
+              />
+            </div>
           </div>
         </div>
       </div>
@@ -493,10 +501,19 @@ export default function ChatApp() {
   }
 
   return (
-    <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 p-3">
-      <div className="flex h-full gap-3">
-        {/* Room Manager Sidebar */}
-        <div className="w-80 glass-panel rounded-xl glass-float">
+    <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 flex flex-col">
+      {/* Mobile Layout */}
+      <div className="flex-1 flex relative">
+        {/* Room Manager Sidebar - Mobile Overlay / Desktop Fixed */}
+        <div className={`
+          ${isMobileMenuOpen ? 'translate-x-0' : '-translate-x-full'} 
+          md:translate-x-0 
+          fixed md:relative z-40 md:z-auto
+          w-80 h-full md:h-auto
+          glass-panel rounded-none md:rounded-xl glass-float
+          transition-transform duration-300 ease-in-out
+          ${isMobileMenuOpen ? 'shadow-2xl' : ''}
+        `}>
           <RoomManager
             currentRoomId={currentRoomId}
             onRoomSelect={handleRoomSelect}
@@ -504,16 +521,34 @@ export default function ChatApp() {
           />
         </div>
 
-        {/* Main Chat Area */}
-        <div className="flex-1 flex flex-col gap-3">
-          {/* Chat Header */}
-          <div className="h-16 glass-card rounded-xl flex items-center justify-between px-6 neon-glow">
-            <div className="flex items-center gap-3">
-              {getRoomIcon()}
-              <h1 className="text-xl font-semibold text-white">{currentRoomName}</h1>
+        {/* Mobile Overlay Background */}
+        {isMobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+        )}
 
-              {/* Connection Status Indicator */}
-              <div className="flex items-center gap-2">
+        {/* Main Chat Area */}
+        <div className="flex-1 flex flex-col min-w-0 md:ml-3">
+          {/* Chat Header */}
+          <div className="h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow">
+            <div className="flex items-center gap-2 md:gap-3 min-w-0">
+              {/* Mobile Menu Button */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="md:hidden text-slate-300 hover:text-white hover:bg-slate-700/50 shrink-0"
+                onClick={() => setIsMobileMenuOpen(true)}
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
+
+              {getRoomIcon()}
+              <h1 className="text-lg md:text-xl font-semibold text-white truncate">{currentRoomName}</h1>
+
+              {/* Connection Status Indicator - Hidden on small screens */}
+              <div className="hidden sm:flex items-center gap-2">
                 {isLoading ? (
                   <div className="flex items-center gap-2 text-yellow-400">
                     <RefreshCw className="h-4 w-4 animate-spin" />
@@ -541,10 +576,23 @@ export default function ChatApp() {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-slate-300 mr-2">
+            <div className="flex items-center gap-1 md:gap-2 shrink-0">
+              {/* User List Toggle - Mobile Only */}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="lg:hidden text-slate-300 hover:text-white hover:bg-slate-700/50"
+                onClick={() => setShowUserList(!showUserList)}
+                title="Toggle User List"
+              >
+                <Users className="h-4 w-4" />
+              </Button>
+
+              {/* Hide user name on very small screens */}
+              <span className="hidden sm:block text-sm text-slate-300 mr-2 truncate max-w-32">
                 {user?.displayName || user?.email || "User"}
               </span>
+
               <UserSettingsDialog
                 trigger={
                   <Button
@@ -553,7 +601,7 @@ export default function ChatApp() {
                     className="text-slate-300 hover:text-white hover:bg-slate-700/50"
                     title="Settings"
                   >
-                    <Settings className="h-5 w-5" />
+                    <Settings className="h-4 md:h-5 w-4 md:w-5" />
                   </Button>
                 }
               />
@@ -563,7 +611,7 @@ export default function ChatApp() {
                 onClick={() => setIsProfileModalOpen(true)}
                 className="text-slate-300 hover:text-white hover:bg-slate-700/50"
               >
-                <UserIcon className="h-5 w-5" />
+                <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
               </Button>
               <Button
                 variant="ghost"
@@ -572,79 +620,106 @@ export default function ChatApp() {
                 className="text-slate-300 hover:text-white hover:bg-red-600/50"
                 title="Sign Out"
               >
-                <LogOut className="h-5 w-5" />
+                <LogOut className="h-4 md:h-5 w-4 md:w-5" />
               </Button>
             </div>
           </div>
 
-          {/* Messages Area */}
-          <div className="flex-1 glass-card rounded-xl overflow-y-auto p-6">
-            {/* Connection Status Banner */}
-            {!isConnected && !isLoading && firebaseStatus === 'ready' && (
-              <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
-                <div className="flex items-center gap-2 text-red-300">
-                  <WifiOff className="h-4 w-4" />
-                  <span className="text-sm">Connection lost. Messages may not be up to date.</span>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={retryConnection}
-                    className="text-red-300 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2 ml-auto"
-                  >
-                    <RefreshCw className="h-3 w-3 mr-1" />
-                    Retry
-                  </Button>
+          {/* Messages Area with Mobile User List */}
+          <div className="flex-1 flex flex-col md:flex-row md:gap-3 min-h-0">
+            {/* Messages Container */}
+            <div className="flex-1 flex flex-col min-h-0">
+              {/* Mobile User List Overlay */}
+              {showUserList && (
+                <div className="lg:hidden">
+                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowUserList(false)} />
+                  <div className="fixed right-0 top-0 h-full w-80 glass-panel z-50 shadow-2xl">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                      <h2 className="text-lg font-semibold text-white">Online Users</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowUserList(false)}
+                        className="text-slate-300 hover:text-white"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <UserList />
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
 
-            {isLoading && (
-              <div className="mb-4 p-3 bg-yellow-900/50 border border-yellow-600/50 rounded-lg glass">
-                <div className="flex items-center gap-2 text-yellow-300">
-                  <RefreshCw className="h-4 w-4 animate-spin" />
-                  <span className="text-sm">Loading messages...</span>
-                </div>
-              </div>
-            )}
+              {/* Messages Area */}
+              <div className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6">
+                {/* Connection Status Banner */}
+                {!isConnected && !isLoading && firebaseStatus === 'ready' && (
+                  <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
+                    <div className="flex items-center gap-2 text-red-300">
+                      <WifiOff className="h-4 w-4" />
+                      <span className="text-sm">Connection lost. Messages may not be up to date.</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={retryConnection}
+                        className="text-red-300 hover:text-white hover:bg-red-600/50 text-xs h-6 px-2 ml-auto"
+                      >
+                        <RefreshCw className="h-3 w-3 mr-1" />
+                        Retry
+                      </Button>
+                    </div>
+                  </div>
+                )}
 
-            {messages.length === 0 && !isLoading && (
-              <div className="text-center text-slate-400 mt-8">
-                <div className="mb-4">
-                  {getRoomIcon()}
-                </div>
-                <p className="text-lg font-medium mb-2">
-                  {currentRoomType === 'lobby' && "Welcome to the Lobby!"}
-                  {currentRoomType === 'room' && "Welcome to this room!"}
-                  {currentRoomType === 'dm' && "Start your conversation!"}
-                </p>
-                <p className="text-sm">
-                  {currentRoomType === 'lobby' && "This is the main chat room where everyone can talk."}
-                  {currentRoomType === 'room' && "This is a private room. Only members can see messages here."}
-                  {currentRoomType === 'dm' && "Messages here are private between you and the other person."}
-                </p>
-              </div>
-            )}
+                {isLoading && (
+                  <div className="mb-4 p-3 bg-yellow-900/50 border border-yellow-600/50 rounded-lg glass">
+                    <div className="flex items-center gap-2 text-yellow-300">
+                      <RefreshCw className="h-4 w-4 animate-spin" />
+                      <span className="text-sm">Loading messages...</span>
+                    </div>
+                  </div>
+                )}
 
-            {messages.map(renderMessage)}
-            <div ref={messagesEndRef} />
+                {messages.length === 0 && !isLoading && (
+                  <div className="text-center text-slate-400 mt-8">
+                    <div className="mb-4">
+                      {getRoomIcon()}
+                    </div>
+                    <p className="text-lg font-medium mb-2">
+                      {currentRoomType === 'lobby' && "Welcome to the Lobby!"}
+                      {currentRoomType === 'room' && "Welcome to this room!"}
+                      {currentRoomType === 'dm' && "Start your conversation!"}
+                    </p>
+                    <p className="text-sm">
+                      {currentRoomType === 'lobby' && "This is the main chat room where everyone can talk."}
+                      {currentRoomType === 'room' && "This is a private room. Only members can see messages here."}
+                      {currentRoomType === 'dm' && "Messages here are private between you and the other person."}
+                    </p>
+                  </div>
+                )}
+
+                {messages.map(renderMessage)}
+                <div ref={messagesEndRef} />
+              </div>
+
+              {/* Input Area */}
+              <div className="glass-card rounded-none md:rounded-xl p-3 md:p-4">
+                <MessageInput
+                  onSend={async (message: string) => {
+                    if (!user) return
+                    await sendMessage(message, user)
+                  }}
+                  onVoiceRecording={handleRecordingComplete}
+                  onGifSelect={() => setShowGiphyPicker(true)}
+                />
+              </div>
+            </div>
+
+            {/* Desktop User List - Hidden on Mobile */}
+            <div className="hidden lg:block w-64 glass-panel rounded-xl glass-float">
+              <UserList />
+            </div>
           </div>
-
-          {/* Input Area */}
-          <div className="glass-card rounded-xl p-4">
-            <MessageInput
-              onSend={async (message: string) => {
-                if (!user) return
-                await sendMessage(message, user)
-              }}
-              onVoiceRecording={handleRecordingComplete}
-              onGifSelect={() => setShowGiphyPicker(true)}
-            />
-          </div>
-        </div>
-
-        {/* User List - moved to right side for better UX */}
-        <div className="w-64 glass-panel rounded-xl glass-float">
-          <UserList />
         </div>
       </div>
 

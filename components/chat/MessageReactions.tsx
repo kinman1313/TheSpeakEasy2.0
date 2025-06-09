@@ -63,7 +63,7 @@ export function MessageReactions({
             size="sm"
             onClick={() => handleReaction(emoji)}
             className={cn(
-              "h-7 px-2 py-1 text-xs gap-1 transition-all",
+              "h-8 px-2 py-1 text-xs gap-1 transition-all touch-manipulation",
               hasReacted
                 ? "bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/50"
                 : "bg-slate-700/50 hover:bg-slate-700/70 text-slate-300"
@@ -82,10 +82,10 @@ export function MessageReactions({
             variant="ghost"
             size="sm"
             className={cn(
-              "h-7 w-7 p-0 transition-all",
+              "h-8 w-8 p-0 transition-all touch-manipulation",
               hasReactions
-                ? "opacity-0 group-hover:opacity-100"
-                : "opacity-50 hover:opacity-100"
+                ? "opacity-60 md:opacity-0 md:group-hover:opacity-100"
+                : "opacity-70 hover:opacity-100"
             )}
           >
             <SmilePlus className="h-4 w-4" />
@@ -99,7 +99,7 @@ export function MessageReactions({
                 variant="ghost"
                 size="sm"
                 onClick={() => handleReaction(reaction.emoji)}
-                className="h-10 w-10 p-0 hover:bg-slate-700/50"
+                className="h-12 w-12 p-0 hover:bg-slate-700/50 touch-manipulation"
                 title={reaction.label}
               >
                 <span className="text-lg">{reaction.emoji}</span>

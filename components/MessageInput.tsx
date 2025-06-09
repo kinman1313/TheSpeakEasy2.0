@@ -54,7 +54,7 @@ export function MessageInput({ onSend, onVoiceRecording, onGifSelect }: MessageI
   }
 
   return (
-    <div className="border-t p-4 bg-background">
+    <div className="border-t p-2 md:p-4 bg-background">
       {/* Emoji Picker Modal */}
       {isEmojiPickerOpen && (
         <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
@@ -72,40 +72,51 @@ export function MessageInput({ onSend, onVoiceRecording, onGifSelect }: MessageI
         />
       )}
 
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1 md:gap-2">
+        {/* Hide some buttons on very small screens */}
         <Button
           variant="ghost"
           size="icon"
           onClick={handleGifClick}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
           title="Add GIF"
         >
-          <ImageIcon className="h-5 w-5" />
+          <ImageIcon className="h-4 w-4 md:h-5 md:w-5" />
         </Button>
         <Button
           variant="ghost"
           size="icon"
           onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-          className="text-muted-foreground hover:text-foreground"
+          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
           title="Add Emoji"
         >
-          <Smile className="h-5 w-5" />
+          <Smile className="h-4 w-4 md:h-5 md:w-5" />
         </Button>
-        <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" title="Attach File">
-          <Paperclip className="h-5 w-5" />
+        <Button
+          variant="ghost"
+          size="icon"
+          className="hidden sm:flex text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
+          title="Attach File"
+        >
+          <Paperclip className="h-4 w-4 md:h-5 md:w-5" />
         </Button>
-        <div className="relative flex-1">
+        <div className="relative flex-1 min-w-0">
           <Input
             ref={inputRef}
             placeholder="Type a message..."
             value={message}
             onChange={(e) => setMessage(e.target.value)}
             onKeyDown={handleKeyPress}
-            className="pr-10"
+            className="text-sm md:text-base h-9 md:h-10"
           />
         </div>
         {message.trim() ? (
-          <Button onClick={handleSend} size="icon" className="rounded-full" title="Send Message">
+          <Button
+            onClick={handleSend}
+            size="icon"
+            className="rounded-full h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0"
+            title="Send Message"
+          >
             <Send className="h-4 w-4" />
           </Button>
         ) : (
@@ -113,10 +124,10 @@ export function MessageInput({ onSend, onVoiceRecording, onGifSelect }: MessageI
             variant="ghost"
             size="icon"
             onClick={() => setIsRecording(true)}
-            className="text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0"
             title="Record Voice Message"
           >
-            <Mic className="h-5 w-5" />
+            <Mic className="h-4 w-4 md:h-5 md:w-5" />
           </Button>
         )}
       </div>
