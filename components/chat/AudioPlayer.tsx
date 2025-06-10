@@ -3,7 +3,7 @@
 import { type ReactElement, useState, useRef, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
-import { Play, Pause, Volume2, VolumeX, AlertCircle } from "lucide-react"
+import { Play, Pause, Volume2, VolumeX, AlertCircle, RefreshCw } from "lucide-react"
 
 interface AudioPlayerProps {
   src: string
@@ -19,8 +19,12 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
   const [isLoading, setIsLoading] = useState(true)
   const [hasError, setHasError] = useState(false)
   const [canPlay, setCanPlay] = useState(false)
+  const [errorMessage, setErrorMessage] = useState("")
+  const [retryCount, setRetryCount] = useState(0)
+  const [userInteracted, setUserInteracted] = useState(false)
 
   const audioRef = useRef<HTMLAudioElement>(null)
+  const maxRetries = 3
 
   useEffect(() => {
     const audio = audioRef.current
@@ -31,6 +35,7 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
       setCurrentTime(audio.currentTime)
       setIsLoading(false)
       setCanPlay(true)
+      setHasError(false)
     }
 
     const handleTimeUpdate = () => {
@@ -45,15 +50,41 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
     const handleCanPlay = () => {
       setCanPlay(true)
       setIsLoading(false)
+      setHasError(false)
     }
 
     const handleLoadStart = () => {
       setIsLoading(true)
       setHasError(false)
+      setErrorMessage("")
     }
 
     const handleError = (e: Event) => {
       console.error('Audio playback error:', e)
+      const audioElement = e.target as HTMLAudioElement
+      const error = audioElement.error
+
+      let message = "Audio playback failed"
+      if (error) {
+        switch (error.code) {
+          case MediaError.MEDIA_ERR_ABORTED:
+            message = "Audio loading was aborted"
+            break
+          case MediaError.MEDIA_ERR_NETWORK:
+            message = "Network error while loading audio"
+            break
+          case MediaError.MEDIA_ERR_DECODE:
+            message = "Audio format not supported"
+            break
+          case MediaError.MEDIA_ERR_SRC_NOT_SUPPORTED:
+            message = "Audio source not supported"
+            break
+          default:
+            message = "Unknown audio error"
+        }
+      }
+
+      setErrorMessage(message)
       setHasError(true)
       setIsLoading(false)
       setIsPlaying(false)
@@ -64,34 +95,91 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
       setDuration(audio.duration || 0)
     }
 
-    // Add mobile-specific event listeners
+    const handleSuspend = () => {
+      console.log('Audio loading suspended')
+    }
+
+    const handleStalled = () => {
+      console.log('Audio loading stalled')
+    }
+
+    const handleWaiting = () => {
+      console.log('Audio waiting for data')
+    }
+
+    // Add comprehensive event listeners
     audio.addEventListener("loadstart", handleLoadStart)
     audio.addEventListener("loadedmetadata", handleLoadedMetadata)
     audio.addEventListener("loadeddata", setAudioData)
     audio.addEventListener("canplay", handleCanPlay)
+    audio.addEventListener("canplaythrough", handleCanPlay)
     audio.addEventListener("timeupdate", handleTimeUpdate)
     audio.addEventListener("ended", handleEnded)
     audio.addEventListener("error", handleError)
+    audio.addEventListener("suspend", handleSuspend)
+    audio.addEventListener("stalled", handleStalled)
+    audio.addEventListener("waiting", handleWaiting)
 
     return () => {
       audio.removeEventListener("loadstart", handleLoadStart)
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata)
       audio.removeEventListener("loadeddata", setAudioData)
       audio.removeEventListener("canplay", handleCanPlay)
+      audio.removeEventListener("canplaythrough", handleCanPlay)
       audio.removeEventListener("timeupdate", handleTimeUpdate)
       audio.removeEventListener("ended", handleEnded)
       audio.removeEventListener("error", handleError)
+      audio.removeEventListener("suspend", handleSuspend)
+      audio.removeEventListener("stalled", handleStalled)
+      audio.removeEventListener("waiting", handleWaiting)
     }
-  }, [onError])
+  }, [onError, src])
+
+  const retryLoad = () => {
+    if (retryCount >= maxRetries) return
+
+    setRetryCount(prev => prev + 1)
+    setHasError(false)
+    setIsLoading(true)
+    setErrorMessage("")
+
+    if (audioRef.current) {
+      audioRef.current.load()
+    }
+  }
 
   const togglePlay = async () => {
     if (!audioRef.current || !canPlay) return
+
+    setUserInteracted(true)
 
     try {
       if (isPlaying) {
         audioRef.current.pause()
         setIsPlaying(false)
       } else {
+        // Ensure audio is loaded
+        if (audioRef.current.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
+          setIsLoading(true)
+          await new Promise((resolve, reject) => {
+            const audio = audioRef.current!
+            const handleCanPlay = () => {
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleError)
+              setIsLoading(false)
+              resolve(void 0)
+            }
+            const handleError = (e: Event) => {
+              audio.removeEventListener('canplay', handleCanPlay)
+              audio.removeEventListener('error', handleError)
+              setIsLoading(false)
+              reject(e)
+            }
+            audio.addEventListener('canplay', handleCanPlay, { once: true })
+            audio.addEventListener('error', handleError, { once: true })
+          })
+        }
+
         // For mobile browsers, ensure we handle the play promise
         const playPromise = audioRef.current.play()
         if (playPromise !== undefined) {
@@ -104,9 +192,23 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
       setHasError(true)
       setIsPlaying(false)
 
-      // Mobile browsers often require user interaction
-      if (error instanceof DOMException && error.name === 'NotAllowedError') {
-        console.log('Audio playback blocked by browser policy')
+      // Handle specific browser policy errors
+      if (error instanceof DOMException) {
+        switch (error.name) {
+          case 'NotAllowedError':
+            setErrorMessage('Audio blocked by browser policy. Please interact with the page first.')
+            break
+          case 'NotSupportedError':
+            setErrorMessage('Audio format not supported by this browser')
+            break
+          case 'AbortError':
+            setErrorMessage('Audio playback was interrupted')
+            break
+          default:
+            setErrorMessage(`Playback error: ${error.message}`)
+        }
+      } else {
+        setErrorMessage('Unknown playback error')
       }
     }
   }
@@ -145,8 +247,21 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
   if (hasError) {
     return (
       <div className="flex items-center gap-2 p-2 bg-red-900/20 border border-red-600/50 rounded-lg">
-        <AlertCircle className="h-4 w-4 text-red-400" />
-        <span className="text-sm text-red-300">Audio playback failed</span>
+        <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
+        <div className="flex-1 min-w-0">
+          <span className="text-sm text-red-300 block truncate">{errorMessage}</span>
+          {retryCount < maxRetries && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={retryLoad}
+              className="text-red-300 hover:text-red-200 h-auto p-1 mt-1"
+            >
+              <RefreshCw className="h-3 w-3 mr-1" />
+              Retry ({retryCount}/{maxRetries})
+            </Button>
+          )}
+        </div>
       </div>
     )
   }
@@ -159,6 +274,7 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
         preload="metadata"
         crossOrigin="anonymous"
         playsInline
+        controls={false}
       />
 
       <div className="flex items-center gap-2">
@@ -213,6 +329,12 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
           disabled={!canPlay}
         />
       </div>
+
+      {!userInteracted && !canPlay && !isLoading && (
+        <p className="text-xs text-muted-foreground">
+          Click play to start audio (browser requires user interaction)
+        </p>
+      )}
     </div>
   )
 }

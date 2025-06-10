@@ -158,6 +158,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     pc.onicecandidate = (event) => {
       if (event.candidate && peerId) {
+        console.log("Sending ICE candidate to", peerId);
         const candidatePath = `signaling/${peerId}/iceCandidates/${currentUserId}`;
         const candidateRef = push(ref(rtdb, candidatePath));
         set(candidateRef, event.candidate.toJSON()).catch(e => {
@@ -166,12 +167,25 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         });
       }
     };
+
     pc.ontrack = (event) => {
       console.log("Remote track received:", event.streams[0]);
+      console.log("Track kind:", event.track.kind);
+      console.log("Track settings:", event.track.getSettings());
+
       if (event.streams && event.streams[0]) {
-        setRemoteStream(event.streams[0]);
+        const stream = event.streams[0];
+        console.log("Remote stream tracks:", stream.getTracks().map(t => `${t.kind}: ${t.enabled}`));
+        setRemoteStream(stream);
+
+        // Ensure audio tracks are enabled and playing
+        stream.getAudioTracks().forEach(track => {
+          console.log(`Remote audio track: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+          track.enabled = true;
+        });
       }
     };
+
     pc.onconnectionstatechange = () => {
       console.log(`Peer Connection State with ${peerId}: ${pc.connectionState}`);
       switch (pc.connectionState) {
@@ -180,6 +194,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           clearDisconnectedTimeout();
           setCallStatus('active');
           setSignalingError(null);
+
+          // Verify audio tracks are working
+          if (localStream) {
+            localStream.getAudioTracks().forEach(track => {
+              console.log(`Local audio track: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
+            });
+          }
+
           if (activeCallTargetUserId !== peerId && callerUserId !== peerId) {
             console.warn(`Connected to ${peerId}, but current active/caller is ${activeCallTargetUserId || callerUserId}`);
           }
@@ -221,9 +243,18 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           break;
       }
     };
+
+    // Handle audio-specific connection events
+    pc.oniceconnectionstatechange = () => {
+      console.log(`ICE Connection State with ${peerId}: ${pc.iceConnectionState}`);
+      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
+        console.log("ICE connection established - audio should now work");
+      }
+    };
+
     setPeerConnection(pc); // Set the new peer connection
     return pc;
-  }, [callStatus, activeCallTargetUserId, callerUserId]); // Removed peerConnection from its own init deps.
+  }, [callStatus, activeCallTargetUserId, callerUserId, localStream]); // Added localStream to deps
 
   const resetCallState = useCallback(() => { // Wrapped in useCallback
     console.log('Provider: Resetting call state');
@@ -480,8 +511,39 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     setCallStatus('requestingMedia');
     try {
-      const constraints = audioOnly ? { video: false, audio: true } : { video: true, audio: true };
+      const constraints = audioOnly ?
+        {
+          video: false,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 44100
+          }
+        } :
+        {
+          video: true,
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+            sampleRate: 44100
+          }
+        };
+
+      console.log("Requesting media with constraints:", constraints);
       const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Log track details
+      stream.getTracks().forEach(track => {
+        console.log(`Got ${track.kind} track:`, {
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          settings: track.getSettings()
+        });
+      });
+
       setLocalStream(stream);
       if (!audioOnly) setCameraPermission('granted');
       setMicrophonePermission('granted');
@@ -611,9 +673,21 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const answerPayload = data as SignalingPayload;
             if (answerPayload.sdp && answerPayload.senderId && answerPayload.receiverId === currentUserId) {
               console.log("Provider: Received answer:", answerPayload);
-              clearOfferTimeout(); // Clear offer timeout on receiving an answer
-              onAnswerReceivedCb({ type: 'answer', sdp: answerPayload.sdp }, answerPayload.senderId);
-              remove(dbRef).catch(e => console.warn("Could not remove answer signal", e));
+              console.log(`Provider: Current call status: ${callStatusRef.current}`);
+              console.log(`Provider: Peer connection state: ${peerConnection?.signalingState}`);
+
+              // Only process answer if we're in the right state
+              const currentCallStatus = callStatusRef.current;
+              if (currentCallStatus === 'waitingForAnswer' || currentCallStatus === 'creatingOffer') {
+                clearOfferTimeout(); // Clear offer timeout on receiving an answer
+                onAnswerReceivedCb({ type: 'answer', sdp: answerPayload.sdp }, answerPayload.senderId);
+                // Remove the answer from database after processing
+                remove(dbRef).catch(e => console.warn("Could not remove answer signal", e));
+              } else {
+                console.warn(`Provider: Ignoring answer in unexpected call status: ${currentCallStatus}`);
+                // Still remove the answer to prevent repeated processing
+                remove(dbRef).catch(e => console.warn("Could not remove stale answer signal", e));
+              }
             }
             break;
           case 'iceCandidates':
@@ -623,6 +697,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 if (candidates) {
                   Object.values(candidates).forEach((candidate) => {
                     if ((candidate as RTCIceCandidate).candidate) {
+                      console.log("Provider: Processing ICE candidate from", senderSnapshot.key);
                       onRemoteIceCandidateReceivedCb(candidate as RTCIceCandidateInit);
                     }
                   });
@@ -659,7 +734,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       activeRTDBListeners.current.forEach(l => off(ref(rtdb, l.path), l.listener));
       activeRTDBListeners.current = [];
     };
-  }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState]); // Removed callStatus from deps to avoid stale closures
+  }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState, peerConnection]); // Added peerConnection to deps
 
 
   const contextValue: WebRTCContextType = {

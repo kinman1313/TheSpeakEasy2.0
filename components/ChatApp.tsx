@@ -26,6 +26,7 @@ import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
+import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 
 export default function ChatApp() {
@@ -117,6 +118,14 @@ export default function ChatApp() {
 
   console.log('ChatApp: Current webRTCCallStatus from hook:', webRTCCallStatus)
 
+  // Debug: Run audio diagnostics in development
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development' && user) {
+      console.log('🔧 Running audio diagnostics for user:', user.uid);
+      AudioTestUtils.runFullAudioDiagnostic().catch(console.error);
+    }
+  }, [user]);
+
   // Effect for WebRTC signaling listeners
   useEffect(() => {
     if (user && firebaseStatus === 'ready' && webRTCCallStatus !== 'active' && peerConnection !== null) {
@@ -142,16 +151,30 @@ export default function ChatApp() {
         },
         async (answer, fromUserId) => {
           console.log(`ChatApp: Received answer from ${fromUserId}`)
-          if (peerConnection && peerConnection.signalingState === 'have-local-offer') {
+          console.log(`ChatApp: PeerConnection state: ${peerConnection?.signalingState}`)
+          console.log(`ChatApp: WebRTC call status: ${webRTCCallStatus}`)
+
+          if (!peerConnection) {
+            console.warn("Received answer but no peer connection exists")
+            return
+          }
+
+          if (peerConnection.signalingState === 'have-local-offer') {
             try {
+              console.log("ChatApp: Setting remote description from answer")
               await peerConnection.setRemoteDescription(new RTCSessionDescription(answer))
+              console.log("ChatApp: Successfully set remote description")
             } catch (error) {
               console.error("Error setting remote description from answer:", error)
               toast({ title: "Call Error", description: "Failed to connect (answer processing).", variant: "destructive" })
               setCallStatus('error')
             }
+          } else if (peerConnection.signalingState === 'stable') {
+            console.warn("Received answer but peer connection is already stable (answer already processed)")
+          } else if (peerConnection.signalingState === 'closed') {
+            console.warn("Received answer but peer connection is closed")
           } else {
-            console.warn("Received answer but not in 'have-local-offer' state or no peerConnection.")
+            console.warn(`Received answer but not in 'have-local-offer' state. Current state: ${peerConnection.signalingState}`)
           }
         },
         (candidate) => {
@@ -671,6 +694,19 @@ export default function ChatApp() {
               >
                 <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
               </Button>
+              {/* Debug Audio Test Button (development only) */}
+              {process.env.NODE_ENV === 'development' && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => AudioTestUtils.runFullAudioDiagnostic()}
+                  className="text-slate-300 hover:text-blue-400 hover:bg-blue-600/20"
+                  title="Run Audio Diagnostics"
+                >
+                  🔊
+                </Button>
+              )}
+
               <Button
                 variant="ghost"
                 size="icon"

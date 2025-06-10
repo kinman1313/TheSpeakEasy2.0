@@ -31,19 +31,59 @@ export default function VideoCallView({
 }: VideoCallViewProps) {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteVideoRef = useRef<HTMLVideoElement>(null);
+  const remoteAudioRef = useRef<HTMLAudioElement>(null);
 
   useEffect(() => {
     if (localVideoRef.current && localStream) {
       localVideoRef.current.srcObject = localStream;
+      console.log("Local video stream set");
     }
   }, [localStream]);
 
   useEffect(() => {
     if (remoteVideoRef.current && remoteStream) {
       remoteVideoRef.current.srcObject = remoteStream;
+      console.log("Remote video stream set");
     } else if (remoteVideoRef.current) {
       // Clear remote video if stream is null (e.g. call ended, other user turned off video)
       remoteVideoRef.current.srcObject = null;
+    }
+
+    // Handle remote audio separately to ensure it plays
+    if (remoteAudioRef.current && remoteStream) {
+      remoteAudioRef.current.srcObject = remoteStream;
+      console.log("Remote audio stream set");
+
+      // Log audio tracks
+      const audioTracks = remoteStream.getAudioTracks();
+      console.log("Remote audio tracks:", audioTracks.map(track => ({
+        kind: track.kind,
+        enabled: track.enabled,
+        muted: track.muted,
+        readyState: track.readyState,
+        settings: track.getSettings()
+      })));
+
+      // Ensure audio element is set up for playback
+      remoteAudioRef.current.autoplay = true;
+      remoteAudioRef.current.volume = 1.0;
+
+      // Try to play the audio
+      remoteAudioRef.current.play().catch(error => {
+        console.error("Error playing remote audio:", error);
+        // Try to play on user interaction
+        const playAudio = () => {
+          if (remoteAudioRef.current) {
+            remoteAudioRef.current.play().catch(e => console.error("Failed to play audio on interaction:", e));
+          }
+          document.removeEventListener('click', playAudio);
+          document.removeEventListener('touchstart', playAudio);
+        };
+        document.addEventListener('click', playAudio, { once: true });
+        document.addEventListener('touchstart', playAudio, { once: true });
+      });
+    } else if (remoteAudioRef.current) {
+      remoteAudioRef.current.srcObject = null;
     }
   }, [remoteStream]);
 
@@ -66,16 +106,35 @@ export default function VideoCallView({
 
   return (
     <div className="fixed inset-0 bg-black/90 z-50 flex flex-col items-center justify-center p-4">
+      {/* Hidden audio element for remote audio */}
+      <audio
+        ref={remoteAudioRef}
+        autoPlay
+        playsInline
+        style={{ display: 'none' }}
+      />
+
       {/* Status Message Area */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-background/80 text-foreground px-4 py-2 rounded-md text-sm shadow-lg">
         <p>{getCallStatusMessage()}</p>
+        {callStatus === 'active' && remoteStream && (
+          <p className="text-xs mt-1 opacity-70">
+            Audio: {remoteStream.getAudioTracks().length > 0 ? 'Connected' : 'No audio'} |
+            Video: {remoteStream.getVideoTracks().length > 0 ? 'Connected' : 'No video'}
+          </p>
+        )}
       </div>
 
       {/* Video Area */}
       <div className="relative flex flex-col md:flex-row items-center justify-center w-full h-[calc(100%-10rem)] md:h-auto md:max-h-[80vh] gap-4">
         {/* Remote Video (Main View) */}
         {remoteStream && callStatus === 'active' ? (
-          <video ref={remoteVideoRef} autoPlay playsInline className="w-full h-full md:max-w-[70vw] md:max-h-[80vh] object-contain rounded-lg border border-gray-700" />
+          <video
+            ref={remoteVideoRef}
+            autoPlay
+            playsInline
+            className="w-full h-full md:max-w-[70vw] md:max-h-[80vh] object-contain rounded-lg border border-gray-700"
+          />
         ) : (
           <div className={cn(
             "w-full h-full md:max-w-[70vw] md:max-h-[80vh] bg-gray-900 rounded-lg border border-gray-700 flex items-center justify-center",
@@ -97,11 +156,11 @@ export default function VideoCallView({
             className="absolute bottom-6 right-6 w-32 h-24 md:w-48 md:h-36 object-cover rounded-md border-2 border-blue-500 shadow-xl"
           />
         )}
-         {/* Placeholder if local video is disabled */}
+        {/* Placeholder if local video is disabled */}
         {localStream && !isLocalVideoEnabled && (
-           <div className="absolute bottom-6 right-6 w-32 h-24 md:w-48 md:h-36 bg-gray-800 rounded-md border-2 border-gray-600 flex items-center justify-center text-white text-xs">
-             Camera Off
-           </div>
+          <div className="absolute bottom-6 right-6 w-32 h-24 md:w-48 md:h-36 bg-gray-800 rounded-md border-2 border-gray-600 flex items-center justify-center text-white text-xs">
+            Camera Off
+          </div>
         )}
       </div>
 
