@@ -19,38 +19,38 @@ const config = {
     },
     extend: {
       colors: {
-        border: "hsl(var(--border))",
-        input: "hsl(var(--input))",
-        ring: "hsl(var(--ring))",
-        background: "hsl(var(--background))",
-        foreground: "hsl(var(--foreground))",
+        border: "rgba(var(--foreground-rgb), 0.2)",
+        input: "rgba(var(--secondary-rgb), 0.5)",
+        ring: "rgb(var(--primary-rgb))",
+        background: "rgb(var(--background-start-rgb))",
+        foreground: "rgb(var(--foreground-rgb))",
         primary: {
-          DEFAULT: "hsl(var(--primary))",
-          foreground: "hsl(var(--primary-foreground))",
+          DEFAULT: "rgb(var(--primary-rgb))",
+          foreground: "rgb(var(--primary-foreground-rgb))",
         },
         secondary: {
-          DEFAULT: "hsl(var(--secondary))",
-          foreground: "hsl(var(--secondary-foreground))",
+          DEFAULT: "rgb(var(--secondary-rgb))",
+          foreground: "rgb(var(--secondary-foreground-rgb))",
         },
         destructive: {
           DEFAULT: "hsl(var(--destructive))",
           foreground: "hsl(var(--destructive-foreground))",
         },
         muted: {
-          DEFAULT: "hsl(var(--muted))",
-          foreground: "hsl(var(--muted-foreground))",
+          DEFAULT: "rgba(var(--secondary-rgb), 0.5)",
+          foreground: "rgba(var(--foreground-rgb), 0.7)",
         },
         accent: {
-          DEFAULT: "hsl(var(--accent))",
-          foreground: "hsl(var(--accent-foreground))",
+          DEFAULT: "rgb(var(--accent-rgb))",
+          foreground: "rgb(var(--accent-foreground-rgb))",
         },
         popover: {
-          DEFAULT: "hsl(var(--popover))",
-          foreground: "hsl(var(--popover-foreground))",
+          DEFAULT: "rgb(var(--secondary-rgb))",
+          foreground: "rgb(var(--foreground-rgb))",
         },
         card: {
-          DEFAULT: "hsl(var(--card))",
-          foreground: "hsl(var(--card-foreground))",
+          DEFAULT: "rgba(var(--secondary-rgb), 0.5)",
+          foreground: "rgb(var(--foreground-rgb))",
         },
       },
       borderRadius: {

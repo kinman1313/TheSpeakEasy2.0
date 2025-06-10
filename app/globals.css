@@ -4,62 +4,69 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background-start-rgb: 240, 242, 245;
+    --background-end-rgb: 255, 255, 255;
+    --foreground-rgb: 15, 23, 42;
+    --primary-rgb: 34, 197, 94;
+    --primary-foreground-rgb: 255, 255, 255;
+    --secondary-rgb: 241, 245, 249;
+    --secondary-foreground-rgb: 15, 23, 42;
+    --accent-rgb: 59, 130, 246;
+    --accent-foreground-rgb: 255, 255, 255;
+    --glass-color-rgb: 255, 255, 255, 0.5;
+    --neon-glow-color: 34, 197, 94;
 
+    --background: 255 255 255;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
     --card-foreground: 222.2 84% 4.9%;
-
     --popover: 0 0% 100%;
     --popover-foreground: 222.2 84% 4.9%;
-
     --primary: 222.2 47.4% 11.2%;
     --primary-foreground: 210 40% 98%;
-
     --secondary: 210 40% 96.1%;
     --secondary-foreground: 222.2 47.4% 11.2%;
-
     --muted: 210 40% 96.1%;
     --muted-foreground: 215.4 16.3% 46.9%;
-
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
     --ring: 222.2 84% 4.9%;
-
     --radius: 0.5rem;
   }
 
   .dark {
+    --background-start-rgb: 15, 23, 42;
+    --background-end-rgb: 51, 65, 85;
+    --foreground-rgb: 229, 231, 235;
+    --primary-rgb: 34, 197, 94;
+    --primary-foreground-rgb: 255, 255, 255;
+    --secondary-rgb: 30, 41, 59;
+    --secondary-foreground-rgb: 229, 231, 235;
+    --accent-rgb: 59, 130, 246;
+    --accent-foreground-rgb: 255, 255, 255;
+    --glass-color-rgb: 30, 41, 59, 0.4;
+    --neon-glow-color: 34, 197, 94;
+
     --background: 222.2 84% 4.9%;
     --foreground: 210 40% 98%;
-
     --card: 222.2 84% 4.9%;
     --card-foreground: 210 40% 98%;
-
     --popover: 222.2 84% 4.9%;
     --popover-foreground: 210 40% 98%;
-
     --primary: 210 40% 98%;
     --primary-foreground: 222.2 47.4% 11.2%;
-
     --secondary: 217.2 32.6% 17.5%;
     --secondary-foreground: 210 40% 98%;
-
     --muted: 217.2 32.6% 17.5%;
     --muted-foreground: 215 20.2% 65.1%;
-
     --accent: 217.2 32.6% 17.5%;
     --accent-foreground: 210 40% 98%;
-
     --destructive: 0 62.8% 30.6%;
     --destructive-foreground: 210 40% 98%;
-
     --border: 217.2 32.6% 17.5%;
     --input: 217.2 32.6% 17.5%;
     --ring: 212.7 26.8% 83.9%;
@@ -72,7 +79,60 @@
   }
 
   body {
-    @apply bg-background text-foreground;
+    background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
+    color: rgb(var(--foreground-rgb));
+  }
+
+  /* Focus states for custom themes */
+  input:focus,
+  textarea:focus,
+  button:focus,
+  select:focus,
+  [role="button"]:focus {
+    outline: none !important;
+    box-shadow: 0 0 0 2px rgba(var(--neon-glow-color), 0.5) !important;
+    background-color: rgba(var(--secondary-rgb), 0.8) !important;
+  }
+
+  /* Input styling for custom themes */
+  input,
+  textarea,
+  select {
+    background-color: rgba(var(--secondary-rgb), 0.5) !important;
+    border-color: rgba(var(--foreground-rgb), 0.2) !important;
+    color: rgb(var(--foreground-rgb)) !important;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: rgba(var(--foreground-rgb), 0.5) !important;
+  }
+
+  /* Glass morphism effects */
+  .glass,
+  .glass-panel,
+  .glass-card,
+  .btn-glass {
+    background: rgba(var(--glass-color-rgb));
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid rgba(var(--foreground-rgb), 0.1);
+  }
+
+  /* Neon glow effect */
+  .neon-glow {
+    box-shadow: 0 0 5px rgba(var(--neon-glow-color), 0.3), 0 0 10px rgba(var(--neon-glow-color), 0.2), 0 0 15px rgba(var(--neon-glow-color), 0.1);
+  }
+
+  .neon-glow:hover {
+    box-shadow: 0 0 10px rgba(var(--neon-glow-color), 0.4), 0 0 20px rgba(var(--neon-glow-color), 0.3), 0 0 30px rgba(var(--neon-glow-color), 0.2);
+  }
+
+  .btn-glass:hover {
+    background: rgba(var(--primary-rgb), 0.15);
+    color: rgb(var(--primary-rgb));
+    transform: translateY(-1px);
+    box-shadow: 0 0 12px rgba(var(--neon-glow-color), 0.3);
   }
 
   /* Fix bright white focus states for dark theme with neon green */
@@ -285,7 +345,7 @@
     cursor: pointer;
     -webkit-user-select: none;
     user-select: none;
-    
+
   }
 
   .list-item-interactive:hover {

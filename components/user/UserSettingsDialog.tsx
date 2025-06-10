@@ -4,10 +4,11 @@ import React, { useState } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Button } from '@/components/ui/button'
-import { Settings, Volume2, User, Bell } from 'lucide-react'
+import { Settings, Volume2, User, Bell, Palette } from 'lucide-react'
 import { SoundSettings } from './SoundSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { NotificationSettings } from './NotificationSettings'
+import { AppearanceSettings } from './AppearanceSettings'
 
 interface UserSettingsDialogProps {
     trigger?: React.ReactNode
@@ -31,7 +32,7 @@ export function UserSettingsDialog({ trigger }: UserSettingsDialogProps) {
                 </DialogHeader>
 
                 <Tabs defaultValue="sounds" className="w-full">
-                    <TabsList className="grid w-full grid-cols-3 glass">
+                    <TabsList className="grid w-full grid-cols-4 glass">
                         <TabsTrigger value="sounds" className="data-[state=active]:bg-indigo-600">
                             <Volume2 className="h-4 w-4 mr-2" />
                             Sounds
@@ -43,6 +44,10 @@ export function UserSettingsDialog({ trigger }: UserSettingsDialogProps) {
                         <TabsTrigger value="notifications" className="data-[state=active]:bg-indigo-600">
                             <Bell className="h-4 w-4 mr-2" />
                             Notifications
+                        </TabsTrigger>
+                        <TabsTrigger value="appearance" className="data-[state=active]:bg-indigo-600">
+                            <Palette className="h-4 w-4 mr-2" />
+                            Appearance
                         </TabsTrigger>
                     </TabsList>
 
@@ -56,6 +61,10 @@ export function UserSettingsDialog({ trigger }: UserSettingsDialogProps) {
 
                     <TabsContent value="notifications" className="mt-6">
                         <NotificationSettings />
+                    </TabsContent>
+
+                    <TabsContent value="appearance" className="mt-6">
+                        <AppearanceSettings />
                     </TabsContent>
                 </Tabs>
             </DialogContent>

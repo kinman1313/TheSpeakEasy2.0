@@ -1,0 +1,20 @@
+[
+    {
+        "origin": [
+            "https://thespeakeasy.app",
+            "https://www.thespeakeasy.app",
+            "https://*.vercel.app",
+            "http://localhost:3000"
+        ],
+        "method": [
+            "GET",
+            "HEAD",
+            "OPTIONS"
+        ],
+        "responseHeader": [
+            "Content-Type",
+            "Access-Control-Allow-Origin"
+        ],
+        "maxAgeSeconds": 3600
+    }
+]
