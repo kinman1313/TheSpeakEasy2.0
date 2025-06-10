@@ -8,7 +8,6 @@ import { Settings, Volume2, User, Bell } from 'lucide-react'
 import { SoundSettings } from './SoundSettings'
 import { ProfileSettings } from './ProfileSettings'
 import { NotificationSettings } from './NotificationSettings'
-import { useAuth } from '@/components/auth/AuthProvider'
 
 interface UserSettingsDialogProps {
     trigger?: React.ReactNode

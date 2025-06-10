@@ -6,20 +6,23 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db, rtdb } from "@/lib/firebase"
 import { useToast } from "@/components/ui/toast"
-import { isToday, isYesterday, format, isValid } from 'date-fns'
 import { useRoomMessages, Message } from "@/lib/hooks/useRoomMessages"
 import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
-import { MessageReactions } from "@/components/chat/MessageReactions"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
 import VideoCallView from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
-import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserSettingsModal from "@/components/user/UserSettingsModal"
 import { MessageInput } from "@/components/MessageInput"
+import { Message as MessageComponent } from "@/components/chat/Message"
+import { TypingIndicator } from "@/components/chat/TypingIndicator"
 import { uploadVoiceMessage } from "@/lib/storage"
+import { TypingIndicatorService } from "@/lib/typingIndicators"
+import { MessageExpirationService } from "@/lib/messageExpiration"
+import { pushNotificationService } from "@/lib/pushNotifications"
+import { type ExpirationTimer, type TypingIndicator as TypingIndicatorType, type Message as MessageType } from "@/lib/types"
 import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
@@ -28,6 +31,7 @@ import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
+import { Timestamp } from 'firebase/firestore'
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -49,6 +53,90 @@ export default function ChatApp() {
   const [showUserList, setShowUserList] = useState(false)
   const [showMobileCallPicker, setShowMobileCallPicker] = useState(false)
   const [onlineUsers, setOnlineUsers] = useState<Array<{ uid: string, userName?: string, photoURL?: string }>>([])
+
+  // New feature states
+  const [typingUsers, setTypingUsers] = useState<TypingIndicatorType[]>([])
+  const [replyToMessage, setReplyToMessage] = useState<MessageType | null>(null)
+
+  // Initialize push notifications on app start
+  useEffect(() => {
+    const initializePushNotifications = async () => {
+      if (!user) return undefined
+
+      try {
+        const result = await pushNotificationService.requestPermission()
+        if (result.permission === 'granted' && result.token) {
+          await pushNotificationService.storeFCMToken(user.uid, result.token)
+
+          // Listen for foreground messages
+          const unsubscribe = pushNotificationService.onForegroundMessage((payload) => {
+            const { notification } = payload
+            if (notification) {
+              pushNotificationService.showLocalNotification(
+                notification.title || 'New Message',
+                {
+                  body: notification.body,
+                  data: payload.data
+                }
+              )
+            }
+          })
+
+          // Store unsubscribe function for cleanup
+          if (unsubscribe) {
+            return unsubscribe
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing push notifications:', error)
+      }
+
+      return undefined
+    }
+
+    initializePushNotifications()
+  }, [user])
+
+  // Initialize message expiration timers
+  useEffect(() => {
+    if (firebaseStatus === 'ready') {
+      MessageExpirationService.initializeExpirationTimers(
+        currentRoomId,
+        currentRoomType
+      )
+    }
+
+    // Cleanup on unmount
+    return () => {
+      MessageExpirationService.cleanup()
+    }
+  }, [firebaseStatus, currentRoomId, currentRoomType])
+
+  // Set up typing indicators
+  useEffect(() => {
+    if (!user) return
+
+    const roomId = currentRoomType === 'lobby' ? 'lobby' : currentRoomId
+    if (!roomId && currentRoomType !== 'lobby') return
+
+    const unsubscribe = TypingIndicatorService.listenToTyping(
+      roomId || 'lobby',
+      user.uid,
+      setTypingUsers
+    )
+
+    return unsubscribe
+  }, [user, currentRoomId, currentRoomType])
+
+  // Cleanup typing indicators on room change
+  useEffect(() => {
+    return () => {
+      if (user && currentRoomId) {
+        const roomId = currentRoomType === 'lobby' ? 'lobby' : currentRoomId
+        TypingIndicatorService.stopTyping(user.uid, roomId || 'lobby')
+      }
+    }
+  }, [currentRoomId, currentRoomType, user])
 
   // Effect to fetch online users for mobile call picker
   useEffect(() => {
@@ -300,6 +388,72 @@ export default function ChatApp() {
     setIsMobileMenuOpen(false) // Close mobile menu when selecting lobby
   }
 
+  // Enhanced message sending with file support, threading, and expiration
+  const handleSendMessage = async (
+    messageText: string,
+    options?: {
+      fileUrl?: string
+      fileName?: string
+      fileSize?: number
+      fileType?: string
+      imageUrl?: string
+      voiceMessageUrl?: string
+      gifUrl?: string
+      replyToId?: string
+      expirationTimer?: ExpirationTimer
+    }
+  ) => {
+    if (!user) {
+      toast({ title: "Authentication Error", description: "You must be logged in to send a message.", variant: "destructive" })
+      return
+    }
+
+    try {
+      // Calculate expiration date if timer is set
+      let expiresAt: Date | null = null
+      if (options?.expirationTimer && options.expirationTimer !== 'never') {
+        expiresAt = MessageExpirationService.calculateExpirationDate(options.expirationTimer)
+      }
+
+      // Prepare message data
+      const messageData: any = {
+        text: messageText,
+        userName: user.displayName || user.email || 'Anonymous',
+        ...options,
+        expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
+        expirationTimer: options?.expirationTimer || 'never'
+      }
+
+      // Add reply context if replying
+      if (options?.replyToId && replyToMessage) {
+        messageData.replyToMessage = {
+          id: replyToMessage.id,
+          text: replyToMessage.text || '',
+          userName: replyToMessage.userName || replyToMessage.displayName,
+          timestamp: replyToMessage.createdAt
+        }
+      }
+
+      await sendMessage(messageText, user, messageData)
+
+      // Schedule expiration if needed
+      if (expiresAt) {
+        // Note: The message ID would need to be returned from sendMessage to schedule properly
+        // For now, we'll rely on the initialization to pick up the timer
+      }
+
+      // Clear reply state
+      setReplyToMessage(null)
+    } catch (error) {
+      console.error("Error sending message:", error)
+      toast({
+        title: "Error Sending Message",
+        description: "Could not send your message. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleRecordingComplete = async (audioBlob: Blob) => {
     if (!user) {
       toast({ title: "Authentication Error", description: "You must be logged in to send a voice message.", variant: "destructive" })
@@ -311,7 +465,7 @@ export default function ChatApp() {
     }
     try {
       const downloadURL = await uploadVoiceMessage(user.uid, audioBlob)
-      await sendMessage("", user, {
+      await handleSendMessage("", {
         voiceMessageUrl: downloadURL
       })
     } catch (error) {
@@ -331,7 +485,7 @@ export default function ChatApp() {
     }
 
     try {
-      await sendMessage("", user, { gifUrl })
+      await handleSendMessage("", { gifUrl })
       setShowGiphyPicker(false)
     } catch (error) {
       console.error("Error sending GIF:", error)
@@ -345,6 +499,101 @@ export default function ChatApp() {
 
   const handleCloseGiphyPicker = (): void => {
     setShowGiphyPicker(false)
+  }
+
+  // Message action handlers
+  const handleEditMessage = async (messageId: string, newText: string) => {
+    if (!user) return
+
+    try {
+      const token = await user.getIdToken()
+
+      let apiUrl: string
+      if (currentRoomType === 'lobby') {
+        apiUrl = '/api/messages'
+      } else if (currentRoomType === 'dm') {
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages`
+      } else {
+        apiUrl = `/api/rooms/${currentRoomId}/messages`
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          messageId,
+          text: newText,
+          action: 'edit'
+        })
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to edit message: ${response.status}`)
+      }
+
+      toast({
+        title: "Message Edited",
+        description: "Your message has been updated.",
+      })
+    } catch (error) {
+      console.error("Error editing message:", error)
+      toast({
+        title: "Edit Error",
+        description: "Could not edit message. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleDeleteMessage = async (messageId: string) => {
+    if (!user) return
+
+    try {
+      const token = await user.getIdToken()
+
+      let apiUrl: string
+      if (currentRoomType === 'lobby') {
+        apiUrl = `/api/messages/${messageId}`
+      } else if (currentRoomType === 'dm') {
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages/${messageId}`
+      } else {
+        apiUrl = `/api/rooms/${currentRoomId}/messages/${messageId}`
+      }
+
+      const response = await fetch(apiUrl, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to delete message: ${response.status}`)
+      }
+
+      toast({
+        title: "Message Deleted",
+        description: "Your message has been removed.",
+      })
+    } catch (error) {
+      console.error("Error deleting message:", error)
+      toast({
+        title: "Delete Error",
+        description: "Could not delete message. Please try again.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleReplyToMessage = (message: MessageType) => {
+    setReplyToMessage(message)
+  }
+
+  const handleCancelReply = () => {
+    setReplyToMessage(null)
   }
 
   const handleLogout = async () => {
@@ -421,111 +670,44 @@ export default function ChatApp() {
     }
   }
 
-  const handleRemoveReaction = async (messageId: string, emoji: string) => {
-    if (!user) return
-
-    console.log('Removing reaction:', { messageId, emoji, currentRoomId, currentRoomType })
-
-    try {
-      const token = await user.getIdToken()
-
-      // Use different API endpoint based on message type
-      let apiUrl: string
-      if (currentRoomType === 'lobby') {
-        apiUrl = '/api/messages/reactions'
-      } else if (currentRoomType === 'dm') {
-        apiUrl = `/api/direct-messages/${currentRoomId}/messages`
-      } else {
-        apiUrl = `/api/rooms/${currentRoomId}/messages`
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          messageId,
-          emoji,
-          action: 'remove'
-        })
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Failed to remove reaction:', response.status, errorText)
-        toast({
-          title: "Error",
-          description: `Failed to remove reaction: ${response.status}`,
-          variant: "destructive"
-        })
-      } else {
-        const result = await response.json()
-        console.log('Reaction removed successfully:', result)
-      }
-    } catch (error) {
-      console.error('Error removing reaction:', error)
-      toast({
-        title: "Error",
-        description: "Failed to remove reaction",
-        variant: "destructive"
-      })
-    }
-  }
-
   const renderMessage = (message: Message) => {
     const isCurrentUser = message.userId === user?.uid
-    const messageDate = message.timestamp?.toDate()
-    const formattedDate = messageDate && isValid(messageDate)
-      ? isToday(messageDate)
-        ? format(messageDate, 'h:mm a')
-        : isYesterday(messageDate)
-          ? `Yesterday at ${format(messageDate, 'h:mm a')}`
-          : format(messageDate, 'MMM d, h:mm a')
-      : ''
+
+    // Convert Message type to MessageType for the new component
+    const messageForComponent: MessageType = {
+      id: message.id,
+      text: message.text,
+      imageUrl: (message as any).imageUrl,
+      gifUrl: message.gifUrl,
+      audioUrl: (message as any).audioUrl,
+      voiceMessageUrl: message.voiceMessageUrl,
+      fileUrl: (message as any).fileUrl,
+      fileName: (message as any).fileName,
+      fileSize: (message as any).fileSize,
+      fileType: (message as any).fileType,
+      uid: message.userId,
+      userName: message.userName,
+      displayName: message.userName,
+      photoURL: message.userPhotoURL || '',
+      createdAt: message.timestamp ? message.timestamp.toDate() : new Date(),
+      updatedAt: message.timestamp ? message.timestamp.toDate() : new Date(),
+      readBy: [],
+      reactions: message.reactions,
+      replyToMessage: (message as any).replyToMessage,
+      expiresAt: (message as any).expiresAt ? ((message as any).expiresAt instanceof Date ? (message as any).expiresAt : (message as any).expiresAt.toDate()) : null,
+      expirationTimer: (message as any).expirationTimer || 'never'
+    }
 
     return (
-      <div
+      <MessageComponent
         key={message.id}
-        className={`flex ${isCurrentUser ? 'justify-end' : 'justify-start'} mb-3 md:mb-4`}
-      >
-        <div className={`flex ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'} items-end gap-2 max-w-[85%] md:max-w-[80%]`}>
-          <Avatar className="h-6 w-6 md:h-8 md:w-8 shrink-0">
-            <AvatarImage src={message.userPhotoURL || undefined} />
-            <AvatarFallback className="text-xs">{message.userName?.[0] || 'U'}</AvatarFallback>
-          </Avatar>
-          <div className={`flex flex-col ${isCurrentUser ? 'items-end' : 'items-start'} min-w-0`}>
-            <div className="flex items-center gap-2 mb-1">
-              <span className="text-xs md:text-sm font-medium text-white truncate">{message.userName}</span>
-              <span className="text-xs text-slate-400 shrink-0">{formattedDate}</span>
-            </div>
-            <div className={`rounded-lg px-3 md:px-4 py-2 min-w-0 ${isCurrentUser ? 'bg-indigo-600 text-white' : 'bg-slate-700 text-white'
-              }`}>
-              {message.text && <p className="whitespace-pre-wrap text-sm md:text-base break-words">{message.text}</p>}
-              {message.voiceMessageUrl && (
-                <AudioPlayer src={message.voiceMessageUrl} />
-              )}
-              {message.gifUrl && (
-                <img
-                  src={message.gifUrl}
-                  alt="GIF"
-                  className="max-w-full rounded-lg"
-                />
-              )}
-            </div>
-            <div className="mt-1">
-              <MessageReactions
-                messageId={message.id}
-                reactions={message.reactions || {}}
-                currentUserId={user?.uid || ''}
-                onReact={handleReaction}
-                onRemoveReaction={handleRemoveReaction}
-              />
-            </div>
-          </div>
-        </div>
-      </div>
+        message={messageForComponent}
+        isCurrentUser={isCurrentUser}
+        onEdit={handleEditMessage}
+        onDelete={handleDeleteMessage}
+        onReply={handleReplyToMessage}
+        onReaction={handleReaction}
+      />
     )
   }
 
@@ -862,18 +1044,24 @@ export default function ChatApp() {
                 )}
 
                 {messages.map(renderMessage)}
+
+                {/* Typing Indicators */}
+                <TypingIndicator typingUsers={typingUsers} />
+
                 <div ref={messagesEndRef} />
               </div>
 
               {/* Input Area */}
               <div className="glass-card rounded-none md:rounded-xl p-3 md:p-4">
                 <MessageInput
-                  onSend={async (message: string) => {
-                    if (!user) return
-                    await sendMessage(message, user)
-                  }}
+                  onSend={handleSendMessage}
                   onVoiceRecording={handleRecordingComplete}
                   onGifSelect={() => setShowGiphyPicker(true)}
+                  replyToMessage={replyToMessage}
+                  onCancelReply={handleCancelReply}
+                  currentUserId={user?.uid}
+                  currentUserName={user?.displayName || user?.email || 'Anonymous'}
+                  roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || undefined}
                 />
               </div>
             </div>

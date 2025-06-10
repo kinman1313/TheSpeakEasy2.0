@@ -35,16 +35,15 @@
     ]
   },
   "include": [
-    "**/*.js",
+    "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
-    "app/**/*",
-    "components/**/*",
-    "lib/**/*",
-    "next-env.d.ts",
     ".next/types/**/*.ts"
   ],
   "exclude": [
-    "node_modules"
+    "node_modules",
+    "Legacy_pages_backup",
+    "**/*_backup*",
+    ".next"
   ]
 }
