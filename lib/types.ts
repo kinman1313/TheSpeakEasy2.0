@@ -49,6 +49,20 @@ export interface MessageSettings {
   notificationSound: string
 }
 
+// Message status types
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read'
+
+// Message expiration options with minimum times
+export const MESSAGE_EXPIRATION_OPTIONS = {
+  '5m': { label: '5 minutes', duration: 5 * 60 * 1000, minDuration: 5 * 60 * 1000 },
+  '1h': { label: '1 hour', duration: 60 * 60 * 1000, minDuration: 60 * 60 * 1000 },
+  '1d': { label: '1 day', duration: 24 * 60 * 60 * 1000, minDuration: 24 * 60 * 60 * 1000 },
+  never: { label: 'Never', duration: null, minDuration: null }
+} as const
+
+export type ExpirationTimer = keyof typeof MESSAGE_EXPIRATION_OPTIONS
+
+// Update Message interface to include status
 export interface Message {
   id: string
   text: string
@@ -70,20 +84,25 @@ export interface Message {
     timestamp: Date
   }
   threadId?: string
+  // Room/DM support
+  roomId?: string
+  dmId?: string
   // Core message data
-  uid: string
+  uid: string // This is the user ID
+  userId: string // Alias for uid for backward compatibility
   userName: string
   displayName: string
   photoURL: string
   createdAt: Date
   updatedAt: Date
   // Message status
+  status: MessageStatus
   readBy: string[]
   isEdited?: boolean
   reactions?: Record<string, string[]> // emoji -> array of userIds
   // Expiration
   expiresAt?: Date | null
-  expirationTimer?: 'immediate' | '5m' | '1h' | '1d' | 'never'
+  expirationTimer?: ExpirationTimer
 }
 
 // Typing indicator interface
@@ -101,17 +120,6 @@ export interface FileUpload {
   uploadProgress?: number
   error?: string
 }
-
-// Message expiration options
-export const MESSAGE_EXPIRATION_OPTIONS = {
-  immediate: { label: 'Immediate', duration: 0 },
-  '5m': { label: '5 minutes', duration: 5 * 60 * 1000 },
-  '1h': { label: '1 hour', duration: 60 * 60 * 1000 },
-  '1d': { label: '1 day', duration: 24 * 60 * 60 * 1000 },
-  never: { label: 'Never', duration: null }
-} as const
-
-export type ExpirationTimer = keyof typeof MESSAGE_EXPIRATION_OPTIONS
 
 // Add the GiphyImage interface to match the Giphy API response
 export interface GiphyImage {
@@ -136,6 +144,13 @@ export interface GiphyImage {
   user?: {
     display_name: string
     avatar_url: string
+  }
+}
+
+// Add CSS property type declarations
+declare module 'csstype' {
+  interface Properties {
+    webkitTouchCallout?: 'none' | 'auto'
   }
 }
 

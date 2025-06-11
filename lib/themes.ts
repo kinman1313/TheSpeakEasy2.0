@@ -1,6 +1,64 @@
 import { db } from './firebase';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 
+export interface Pattern {
+    id: string;
+    name: string;
+    className: string; // CSS class for the pattern
+    preview: string; // SVG or image data URI for preview
+}
+
+export const PATTERNS: Pattern[] = [
+    {
+        id: 'none',
+        name: 'None',
+        className: '',
+        preview: '',
+    },
+    {
+        id: 'subtle-dots',
+        name: 'Subtle Dots',
+        className: 'pattern-subtle-dots',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="2" fill="%23ccc" fill-opacity="0.2"/></svg>',
+    },
+    {
+        id: 'retro-grid',
+        name: 'Retro Grid',
+        className: 'pattern-retro-grid',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="none" stroke="%23fff" stroke-width="0.5"/><line x1="20" y1="0" x2="20" y2="40" stroke="%23fff" stroke-width="0.5"/><line x1="0" y1="20" x2="40" y2="20" stroke="%23fff" stroke-width="0.5"/></svg>',
+    },
+    {
+        id: 'retro-70s',
+        name: 'Retro 70s',
+        className: 'pattern-retro-70s',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="20" cy="20" rx="18" ry="8" fill="%23fbbf24" fill-opacity="0.2"/><ellipse cx="20" cy="20" rx="10" ry="4" fill="%23f87171" fill-opacity="0.2"/></svg>',
+    },
+    {
+        id: 'retro-80s',
+        name: 'Retro 80s',
+        className: 'pattern-retro-80s',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%23a21caf" fill-opacity="0.1"/><circle cx="30" cy="10" r="6" fill="%23f472b6" fill-opacity="0.3"/></svg>',
+    },
+    {
+        id: 'neon-future',
+        name: 'Neon Future',
+        className: 'pattern-neon-future',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%2300f0ff" fill-opacity="0.08"/><line x1="0" y1="40" x2="40" y2="0" stroke="%23f0f" stroke-width="2"/></svg>',
+    },
+    {
+        id: 'cyberpunk',
+        name: 'Cyberpunk',
+        className: 'pattern-cyberpunk',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%2300f0ff" fill-opacity="0.05"/><rect x="10" y="10" width="20" height="20" fill="%23f0f" fill-opacity="0.1"/></svg>',
+    },
+    {
+        id: 'matrix',
+        name: 'Matrix',
+        className: 'pattern-matrix',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" fill="%23000"/><text x="5" y="20" font-size="12" fill="%230f0" fill-opacity="0.5">101</text></svg>',
+    },
+];
+
 export interface Theme {
     id: string;
     name: string;
@@ -17,6 +75,7 @@ export interface Theme {
         '--glass-color-rgb': string;
         '--neon-glow-color': string;
     };
+    pattern?: string; // pattern id
 }
 
 export const THEMES: Theme[] = [

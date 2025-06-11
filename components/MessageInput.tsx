@@ -11,6 +11,8 @@ import { VoiceRecorder } from "@/components/audio/VoiceRecorder"
 import { uploadFile, uploadImage, formatFileSize, getFileIcon } from "@/lib/storage"
 import { MESSAGE_EXPIRATION_OPTIONS, type ExpirationTimer, type FileUpload, type Message } from "@/lib/types"
 import { TypingIndicatorService } from "@/lib/typingIndicators"
+import { MessageExpirationService } from "@/lib/messageExpiration"
+import { toast } from "sonner"
 
 interface MessageInputProps {
   onSend: (message: string, options?: {
@@ -55,25 +57,59 @@ export function MessageInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Typing indicators
+  // Typing indicators with improved debouncing
   useEffect(() => {
     if (!currentUserId || !currentUserName || !roomId) return
 
+    let typingTimeout: NodeJS.Timeout
+
     const handleTyping = () => {
-      if (message.trim()) {
-        TypingIndicatorService.debounceTyping(currentUserId, currentUserName, roomId)
+      const currentMessage = inputRef.current?.value || ''
+
+      if (currentMessage.trim()) {
+        // User is typing - start/continue typing indicator
+        TypingIndicatorService.startTyping(currentUserId, currentUserName, roomId)
+
+        // Clear existing timeout
+        if (typingTimeout) {
+          clearTimeout(typingTimeout)
+        }
+
+        // Set timeout to stop typing after 3 seconds of inactivity
+        typingTimeout = setTimeout(() => {
+          TypingIndicatorService.stopTyping(currentUserId, roomId)
+        }, 3000)
       } else {
+        // User cleared the input - stop typing immediately
         TypingIndicatorService.stopTyping(currentUserId, roomId)
+        if (typingTimeout) {
+          clearTimeout(typingTimeout)
+        }
       }
     }
 
-    handleTyping()
+    // Add event listeners for various input events
+    const inputElement = inputRef.current
+    if (inputElement) {
+      inputElement.addEventListener('input', handleTyping)
+      inputElement.addEventListener('keyup', handleTyping)
+      inputElement.addEventListener('paste', handleTyping)
+    }
 
-    // Cleanup on unmount
+    // Cleanup on unmount or dependency change
     return () => {
+      if (inputElement) {
+        inputElement.removeEventListener('input', handleTyping)
+        inputElement.removeEventListener('keyup', handleTyping)
+        inputElement.removeEventListener('paste', handleTyping)
+      }
+      if (typingTimeout) {
+        clearTimeout(typingTimeout)
+      }
+      // Always stop typing when component unmounts
       TypingIndicatorService.stopTyping(currentUserId, roomId)
     }
-  }, [message, currentUserId, currentUserName, roomId])
+  }, [currentUserId, currentUserName, roomId]) // Remove message from dependencies to avoid excessive re-renders
 
   const handleEmojiSelect = (emoji: string) => {
     const newMessage = message + emoji
@@ -85,7 +121,9 @@ export function MessageInput({
   const handleSend = async () => {
     if ((!message.trim() && fileUploads.length === 0) || disabled || isUploading) return
 
-    let sendOptions: any = {}
+    let sendOptions: any = {
+      status: 'sending' // Initial status
+    }
 
     // Handle file uploads first
     if (fileUploads.length > 0) {
@@ -106,7 +144,6 @@ export function MessageInput({
         }
       } catch (error) {
         console.error('Error uploading file:', error)
-        // You might want to show an error toast here
         setIsUploading(false)
         return
       }
@@ -118,8 +155,12 @@ export function MessageInput({
       sendOptions.replyToId = replyToMessage.id
     }
 
-    // Add expiration timer
+    // Add expiration timer with validation
     if (expirationTimer !== 'never') {
+      if (!MessageExpirationService.validateExpirationTimer(expirationTimer)) {
+        toast.error("Please select a valid expiration time (minimum 5 minutes).")
+        return
+      }
       sendOptions.expirationTimer = expirationTimer
     }
 
@@ -151,9 +192,18 @@ export function MessageInput({
     const files = Array.from(e.target.files || [])
     if (files.length === 0) return
 
-    const newUploads: FileUpload[] = files.map(file => {
-      const upload: FileUpload = { file }
+    const supportedAudioTypes = [
+      'audio/webm', 'audio/mp3', 'audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/m4a'
+    ]
 
+    const newUploads: FileUpload[] = []
+    for (const file of files) {
+      // Only allow supported audio types
+      if (file.type.startsWith('audio/') && !supportedAudioTypes.includes(file.type)) {
+        alert('Unsupported audio format. Please upload .mp3, .m4a, or .webm files.')
+        continue
+      }
+      const upload: FileUpload = { file }
       // Create preview for images
       if (file.type.startsWith('image/')) {
         const reader = new FileReader()
@@ -163,12 +213,9 @@ export function MessageInput({
         }
         reader.readAsDataURL(file)
       }
-
-      return upload
-    })
-
+      newUploads.push(upload)
+    }
     setFileUploads(prev => [...prev, ...newUploads])
-
     // Clear the file input
     if (fileInputRef.current) {
       fileInputRef.current.value = ''
@@ -186,7 +233,10 @@ export function MessageInput({
   }
 
   return (
-    <div className="border-t p-2 md:p-4 bg-background">
+    <div
+      className="w-full z-20 bg-glass/80 backdrop-blur-md border-t border-glass/30 px-2 py-2 fixed bottom-0 left-0 right-0 md:static md:rounded-b-lg md:backdrop-blur-none md:bg-transparent"
+      style={{ maxWidth: 600, margin: '0 auto' }}
+    >
       {/* Emoji Picker Modal */}
       {isEmojiPickerOpen && (
         <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
@@ -217,7 +267,7 @@ export function MessageInput({
             </div>
           </div>
           {onCancelReply && (
-            <Button variant="ghost" size="sm" onClick={onCancelReply}>
+            <Button variant="ghost" size="sm" onClick={onCancelReply} className="tap-feedback">
               <X className="h-4 w-4" />
             </Button>
           )}
@@ -251,6 +301,7 @@ export function MessageInput({
                 size="sm"
                 onClick={() => removeFileUpload(index)}
                 disabled={isUploading}
+                className="tap-feedback"
               >
                 <X className="h-4 w-4" />
               </Button>
@@ -286,7 +337,7 @@ export function MessageInput({
         multiple
         className="hidden"
         onChange={handleFileSelect}
-        accept="image/*,video/*,audio/*,.pdf,.doc,.docx,.txt,.zip,.rar"
+        accept="image/*,video/*,audio/webm,audio/mp3,audio/mpeg,audio/mp4,audio/x-m4a,audio/m4a,.mp3,.m4a,.pdf,.doc,.docx,.txt,.zip,.rar"
         aria-label="Upload file"
       />
 
@@ -296,7 +347,7 @@ export function MessageInput({
           variant="ghost"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
-          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
+          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation tap-feedback"
           title="Upload File"
           disabled={disabled || isUploading}
         >
@@ -308,7 +359,7 @@ export function MessageInput({
           variant="ghost"
           size="icon"
           onClick={handleGifClick}
-          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
+          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation tap-feedback"
           title="Add GIF"
           disabled={disabled}
         >
@@ -320,7 +371,7 @@ export function MessageInput({
           variant="ghost"
           size="icon"
           onClick={() => setIsEmojiPickerOpen(!isEmojiPickerOpen)}
-          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
+          className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation tap-feedback"
           title="Add Emoji"
           disabled={disabled}
         >
@@ -332,7 +383,7 @@ export function MessageInput({
           variant="ghost"
           size="icon"
           onClick={() => fileInputRef.current?.click()}
-          className="hidden sm:flex text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation"
+          className="hidden sm:flex text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation tap-feedback"
           title="Attach File"
           disabled={disabled || isUploading}
         >
@@ -355,7 +406,7 @@ export function MessageInput({
           <Button
             onClick={handleSend}
             size="icon"
-            className="rounded-full h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0"
+            className="rounded-full h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0 tap-feedback"
             title="Send Message"
             disabled={disabled || isUploading}
           >
@@ -370,7 +421,7 @@ export function MessageInput({
             variant="ghost"
             size="icon"
             onClick={() => setIsRecording(true)}
-            className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0"
+            className="text-muted-foreground hover:text-foreground h-9 w-9 md:h-10 md:w-10 touch-manipulation shrink-0 tap-feedback"
             title="Record Voice Message"
             disabled={disabled}
           >

@@ -1,15 +1,27 @@
 "use client"
 
-import { useState, useRef, useEffect } from "react"
+import { useState, useRef, useEffect, useContext } from "react"
 import Image from "next/image"
 import { formatDistanceToNow } from "date-fns"
-import { Edit, Trash2, Reply, Download, ExternalLink, Clock } from "lucide-react"
+import { Edit, Trash2, Reply, Download, ExternalLink, Clock, MessageSquare, Bell, BellOff, Check, CheckCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { AudioPlayer } from "@/components/chat/AudioPlayer"
 import { formatFileSize, getFileIcon } from "@/lib/storage"
 import { MessageExpirationService } from "@/lib/messageExpiration"
-import { type Message as MessageType } from "@/lib/types"
+import { type Message as MessageType, type MessageStatus } from "@/lib/types"
 import { cn } from "@/lib/utils"
+import { MessageStatus as MessageStatusComponent } from "@/components/chat/MessageStatus"
+import { MESSAGE_EXPIRATION_OPTIONS } from "@/lib/types"
+import { AuthContext } from '@/components/auth/AuthContext'
+import { ThreadNotificationService } from '@/lib/threadNotifications'
+import { toast } from 'react-hot-toast'
+import { MessageReactions } from "@/components/chat/MessageReactions"
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 
 interface MessageProps {
     message: MessageType
@@ -18,7 +30,25 @@ interface MessageProps {
     onDelete?: (messageId: string) => void
     onReply?: (message: MessageType) => void
     onReaction?: (messageId: string, emoji: string) => void
+    onExpire: (messageId: string, duration: number) => void
+    onThreadClick: (message: MessageType) => void
+    isThreadView?: boolean
     className?: string
+}
+
+const MessageStatus = ({ status }: { status: MessageStatus }) => {
+    switch (status) {
+        case 'sending':
+            return <span className="text-xs text-muted-foreground">Sending...</span>
+        case 'sent':
+            return <Check className="h-3 w-3 text-muted-foreground" />
+        case 'delivered':
+            return <CheckCheck className="h-3 w-3 text-muted-foreground" />
+        case 'read':
+            return <CheckCheck className="h-3 w-3 text-blue-500" />
+        default:
+            return null
+    }
 }
 
 export function Message({
@@ -28,20 +58,35 @@ export function Message({
     onDelete,
     onReply,
     onReaction,
+    onExpire,
+    onThreadClick,
+    isThreadView = false,
     className
 }: MessageProps) {
+    const { user } = useContext(AuthContext)
     const [isEditing, setIsEditing] = useState(false)
     const [editText, setEditText] = useState(message.text)
     const [expirationInfo, setExpirationInfo] = useState<string>('')
     const editInputRef = useRef<HTMLInputElement>(null)
+    const [isSubscribed, setIsSubscribed] = useState(false)
+    const [showActions, setShowActions] = useState(false)
 
     // Update expiration info
     useEffect(() => {
-        if (message.expiresAt && message.expirationTimer) {
+        if (message.expiresAt) {
             const updateExpirationInfo = () => {
+                let expirationDate: Date;
+                if (message.expiresAt instanceof Date) {
+                    expirationDate = message.expiresAt;
+                } else if (typeof message.expiresAt === 'string') {
+                    expirationDate = new Date(message.expiresAt);
+                } else {
+                    return; // Skip if not a valid date
+                }
+
                 const info = MessageExpirationService.getExpirationInfo(
-                    message.expiresAt || null,
-                    message.expirationTimer!
+                    expirationDate,
+                    message.expirationTimer || 'never'
                 )
                 setExpirationInfo(info)
             }
@@ -63,6 +108,14 @@ export function Message({
         }
     }, [isEditing])
 
+    useEffect(() => {
+        if (user && message.threadId) {
+            ThreadNotificationService.getThreadSubscriptionStatus(message.threadId, user.uid)
+                .then(setIsSubscribed)
+                .catch(console.error)
+        }
+    }, [user, message.threadId])
+
     const handleEdit = () => {
         if (onEdit && editText.trim() !== message.text) {
             onEdit(message.id, editText.trim())
@@ -79,10 +132,6 @@ export function Message({
         }
     }
 
-    const formatTimestamp = (date: Date) => {
-        return formatDistanceToNow(new Date(date), { addSuffix: true })
-    }
-
     const handleFileDownload = (url: string, fileName: string) => {
         const link = document.createElement('a')
         link.href = url
@@ -92,6 +141,40 @@ export function Message({
         link.click()
         document.body.removeChild(link)
     }
+
+    const handleSubscribeToggle = async () => {
+        if (!user || !message.threadId) return
+
+        try {
+            if (isSubscribed) {
+                await ThreadNotificationService.unsubscribeFromThread(message.threadId, user.uid)
+                toast.success('Unsubscribed from thread notifications')
+            } else {
+                await ThreadNotificationService.subscribeToThread(message.threadId, user.uid)
+                toast.success('Subscribed to thread notifications')
+            }
+            setIsSubscribed(!isSubscribed)
+        } catch (error) {
+            console.error('Error toggling thread subscription:', error)
+            toast.error('Failed to update thread subscription')
+        }
+    }
+
+    const handleExpire = (duration: number) => {
+        onExpire(message.id, duration)
+        toast.success(`Message will expire in ${duration} minutes`)
+    }
+
+    const handleReaction = (messageId: string, emoji: string) => {
+        if (!user) return;
+        if (message.reactions && message.reactions[emoji]?.includes(user.uid)) {
+            // Remove reaction
+            onReaction && onReaction(messageId, emoji);
+        } else {
+            // Add reaction
+            onReaction && onReaction(messageId, emoji);
+        }
+    };
 
     const renderFileAttachment = () => {
         if (!message.fileUrl) return null
@@ -194,77 +277,52 @@ export function Message({
         )
     }
 
-    const renderReactions = () => {
-        if (!message.reactions) return null
-
-        const reactionEntries = Object.entries(message.reactions)
-        if (reactionEntries.length === 0) return null
+    const renderMessageStatus = () => {
+        if (!isCurrentUser) return null
 
         return (
-            <div className="flex flex-wrap gap-1 mt-2">
-                {reactionEntries.map(([emoji, userIds]) => (
-                    <button
-                        key={emoji}
-                        onClick={() => onReaction?.(message.id, emoji)}
-                        className="flex items-center gap-1 px-2 py-1 bg-muted hover:bg-muted/80 rounded-full text-xs transition-colors"
-                    >
-                        <span>{emoji}</span>
-                        <span className="text-muted-foreground">{userIds.length}</span>
-                    </button>
-                ))}
+            <div className="flex items-center gap-1 mt-1">
+                <MessageStatusComponent status={message.status || 'sent'} />
+                {message.readBy.length > 0 && (
+                    <span className="text-xs text-muted-foreground">
+                        Read by {message.readBy.length}
+                    </span>
+                )}
             </div>
         )
     }
 
     return (
-        <div className={cn(
-            "group flex gap-3 p-2 md:p-3 hover:bg-accent/50 transition-colors",
-            isCurrentUser && "flex-row-reverse",
-            className
-        )}>
-            {/* Avatar */}
-            <div className="flex-shrink-0">
-                {message.photoURL ? (
-                    <Image
-                        src={message.photoURL}
-                        alt={message.displayName || message.userName}
-                        width={32}
-                        height={32}
-                        className="rounded-full"
-                    />
-                ) : (
-                    <div className="w-8 h-8 bg-primary rounded-full flex items-center justify-center">
-                        <span className="text-primary-foreground text-sm font-semibold">
-                            {(message.displayName || message.userName || 'U').charAt(0).toUpperCase()}
-                        </span>
-                    </div>
-                )}
+        <div
+            className={cn(
+                `relative group p-4 rounded-lg tap-feedback`,
+                isCurrentUser
+                    ? 'bg-blue-100 dark:bg-blue-900 ml-auto'
+                    : 'bg-gray-100 dark:bg-gray-800',
+                'max-w-[80%] mb-4',
+                className
+            )}
+            onMouseEnter={() => setShowActions(true)}
+            onMouseLeave={() => setShowActions(false)}
+        >
+            {/* Message Header */}
+            <div className="flex items-center justify-between mb-2 tap-feedback">
+                <div className="flex items-center space-x-2 tap-feedback">
+                    <span className="font-semibold">{message.userName}</span>
+                    <span className="text-sm text-gray-500">
+                        {formatDistanceToNow(
+                            message.createdAt instanceof Date
+                                ? message.createdAt
+                                : new Date(message.createdAt),
+                            { addSuffix: true }
+                        )}
+                    </span>
+                </div>
+                <MessageStatus status={message.status} />
             </div>
 
             {/* Message Content */}
             <div className={cn("flex-1 min-w-0", isCurrentUser && "text-right")}>
-                {/* Header */}
-                <div className={cn(
-                    "flex items-center gap-2 mb-1",
-                    isCurrentUser && "flex-row-reverse"
-                )}>
-                    <span className="font-semibold text-sm">
-                        {message.displayName || message.userName}
-                    </span>
-                    <span className="text-xs text-muted-foreground">
-                        {formatTimestamp(message.createdAt)}
-                    </span>
-                    {message.isEdited && (
-                        <span className="text-xs text-muted-foreground">(edited)</span>
-                    )}
-                    {expirationInfo && expirationInfo !== 'Never expires' && (
-                        <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Clock className="h-3 w-3" />
-                            <span>{expirationInfo}</span>
-                        </div>
-                    )}
-                </div>
-
                 {/* Reply indicator */}
                 {renderReplyTo()}
 
@@ -295,6 +353,9 @@ export function Message({
                 <div className={cn(isCurrentUser && "flex justify-end")}>
                     {renderFileAttachment()}
                 </div>
+
+                {/* Message Status */}
+                {renderMessageStatus()}
 
                 {/* Legacy image support */}
                 {message.imageUrl && (
@@ -339,48 +400,96 @@ export function Message({
                 )}
 
                 {/* Reactions */}
-                {renderReactions()}
+                <MessageReactions
+                    messageId={message.id}
+                    reactions={message.reactions || {}}
+                    currentUserId={user?.uid || ""}
+                    onReact={handleReaction}
+                    onRemoveReaction={handleReaction}
+                />
             </div>
 
-            {/* Message Actions - Simplified for now */}
-            <div className={cn(
-                "opacity-0 group-hover:opacity-100 transition-opacity flex gap-1",
-                isCurrentUser && "order-first"
-            )}>
-                {onReply && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => onReply(message)}
+            {/* Message Actions - Always visible on mobile, hover on desktop */}
+            {showActions && (
+                <div className="absolute top-2 right-2 flex space-x-2 bg-white dark:bg-gray-900 rounded-lg shadow-lg p-2">
+                    <button
+                        onClick={() => onReply && onReply(message)}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
                         title="Reply"
                     >
-                        <Reply className="h-3 w-3" />
-                    </Button>
-                )}
-                {isCurrentUser && onEdit && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0"
-                        onClick={() => setIsEditing(true)}
-                        title="Edit"
-                    >
-                        <Edit className="h-3 w-3" />
-                    </Button>
-                )}
-                {isCurrentUser && onDelete && (
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-6 w-6 p-0 text-destructive hover:text-destructive"
-                        onClick={() => onDelete(message.id)}
-                        title="Delete"
-                    >
-                        <Trash2 className="h-3 w-3" />
-                    </Button>
-                )}
-            </div>
+                        <Reply className="w-4 h-4" />
+                    </button>
+                    {isCurrentUser && (
+                        <>
+                            <button
+                                onClick={() => onDelete && onDelete(message.id)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-red-500 tap-feedback"
+                                title="Delete"
+                            >
+                                <Trash2 className="w-4 h-4" />
+                            </button>
+                            <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                    <button
+                                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
+                                        title="Set expiration"
+                                    >
+                                        <Clock className="w-4 h-4" />
+                                    </button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent>
+                                    {Object.entries(MESSAGE_EXPIRATION_OPTIONS).map(([key, option]) => (
+                                        <DropdownMenuItem
+                                            key={key}
+                                            onClick={() => {
+                                                if (key === 'never') {
+                                                    onExpire(message.id, 0)
+                                                } else if (option.duration) {
+                                                    const minutes = option.duration / (1000 * 60)
+                                                    onExpire(message.id, minutes)
+                                                }
+                                            }}
+                                        >
+                                            {option.label}
+                                        </DropdownMenuItem>
+                                    ))}
+                                </DropdownMenuContent>
+                            </DropdownMenu>
+                        </>
+                    )}
+                    {message.threadId && !isThreadView && (
+                        <>
+                            <button
+                                onClick={() => onThreadClick(message)}
+                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
+                                title="View thread"
+                            >
+                                <MessageSquare className="w-4 h-4" />
+                            </button>
+                            <button
+                                onClick={handleSubscribeToggle}
+                                className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback ${isSubscribed ? 'text-blue-500' : ''
+                                    }`}
+                                title={isSubscribed ? 'Unsubscribe from thread' : 'Subscribe to thread'}
+                            >
+                                {isSubscribed ? (
+                                    <Bell className="w-4 h-4" />
+                                ) : (
+                                    <BellOff className="w-4 h-4" />
+                                )}
+                            </button>
+                        </>
+                    )}
+                </div>
+            )}
+
+            {/* Expiration Info */}
+            {expirationInfo && (
+                <div className="mt-1 text-xs text-muted-foreground flex items-center gap-1">
+                    <Clock className="w-3 h-3" />
+                    <span>{expirationInfo}</span>
+                </div>
+            )}
         </div>
     )
 } 

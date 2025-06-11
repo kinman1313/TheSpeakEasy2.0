@@ -7,6 +7,8 @@ import type { Message, SimpleUser } from "@/lib/types"
 import { MessageReactions } from "@/components/chat/MessageReactions"
 import { soundManager } from "@/lib/soundManager"
 import { useAuth } from "@/components/auth/AuthProvider"
+import { MessageExpirationService } from "@/lib/messageExpiration"
+import { TypingIndicator } from "@/components/chat/TypingIndicator"
 
 interface MessageListProps {
   messages: Message[]
@@ -19,6 +21,21 @@ export function MessageList({ messages, currentUser, roomId, isDM = false }: Mes
   const { user } = useAuth()
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const [lastMessageCount, setLastMessageCount] = useState(messages.length)
+
+  // Initialize expiration timers for messages
+  useEffect(() => {
+    if (messages.length > 0) {
+      MessageExpirationService.initializeExpirationTimers(
+        roomId,
+        isDM ? 'dm' : 'room'
+      )
+    }
+
+    // Cleanup on unmount
+    return () => {
+      MessageExpirationService.cleanup()
+    }
+  }, [messages.length, roomId, isDM])
 
   useEffect(() => {
     scrollToBottom()
@@ -149,6 +166,15 @@ export function MessageList({ messages, currentUser, roomId, isDM = false }: Mes
         )
       })}
       <div ref={messagesEndRef} />
+
+      {/* Typing Indicator */}
+      {currentUser && (
+        <TypingIndicator
+          roomId={roomId}
+          currentUserId={currentUser.uid}
+          className="sticky bottom-0 bg-background/80 backdrop-blur-sm p-2"
+        />
+      )}
     </div>
   )
 }

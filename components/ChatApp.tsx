@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db, rtdb } from "@/lib/firebase"
 import { useToast } from "@/components/ui/toast"
-import { useRoomMessages, Message } from "@/lib/hooks/useRoomMessages"
+import { useRoomMessages } from "@/lib/hooks/useRoomMessages"
 import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
@@ -18,11 +18,12 @@ import UserSettingsModal from "@/components/user/UserSettingsModal"
 import { MessageInput } from "@/components/MessageInput"
 import { Message as MessageComponent } from "@/components/chat/Message"
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
+import { ThreadView } from "@/components/chat/ThreadView"
 import { uploadVoiceMessage } from "@/lib/storage"
 import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
-import { type ExpirationTimer, type TypingIndicator as TypingIndicatorType, type Message as MessageType } from "@/lib/types"
+import { type ExpirationTimer, type Message as MessageType } from "@/lib/types"
 import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
@@ -30,7 +31,7 @@ import { useRouter } from "next/navigation"
 import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
-import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
+import { ref, onValue, query, orderByChild, equalTo, set } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
 
 export default function ChatApp() {
@@ -47,6 +48,7 @@ export default function ChatApp() {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
   const [currentRoomType, setCurrentRoomType] = useState<'lobby' | 'room' | 'dm'>('lobby')
   const [currentRoomName, setCurrentRoomName] = useState<string>("Lobby")
+  const [selectedThread, setSelectedThread] = useState<MessageType | null>(null)
 
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -55,7 +57,6 @@ export default function ChatApp() {
   const [onlineUsers, setOnlineUsers] = useState<Array<{ uid: string, userName?: string, photoURL?: string }>>([])
 
   // New feature states
-  const [typingUsers, setTypingUsers] = useState<TypingIndicatorType[]>([])
   const [replyToMessage, setReplyToMessage] = useState<MessageType | null>(null)
 
   // Initialize push notifications on app start
@@ -119,13 +120,12 @@ export default function ChatApp() {
     const roomId = currentRoomType === 'lobby' ? 'lobby' : currentRoomId
     if (!roomId && currentRoomType !== 'lobby') return
 
-    const unsubscribe = TypingIndicatorService.listenToTyping(
-      roomId || 'lobby',
-      user.uid,
-      setTypingUsers
-    )
-
-    return unsubscribe
+    // Cleanup on unmount
+    return () => {
+      if (user) {
+        TypingIndicatorService.stopTyping(user.uid, roomId || 'lobby')
+      }
+    }
   }, [user, currentRoomId, currentRoomType])
 
   // Cleanup typing indicators on room change
@@ -353,7 +353,7 @@ export default function ChatApp() {
     // Play sound for new messages from others
     if (messages.length > previousMessageCount.current && previousMessageCount.current > 0) {
       const newMessages = messages.slice(previousMessageCount.current)
-      const hasNewMessageFromOthers = newMessages.some(msg => msg.userId !== user?.uid)
+      const hasNewMessageFromOthers = newMessages.some(msg => msg.uid !== user?.uid)
 
       if (hasNewMessageFromOthers) {
         if (currentRoomType === 'dm') {
@@ -401,6 +401,7 @@ export default function ChatApp() {
       gifUrl?: string
       replyToId?: string
       expirationTimer?: ExpirationTimer
+      threadId?: string
     }
   ) => {
     if (!user) {
@@ -421,7 +422,8 @@ export default function ChatApp() {
         userName: user.displayName || user.email || 'Anonymous',
         ...options,
         expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
-        expirationTimer: options?.expirationTimer || 'never'
+        expirationTimer: options?.expirationTimer || 'never',
+        status: 'sending' // Initial status
       }
 
       // Add reply context if replying
@@ -434,12 +436,41 @@ export default function ChatApp() {
         }
       }
 
-      await sendMessage(messageText, user, messageData)
+      // Send message and get the message ID
+      const messageId = await sendMessage(messageText, user, messageData)
+
+      // Update message status to 'sent'
+      if (messageId) {
+        const messageRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/status`)
+        await set(messageRef, 'sent')
+
+        // Listen for delivery status
+        const deliveryRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/delivered`)
+        onValue(deliveryRef, (snapshot) => {
+          const delivered = snapshot.val()
+          if (delivered) {
+            set(messageRef, 'delivered')
+          }
+        })
+
+        // Listen for read status
+        const readRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/read`)
+        onValue(readRef, (snapshot) => {
+          const read = snapshot.val()
+          if (read) {
+            set(messageRef, 'read')
+          }
+        })
+      }
 
       // Schedule expiration if needed
       if (expiresAt) {
-        // Note: The message ID would need to be returned from sendMessage to schedule properly
-        // For now, we'll rely on the initialization to pick up the timer
+        MessageExpirationService.scheduleMessageExpiration(
+          messageId,
+          expiresAt,
+          currentRoomId || 'lobby',
+          currentRoomType
+        )
       }
 
       // Clear reply state
@@ -625,14 +656,14 @@ export default function ChatApp() {
     try {
       const token = await user.getIdToken()
 
-      // Use different API endpoint based on message type
+      // Use proper RESTful API endpoints
       let apiUrl: string
       if (currentRoomType === 'lobby') {
         apiUrl = '/api/messages/reactions'
       } else if (currentRoomType === 'dm') {
-        apiUrl = `/api/direct-messages/${currentRoomId}/messages`
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages/${messageId}/reactions`
       } else {
-        apiUrl = `/api/rooms/${currentRoomId}/messages`
+        apiUrl = `/api/rooms/${currentRoomId}/messages/${messageId}/reactions`
       }
 
       const response = await fetch(apiUrl, {
@@ -642,7 +673,6 @@ export default function ChatApp() {
           'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
-          messageId,
           emoji,
           action: 'add'
         })
@@ -670,43 +700,60 @@ export default function ChatApp() {
     }
   }
 
-  const renderMessage = (message: Message) => {
-    const isCurrentUser = message.userId === user?.uid
+  const handleExpire = async (messageId: string, duration: number) => {
+    if (!user) return
 
-    // Convert Message type to MessageType for the new component
-    const messageForComponent: MessageType = {
-      id: message.id,
-      text: message.text,
-      imageUrl: (message as any).imageUrl,
-      gifUrl: message.gifUrl,
-      audioUrl: (message as any).audioUrl,
-      voiceMessageUrl: message.voiceMessageUrl,
-      fileUrl: (message as any).fileUrl,
-      fileName: (message as any).fileName,
-      fileSize: (message as any).fileSize,
-      fileType: (message as any).fileType,
-      uid: message.userId,
-      userName: message.userName,
-      displayName: message.userName,
-      photoURL: message.userPhotoURL || '',
-      createdAt: message.timestamp ? message.timestamp.toDate() : new Date(),
-      updatedAt: message.timestamp ? message.timestamp.toDate() : new Date(),
-      readBy: [],
-      reactions: message.reactions,
-      replyToMessage: (message as any).replyToMessage,
-      expiresAt: (message as any).expiresAt ? ((message as any).expiresAt instanceof Date ? (message as any).expiresAt : (message as any).expiresAt.toDate()) : null,
-      expirationTimer: (message as any).expirationTimer || 'never'
+    try {
+      const token = await user.getIdToken()
+      const response = await fetch(`/api/messages/${messageId}/expire`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ minutes: duration })
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to set message expiration')
+      }
+
+      toast({
+        title: "Message Expiration Set",
+        description: `Message will expire in ${duration} minutes`,
+      })
+    } catch (error) {
+      console.error('Error setting message expiration:', error)
+      toast({
+        title: "Error",
+        description: "Failed to set message expiration",
+        variant: "destructive",
+      })
     }
+  }
+
+  const handleThreadClick = (message: MessageType) => {
+    setSelectedThread(message)
+  }
+
+  const handleBackToChat = () => {
+    setSelectedThread(null)
+  }
+
+  const renderMessage = (message: MessageType) => {
+    const isCurrentUser = message.uid === user?.uid
 
     return (
       <MessageComponent
         key={message.id}
-        message={messageForComponent}
+        message={message}
         isCurrentUser={isCurrentUser}
         onEdit={handleEditMessage}
         onDelete={handleDeleteMessage}
         onReply={handleReplyToMessage}
         onReaction={handleReaction}
+        onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
+        onThreadClick={handleThreadClick}
       />
     )
   }
@@ -1043,12 +1090,36 @@ export default function ChatApp() {
                   </div>
                 )}
 
-                {messages.map(renderMessage)}
+                {selectedThread ? (
+                  <ThreadView
+                    threadId={selectedThread.threadId!}
+                    parentMessage={selectedThread}
+                    messages={messages.filter(m => m.threadId === selectedThread.threadId)}
+                    currentUser={{
+                      uid: user.uid,
+                      displayName: user.displayName || user.email || 'Anonymous',
+                      photoURL: user.photoURL
+                    }}
+                    onClose={handleBackToChat}
+                    onSendMessage={(content) => handleSendMessage(content, { threadId: selectedThread.threadId })}
+                    onDeleteMessage={handleDeleteMessage}
+                    onReply={handleReplyToMessage}
+                    onExpire={handleExpire}
+                    onThreadClick={handleThreadClick}
+                  />
+                ) : (
+                  <>
+                    {messages.map(renderMessage)}
+                    <div ref={messagesEndRef} />
+                  </>
+                )}
 
                 {/* Typing Indicators */}
-                <TypingIndicator typingUsers={typingUsers} />
-
-                <div ref={messagesEndRef} />
+                <TypingIndicator
+                  roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || ''}
+                  currentUserId={user.uid}
+                  className="sticky bottom-0 bg-background/80 backdrop-blur-sm p-2"
+                />
               </div>
 
               {/* Input Area */}

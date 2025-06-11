@@ -88,7 +88,7 @@ export const useWebRTC = (): WebRTCContextType => {
 };
 
 export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user: currentUser } = useAuth();
+  const { user } = useAuth();
   const [peerConnection, setPeerConnection] = useState<RTCPeerConnection | null>(null);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [remoteStream, setRemoteStream] = useState<MediaStream | null>(null);
@@ -107,6 +107,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [microphonePermission, setMicrophonePermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [signalingError, setSignalingError] = useState<Error | null>(null);
 
+  const [pendingCandidates, setPendingCandidates] = useState<RTCIceCandidate[]>([]);
+
   const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
   const offerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const disconnectedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -120,13 +122,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Clean up any stale offers when component initializes
   useEffect(() => {
-    if (currentUser && rtdb && callStatus === 'idle') {
-      const offerPath = `signaling/${currentUser.uid}/offer`;
+    if (user && rtdb && callStatus === 'idle') {
+      const offerPath = `signaling/${user.uid}/offer`;
       remove(ref(rtdb, offerPath)).catch(e =>
         console.warn("Could not remove stale offer on init:", e)
       );
     }
-  }, [currentUser, rtdb]); // Only run when user or rtdb changes
+  }, [user, rtdb]); // Only run when user or rtdb changes
 
   const clearOfferTimeout = () => {
     if (offerTimeoutRef.current) {
@@ -142,119 +144,111 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
   };
 
-  const initializePeerConnection = useCallback((currentUserId: string, peerId: string): RTCPeerConnection => {
-    if (!rtdb) {
-      const err = new Error("RTDB not available");
-      setSignalingError(err); setCallStatus("error"); throw err;
-    }
-    // Ensure any existing peer connection is closed before creating a new one
-    if (peerConnection) {
-      console.log("Closing existing peer connection before creating a new one in initializePeerConnection.");
-      // peerConnection.close(); // This might be too aggressive if we're just re-initializing for a new call partner
-    }
-
-    const pc = new RTCPeerConnection(configuration);
-    console.log(`RTCPeerConnection created for peer: ${peerId}`);
-
-    pc.onicecandidate = (event) => {
-      if (event.candidate && peerId) {
-        console.log("Sending ICE candidate to", peerId);
-        const candidatePath = `signaling/${peerId}/iceCandidates/${currentUserId}`;
-        const candidateRef = push(ref(rtdb, candidatePath));
-        set(candidateRef, event.candidate.toJSON()).catch(e => {
-          console.error("Error sending ICE candidate:", e);
-          setSignalingError(new Error(`Failed to send ICE candidate: ${e.message}`));
-        });
+  const initializePeerConnection = useCallback(
+    (currentUserId: string, peerId: string): RTCPeerConnection => {
+      if (!rtdb) {
+        const err = new Error("RTDB not available");
+        setSignalingError(err); setCallStatus("error"); throw err;
       }
-    };
 
-    pc.ontrack = (event) => {
-      console.log("Remote track received:", event.streams[0]);
-      console.log("Track kind:", event.track.kind);
-      console.log("Track settings:", event.track.getSettings());
-
-      if (event.streams && event.streams[0]) {
-        const stream = event.streams[0];
-        console.log("Remote stream tracks:", stream.getTracks().map(t => `${t.kind}: ${t.enabled}`));
-        setRemoteStream(stream);
-
-        // Ensure audio tracks are enabled and playing
-        stream.getAudioTracks().forEach(track => {
-          console.log(`Remote audio track: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
-          track.enabled = true;
-        });
+      // Ensure any existing peer connection is closed before creating a new one
+      if (peerConnection) {
+        console.log("Closing existing peer connection before creating a new one in initializePeerConnection.");
+        peerConnection.close();
       }
-    };
 
-    pc.onconnectionstatechange = () => {
-      console.log(`Peer Connection State with ${peerId}: ${pc.connectionState}`);
-      switch (pc.connectionState) {
-        case 'connected':
-          console.log(`WebRTC: Peer connection to ${peerId} established.`);
-          clearDisconnectedTimeout();
+      // Enhanced ICE server configuration for better connectivity
+      const enhancedConfiguration: RTCConfiguration = {
+        iceServers: [
+          { urls: 'stun:stun.l.google.com:19302' },
+          { urls: 'stun:stun1.l.google.com:19302' },
+          { urls: 'stun:stun2.l.google.com:19302' },
+          { urls: 'stun:stun.stunprotocol.org' }
+        ],
+        iceCandidatePoolSize: 10,
+        iceTransportPolicy: 'all',
+        bundlePolicy: 'max-bundle',
+        rtcpMuxPolicy: 'require'
+      };
+
+      const pc = new RTCPeerConnection(enhancedConfiguration);
+      console.log(`RTCPeerConnection created for peer: ${peerId} with enhanced config`);
+
+      pc.onicecandidate = (event) => {
+        if (event.candidate && peerId) {
+          console.log("Sending ICE candidate to", peerId, event.candidate);
+          const candidatePath = `signaling/${peerId}/iceCandidates/${currentUserId}`;
+          const candidateRef = push(ref(rtdb, candidatePath));
+          set(candidateRef, {
+            candidate: event.candidate.toJSON(),
+            timestamp: serverTimestamp()
+          }).catch(e => {
+            console.error("Error sending ICE candidate:", e);
+            setSignalingError(new Error(`Failed to send ICE candidate: ${e.message}`));
+          });
+        }
+      };
+
+      pc.ontrack = (event) => {
+        console.log("Remote track received:", {
+          trackKind: event.track.kind,
+          streamCount: event.streams.length,
+          trackId: event.track.id,
+          trackLabel: event.track.label
+        });
+
+        if (event.streams && event.streams[0]) {
+          const stream = event.streams[0];
+          console.log("Remote stream details:", {
+            streamId: stream.id,
+            trackCount: stream.getTracks().length,
+            videoTracks: stream.getVideoTracks().length,
+            audioTracks: stream.getAudioTracks().length,
+            tracks: stream.getTracks().map(t => ({
+              kind: t.kind,
+              enabled: t.enabled,
+              muted: t.muted,
+              readyState: t.readyState
+            }))
+          });
+
+          // Ensure all tracks are enabled
+          stream.getTracks().forEach(track => {
+            track.enabled = true;
+            console.log(`Enabled ${track.kind} track:`, track.id);
+          });
+
+          setRemoteStream(stream);
+        }
+      };
+
+      pc.onconnectionstatechange = () => {
+        console.log(`Connection state changed: ${pc.connectionState}`);
+        if (pc.connectionState === 'connected') {
           setCallStatus('active');
-          setSignalingError(null);
+        } else if (pc.connectionState === 'failed') {
+          console.error('Connection failed, attempting to restart ICE');
+          pc.restartIce();
+        } else if (pc.connectionState === 'disconnected') {
+          console.warn('Connection disconnected');
+        } else if (pc.connectionState === 'closed') {
+          console.log('Connection closed');
+        }
+      };
 
-          // Verify audio tracks are working
-          if (localStream) {
-            localStream.getAudioTracks().forEach(track => {
-              console.log(`Local audio track: enabled=${track.enabled}, muted=${track.muted}, readyState=${track.readyState}`);
-            });
-          }
+      pc.oniceconnectionstatechange = () => {
+        console.log(`ICE connection state: ${pc.iceConnectionState}`);
+        if (pc.iceConnectionState === 'failed') {
+          console.error('ICE connection failed, restarting ICE');
+          pc.restartIce();
+        }
+      };
 
-          if (activeCallTargetUserId !== peerId && callerUserId !== peerId) {
-            console.warn(`Connected to ${peerId}, but current active/caller is ${activeCallTargetUserId || callerUserId}`);
-          }
-          break;
-        case 'disconnected':
-          console.warn(`WebRTC: Peer connection to ${peerId} disconnected.`);
-          clearDisconnectedTimeout();
-          disconnectedTimeoutRef.current = setTimeout(() => {
-            if (peerConnection?.connectionState === 'disconnected') {
-              console.error(`WebRTC: Connection to ${peerId} timed out after disconnection.`);
-              setSignalingError(new Error("Connection lost. Please try ending the call and starting again."));
-              setCallStatus('error');
-            }
-          }, 15000);
-          break;
-        case 'failed':
-          console.error(`WebRTC: Peer connection to ${peerId} failed.`);
-          clearDisconnectedTimeout();
-          if (callStatus !== 'callEnded' && callStatus !== 'idle' && callStatus !== 'callDeclined') {
-            setSignalingError(new Error(`Call connection with ${peerId} failed.`));
-            setCallStatus('error');
-          }
-          break;
-        case 'closed':
-          console.log(`WebRTC: Peer connection to ${peerId} closed.`);
-          clearDisconnectedTimeout();
-          if (callStatus !== 'idle' && callStatus !== 'callEnded' && callStatus !== 'callDeclined' && callStatus !== 'error') {
-            console.warn(`WebRTC: Connection with ${peerId} closed unexpectedly. Current status: ${callStatus}`);
-            setCallStatus('callEnded');
-          }
-          break;
-        case 'new':
-        case 'connecting':
-          console.log(`WebRTC: Peer connection to ${peerId} is ${pc.connectionState}.`);
-          clearDisconnectedTimeout();
-          break;
-        default:
-          console.log(`WebRTC: Peer connection to ${peerId} state: ${pc.connectionState}.`);
-          break;
-      }
-    };
-
-    // Handle audio-specific connection events
-    pc.oniceconnectionstatechange = () => {
-      console.log(`ICE Connection State with ${peerId}: ${pc.iceConnectionState}`);
-      if (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed') {
-        console.log("ICE connection established - audio should now work");
-      }
-    };
-
-    setPeerConnection(pc); // Set the new peer connection
-    return pc;
-  }, [callStatus, activeCallTargetUserId, callerUserId, localStream]); // Added localStream to deps
+      setPeerConnection(pc);
+      return pc;
+    },
+    [peerConnection, rtdb]
+  );
 
   const resetCallState = useCallback(() => { // Wrapped in useCallback
     console.log('Provider: Resetting call state');
@@ -333,7 +327,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const initiateCall = async (targetId: string, targetName?: string) => {
-    if (!currentUser) { setCallStatus('error'); setSignalingError(new Error("User not authenticated.")); return; }
+    if (!user) { setCallStatus('error'); setSignalingError(new Error("User not authenticated.")); return; }
     if (callStatus !== 'idle') {
       console.warn("Call attempt while not idle. Current status:", callStatus);
       setSignalingError(new Error(`Cannot start a new call. Current call status: ${callStatus}`));
@@ -349,14 +343,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveCallTargetUserName(targetName || "User");
 
     try {
-      const pc = initializePeerConnection(currentUser.uid, targetId);
+      const pc = initializePeerConnection(user.uid, targetId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       const offerDesc = await pc.createOffer();
       await pc.setLocalDescription(offerDesc);
 
       if (pc.localDescription) {
-        await sendOffer(targetId, currentUser.uid, currentUser.displayName, pc.localDescription);
+        await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
 
         offerTimeoutRef.current = setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
@@ -373,7 +367,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const acceptCall = async () => {
-    if (!currentUser || !incomingOffer || !callerUserId) {
+    if (!user || !incomingOffer || !callerUserId) {
       setSignalingError(new Error("Cannot accept: missing info.")); setCallStatus('error'); return;
     }
     clearOfferTimeout(); // Clear any outgoing offer timeout from this client
@@ -385,7 +379,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     try {
-      const pc = initializePeerConnection(currentUser.uid, callerUserId);
+      const pc = initializePeerConnection(user.uid, callerUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       setCallStatus('processingOffer');
@@ -396,7 +390,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       await pc.setLocalDescription(answerDesc);
 
       if (pc.localDescription) {
-        await sendAnswer(callerUserId, currentUser.uid, currentUser.displayName, pc.localDescription);
+        await sendAnswer(callerUserId, user.uid, user.displayName, pc.localDescription);
       } else throw new Error("Local description for answer failed.");
 
       setActiveCallTargetUserId(callerUserId);
@@ -415,17 +409,17 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setCallerUserName(null);
     setCallStatus('idle'); // Or 'callDeclined' briefly
 
-    if (!currentUser || !currentCallerId) {
+    if (!user || !currentCallerId) {
       console.warn("Cannot decline call: no current user or caller ID captured.");
       return;
     }
     console.log(`Declining call from ${currentCallerId}`);
     try {
-      const declinePath = `signaling/${currentCallerId}/callDeclined/${currentUser.uid}`;
+      const declinePath = `signaling/${currentCallerId}/callDeclined/${user.uid}`;
       await set(ref(rtdb, declinePath),
-        { declinedByUserId: currentUser.uid, declinedByUserName: currentUser.displayName || "Anonymous", timestamp: serverTimestamp() } as CallDeclinedPayload
+        { declinedByUserId: user.uid, declinedByUserName: user.displayName || "Anonymous", timestamp: serverTimestamp() } as CallDeclinedPayload
       );
-      const offerPath = `signaling/${currentUser.uid}/offer`;
+      const offerPath = `signaling/${user.uid}/offer`;
       await remove(ref(rtdb, offerPath));
     } catch (err: any) {
       console.error("Error sending decline signal or removing offer:", err);
@@ -438,11 +432,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const peerToSignalHangUp = activeCallTargetUserId || callerUserId;
 
     // Send hangup signal to the other party
-    if (currentUser && peerToSignalHangUp) {
+    if (user && peerToSignalHangUp) {
       console.log(`Sending callEnd signal to ${peerToSignalHangUp}`);
-      const hangUpPath = `signaling/${peerToSignalHangUp}/callEnd/${currentUser.uid}`;
+      const hangUpPath = `signaling/${peerToSignalHangUp}/callEnd/${user.uid}`;
       try {
-        await set(ref(rtdb, hangUpPath), { endedBy: currentUser.uid, timestamp: serverTimestamp() });
+        await set(ref(rtdb, hangUpPath), { endedBy: user.uid, timestamp: serverTimestamp() });
       } catch (e: any) {
         console.error("Error sending hangUp signal:", e);
         setSignalingError(new Error(`Failed to send hang up signal: ${e.message}`));
@@ -567,7 +561,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   const initiateAudioCall = async (targetId: string, targetName?: string) => {
-    if (!currentUser) { setCallStatus('error'); setSignalingError(new Error("User not authenticated.")); return; }
+    if (!user) { setCallStatus('error'); setSignalingError(new Error("User not authenticated.")); return; }
     if (callStatus !== 'idle') {
       console.warn("Call attempt while not idle. Current status:", callStatus);
       setSignalingError(new Error(`Cannot start a new call. Current call status: ${callStatus}`));
@@ -583,14 +577,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setActiveCallTargetUserName(targetName || "User");
 
     try {
-      const pc = initializePeerConnection(currentUser.uid, targetId);
+      const pc = initializePeerConnection(user.uid, targetId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
       const offerDesc = await pc.createOffer();
       await pc.setLocalDescription(offerDesc);
 
       if (pc.localDescription) {
-        await sendOffer(targetId, currentUser.uid, currentUser.displayName, pc.localDescription);
+        await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
 
         offerTimeoutRef.current = setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
@@ -736,6 +730,115 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState, peerConnection]); // Added peerConnection to deps
 
+  const handleSignalingMessage = async (message: any) => {
+    if (!peerConnection) return;
+
+    try {
+      switch (message.type) {
+        case 'offer':
+          if (peerConnection.signalingState !== 'stable') {
+            console.log('Connection not stable, ignoring offer');
+            return;
+          }
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(message));
+          const answer = await peerConnection.createAnswer();
+          await peerConnection.setLocalDescription(answer);
+          // Send answer through Firebase
+          const answerRef = ref(rtdb, `calls/${message.from}/answer`);
+          await set(answerRef, {
+            type: 'answer',
+            sdp: answer,
+            from: user?.uid
+          });
+          break;
+
+        case 'answer':
+          if (peerConnection.signalingState !== 'have-local-offer') {
+            console.log('Connection not in have-local-offer state, ignoring answer');
+            return;
+          }
+          await peerConnection.setRemoteDescription(new RTCSessionDescription(message));
+          // Add any pending candidates
+          for (const candidate of pendingCandidates) {
+            await peerConnection.addIceCandidate(candidate);
+          }
+          setPendingCandidates([]);
+          break;
+
+        case 'candidate':
+          if (peerConnection.remoteDescription) {
+            await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
+          } else {
+            // Store candidate for later if remote description isn't set yet
+            setPendingCandidates(prev => [...prev, message.candidate]);
+          }
+          break;
+      }
+    } catch (error) {
+      console.error('Error handling signaling message:', error);
+      setCallStatus('error');
+    }
+  };
+
+  // Update ICE candidate handling
+  useEffect(() => {
+    if (!peerConnection) return;
+
+    const handleIceCandidate = (event: RTCPeerConnectionIceEvent) => {
+      if (event.candidate) {
+        // Send candidate through Firebase
+        const candidateRef = ref(rtdb, `calls/${activeCallTargetUserId}/candidate`);
+        set(candidateRef, {
+          type: 'candidate',
+          candidate: event.candidate,
+          from: user?.uid
+        });
+      }
+    };
+
+    const handleConnectionStateChange = () => {
+      console.log('Connection state changed:', peerConnection.connectionState);
+      if (peerConnection.connectionState === 'connected') {
+        setCallStatus('active');
+      } else if (peerConnection.connectionState === 'failed' ||
+        peerConnection.connectionState === 'disconnected' ||
+        peerConnection.connectionState === 'closed') {
+        setCallStatus('error');
+      }
+    };
+
+    const handleIceConnectionStateChange = () => {
+      console.log('ICE connection state:', peerConnection.iceConnectionState);
+    };
+
+    peerConnection.addEventListener('icecandidate', handleIceCandidate);
+    peerConnection.addEventListener('connectionstatechange', handleConnectionStateChange);
+    peerConnection.addEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
+
+    return () => {
+      peerConnection.removeEventListener('icecandidate', handleIceCandidate);
+      peerConnection.removeEventListener('connectionstatechange', handleConnectionStateChange);
+      peerConnection.removeEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
+    };
+  }, [peerConnection, activeCallTargetUserId, user?.uid, rtdb]);
+
+  // Update stream handling
+  useEffect(() => {
+    if (!peerConnection) return;
+
+    const handleTrack = (event: RTCTrackEvent) => {
+      console.log('Received remote track:', event.track.kind);
+      if (event.streams && event.streams[0]) {
+        setRemoteStream(event.streams[0]);
+      }
+    };
+
+    peerConnection.addEventListener('track', handleTrack);
+
+    return () => {
+      peerConnection.removeEventListener('track', handleTrack);
+    };
+  }, [peerConnection]);
 
   const contextValue: WebRTCContextType = {
     peerConnection, localStream, remoteStream, callStatus,

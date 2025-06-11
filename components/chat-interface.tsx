@@ -3,7 +3,7 @@ import { useState, useEffect } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
-import { MessageList } from "./MessageList"
+import { MessageList } from "./chat/MessageList"
 import { MessageInput } from "./MessageInput"
 import type { Message, SimpleUser } from "@/lib/types"
 
@@ -54,20 +54,19 @@ export function ChatInterface({ roomId }: ChatInterfaceProps) {
     })
   }
 
-  // Convert the Firebase user to our simplified user type
-  const customUser: SimpleUser | null = user
-    ? {
-      uid: user.uid,
-      email: user.email,
-      displayName: user.displayName,
-      photoURL: user.photoURL,
-    }
-    : null
-
   return (
     <div className="flex flex-col h-full">
       <div className="flex-1 overflow-y-auto">
-        <MessageList messages={messages} currentUser={customUser} roomId={roomId} />
+        <MessageList
+          messages={messages}
+          roomId={roomId}
+          onEdit={() => { }}
+          onReaction={() => { }}
+          onReply={() => { }}
+          onDelete={() => { }}
+          onExpire={() => { }}
+          onSendMessage={sendMessage}
+        />
       </div>
       <MessageInput onSend={sendMessage} />
     </div>

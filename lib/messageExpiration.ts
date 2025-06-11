@@ -1,6 +1,6 @@
-import { db } from '@/lib/firebase';
-import { doc, deleteDoc, updateDoc, collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
+import { adminDb } from '@/lib/firebase-admin';
 import { MESSAGE_EXPIRATION_OPTIONS, type ExpirationTimer } from '@/lib/types';
+import { QuerySnapshot, DocumentData, QueryDocumentSnapshot } from 'firebase-admin/firestore';
 
 export class MessageExpirationService {
     private static expirationTimeouts: Map<string, NodeJS.Timeout> = new Map();
@@ -14,11 +14,30 @@ export class MessageExpirationService {
         const option = MESSAGE_EXPIRATION_OPTIONS[timer];
         if (!option.duration) return null;
 
-        if (timer === 'immediate') {
-            return new Date(); // Expire immediately
+        // Enforce minimum duration
+        const minDuration = option.minDuration;
+        if (minDuration && option.duration < minDuration) {
+            console.warn(`Duration ${option.duration}ms is less than minimum ${minDuration}ms for timer ${timer}`);
+            return new Date(Date.now() + minDuration);
         }
 
         return new Date(Date.now() + option.duration);
+    }
+
+    /**
+     * Validate expiration timer
+     */
+    static validateExpirationTimer(timer: ExpirationTimer): boolean {
+        const option = MESSAGE_EXPIRATION_OPTIONS[timer];
+        if (!option) return false;
+
+        // Check if duration meets minimum requirement
+        if (option.minDuration && option.duration < option.minDuration) {
+            console.warn(`Invalid duration ${option.duration}ms for timer ${timer}. Minimum is ${option.minDuration}ms`);
+            return false;
+        }
+
+        return true;
     }
 
     /**
@@ -74,20 +93,10 @@ export class MessageExpirationService {
         roomType: 'lobby' | 'room' | 'dm'
     ): Promise<void> {
         try {
-            let collectionPath: string;
+            const messageRef = adminDb.collection("messages").doc(messageId);
+            await messageRef.delete();
 
-            if (roomType === 'lobby') {
-                collectionPath = 'messages';
-            } else if (roomType === 'room') {
-                collectionPath = `rooms/${roomId}/messages`;
-            } else {
-                collectionPath = `directMessages/${roomId}/messages`;
-            }
-
-            const messageRef = doc(db, collectionPath, messageId);
-            await deleteDoc(messageRef);
-
-            console.log(`Expired message ${messageId} deleted from ${collectionPath}`);
+            console.log(`Expired message ${messageId} deleted`);
         } catch (error) {
             console.error(`Error deleting expired message ${messageId}:`, error);
         }
@@ -101,32 +110,16 @@ export class MessageExpirationService {
         roomType: 'lobby' | 'room' | 'dm'
     ): Promise<void> {
         try {
-            let collectionPath: string;
+            const messagesRef = adminDb.collection("messages");
+            const q = messagesRef.where('expiresAt', '!=', null);
+            const snapshot = await q.get() as QuerySnapshot<DocumentData>;
 
-            if (roomType === 'lobby') {
-                collectionPath = 'messages';
-            } else if (roomType === 'room' && roomId) {
-                collectionPath = `rooms/${roomId}/messages`;
-            } else if (roomType === 'dm' && roomId) {
-                collectionPath = `directMessages/${roomId}/messages`;
-            } else {
-                return;
-            }
-
-            const messagesRef = collection(db, collectionPath);
-            const q = query(messagesRef, where('expiresAt', '!=', null));
-            const snapshot = await getDocs(q);
-
-            snapshot.forEach((doc) => {
+            for (const doc of snapshot.docs) {
                 const data = doc.data();
                 const expiresAt = data.expiresAt;
 
                 if (expiresAt) {
-                    // Convert Firestore Timestamp to Date
-                    const expirationDate = expiresAt instanceof Timestamp
-                        ? expiresAt.toDate()
-                        : new Date(expiresAt);
-
+                    const expirationDate = new Date(expiresAt);
                     this.scheduleMessageExpiration(
                         doc.id,
                         expirationDate,
@@ -134,9 +127,9 @@ export class MessageExpirationService {
                         roomType
                     );
                 }
-            });
+            }
 
-            console.log(`Initialized ${snapshot.size} expiration timers for ${collectionPath}`);
+            console.log(`Initialized ${snapshot.docs.length} expiration timers`);
         } catch (error) {
             console.error('Error initializing expiration timers:', error);
         }
@@ -152,24 +145,12 @@ export class MessageExpirationService {
         roomType: 'lobby' | 'room' | 'dm'
     ): Promise<void> {
         try {
-            let collectionPath: string;
-
-            if (roomType === 'lobby') {
-                collectionPath = 'messages';
-            } else if (roomType === 'room' && roomId) {
-                collectionPath = `rooms/${roomId}/messages`;
-            } else if (roomType === 'dm' && roomId) {
-                collectionPath = `directMessages/${roomId}/messages`;
-            } else {
-                return;
-            }
-
-            const messageRef = doc(db, collectionPath, messageId);
+            const messageRef = adminDb.collection("messages").doc(messageId);
             const newExpirationDate = this.calculateExpirationDate(newTimer);
 
-            await updateDoc(messageRef, {
+            await messageRef.update({
                 expirationTimer: newTimer,
-                expiresAt: newExpirationDate ? Timestamp.fromDate(newExpirationDate) : null
+                expiresAt: newExpirationDate ? newExpirationDate.toISOString() : null
             });
 
             // Reschedule expiration

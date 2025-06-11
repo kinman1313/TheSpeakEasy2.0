@@ -41,18 +41,56 @@ export default function VideoCallView({
   }, [localStream]);
 
   useEffect(() => {
+    console.log("VideoCallView: Remote stream effect triggered", {
+      hasRemoteStream: !!remoteStream,
+      callStatus,
+      remoteVideoRef: !!remoteVideoRef.current
+    });
+
     if (remoteVideoRef.current && remoteStream) {
+      console.log("VideoCallView: Setting remote video stream", {
+        streamId: remoteStream.id,
+        trackCount: remoteStream.getTracks().length,
+        videoTracks: remoteStream.getVideoTracks().length,
+        audioTracks: remoteStream.getAudioTracks().length
+      });
+
       remoteVideoRef.current.srcObject = remoteStream;
+
+      // Log video track details
+      remoteStream.getVideoTracks().forEach((track, index) => {
+        console.log(`Remote video track ${index}:`, {
+          kind: track.kind,
+          enabled: track.enabled,
+          muted: track.muted,
+          readyState: track.readyState,
+          settings: track.getSettings(),
+          id: track.id,
+          label: track.label
+        });
+      });
+
+      // Ensure video element can play
+      remoteVideoRef.current.onloadedmetadata = () => {
+        console.log("Remote video metadata loaded");
+        if (remoteVideoRef.current) {
+          remoteVideoRef.current.play().catch(error => {
+            console.error("Error playing remote video:", error);
+          });
+        }
+      };
+
       console.log("Remote video stream set");
     } else if (remoteVideoRef.current) {
       // Clear remote video if stream is null (e.g. call ended, other user turned off video)
+      console.log("VideoCallView: Clearing remote video stream");
       remoteVideoRef.current.srcObject = null;
     }
 
     // Handle remote audio separately to ensure it plays
     if (remoteAudioRef.current && remoteStream) {
+      console.log("VideoCallView: Setting remote audio stream");
       remoteAudioRef.current.srcObject = remoteStream;
-      console.log("Remote audio stream set");
 
       // Log audio tracks
       const audioTracks = remoteStream.getAudioTracks();
@@ -83,6 +121,7 @@ export default function VideoCallView({
         document.addEventListener('touchstart', playAudio, { once: true });
       });
     } else if (remoteAudioRef.current) {
+      console.log("VideoCallView: Clearing remote audio stream");
       remoteAudioRef.current.srcObject = null;
     }
   }, [remoteStream]);

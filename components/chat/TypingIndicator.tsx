@@ -1,44 +1,52 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { type TypingIndicator as TypingIndicatorType } from "@/lib/types"
+import { cn } from "@/lib/utils"
 
 interface TypingIndicatorProps {
-    typingUsers: TypingIndicatorType[]
+    roomId: string
+    currentUserId: string
     className?: string
 }
 
-export function TypingIndicator({ typingUsers, className = "" }: TypingIndicatorProps) {
-    const [visibleUsers, setVisibleUsers] = useState<TypingIndicatorType[]>([])
+export function TypingIndicator({ roomId, currentUserId, className }: TypingIndicatorProps) {
+    const [typingUsers, setTypingUsers] = useState<TypingIndicatorType[]>([])
 
     useEffect(() => {
-        setVisibleUsers(typingUsers)
-    }, [typingUsers])
+        const cleanup = TypingIndicatorService.listenToTyping(
+            roomId,
+            currentUserId,
+            (users) => setTypingUsers(users)
+        )
 
-    if (visibleUsers.length === 0) return null
+        return cleanup
+    }, [roomId, currentUserId])
 
-    const formatTypingMessage = () => {
-        const userNames = visibleUsers.map(user => user.userName)
+    if (typingUsers.length === 0) return null
 
-        if (userNames.length === 1) {
-            return `${userNames[0]} is typing...`
-        } else if (userNames.length === 2) {
-            return `${userNames[0]} and ${userNames[1]} are typing...`
-        } else if (userNames.length === 3) {
-            return `${userNames[0]}, ${userNames[1]} and ${userNames[2]} are typing...`
+    const getTypingText = () => {
+        if (typingUsers.length === 1) {
+            return `${typingUsers[0].userName} is typing`
+        } else if (typingUsers.length === 2) {
+            return `${typingUsers[0].userName} and ${typingUsers[1].userName} are typing`
         } else {
-            return `${userNames.slice(0, 2).join(', ')} and ${userNames.length - 2} others are typing...`
+            return `${typingUsers.length} people are typing`
         }
     }
 
     return (
-        <div className={`flex items-center gap-2 p-3 text-sm text-muted-foreground ${className}`}>
+        <div className={cn(
+            "flex items-center gap-2 text-sm text-muted-foreground animate-in fade-in slide-in-from-bottom-2",
+            className
+        )}>
             <div className="flex gap-1">
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-                <div className="w-2 h-2 bg-muted-foreground rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+                <span className="animate-bounce delay-0">•</span>
+                <span className="animate-bounce delay-150">•</span>
+                <span className="animate-bounce delay-300">•</span>
             </div>
-            <span>{formatTypingMessage()}</span>
+            <span>{getTypingText()}</span>
         </div>
     )
 } 

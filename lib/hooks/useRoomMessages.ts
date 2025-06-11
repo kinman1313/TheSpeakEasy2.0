@@ -1,24 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Firestore, collection, query, orderBy, onSnapshot, Timestamp, enableNetwork, disableNetwork, where } from 'firebase/firestore';
-
-// Define Message interface
-export interface Message {
-    id: string;
-    text: string;
-    userId: string;
-    userName: string;
-    userPhotoURL?: string;
-    timestamp: Timestamp;
-    reactions?: { [emoji: string]: string[] };
-    voiceMessageUrl?: string;
-    voiceMessageDuration?: number;
-    gifUrl?: string;
-    roomId?: string; // For room-specific messages
-    dmId?: string; // For direct messages
-}
+import { getMessages as getCachedMessages, saveMessages as saveCachedMessages } from '../messageCache';
+import { Message as AppMessage } from '../types';
 
 interface UseRoomMessagesReturn {
-    messages: Message[];
+    messages: AppMessage[];
     error: Error | null;
     isConnected: boolean;
     isLoading: boolean;
@@ -31,7 +17,7 @@ export const useRoomMessages = (
     roomId: string | null, // null for lobby, room ID for rooms, DM ID for direct messages
     roomType: 'lobby' | 'room' | 'dm' = 'lobby'
 ): UseRoomMessagesReturn => {
-    const [messages, setMessages] = useState<Message[]>([]);
+    const [messages, setMessages] = useState<AppMessage[]>([]);
     const [error, setError] = useState<Error | null>(null);
     const [isConnected, setIsConnected] = useState(true);
     const [isLoading, setIsLoading] = useState(false);
@@ -97,6 +83,16 @@ export const useRoomMessages = (
         };
     }, []);
 
+    // Load cached messages on mount/room change
+    useEffect(() => {
+        if (roomId) {
+            const cached = getCachedMessages(roomId);
+            if (cached && cached.length > 0) {
+                setMessages(cached);
+            }
+        }
+    }, [roomId]);
+
     useEffect(() => {
         if (firebaseStatus !== 'ready' || !db) {
             if (messages.length > 0) setMessages([]);
@@ -113,14 +109,12 @@ export const useRoomMessages = (
         let q;
 
         if (roomType === 'lobby') {
-            // Lobby messages - use the original messages collection for backward compatibility
             const messagesRef = collection(db, "messages");
             q = query(
                 messagesRef,
                 orderBy("timestamp", "asc")
             );
         } else if (roomType === 'room' && roomId) {
-            // Room-specific messages
             const messagesRef = collection(db, "messages");
             q = query(
                 messagesRef,
@@ -128,7 +122,6 @@ export const useRoomMessages = (
                 orderBy("timestamp", "asc")
             );
         } else if (roomType === 'dm' && roomId) {
-            // Direct messages
             const messagesRef = collection(db, "messages");
             q = query(
                 messagesRef,
@@ -136,7 +129,6 @@ export const useRoomMessages = (
                 orderBy("timestamp", "asc")
             );
         } else {
-            // Invalid configuration
             setMessages([]);
             setIsLoading(false);
             return;
@@ -145,12 +137,39 @@ export const useRoomMessages = (
         const unsubscribe = onSnapshot(q,
             (snapshot) => {
                 try {
-                    let newMessages = snapshot.docs.map((doc) => ({
-                        id: doc.id,
-                        ...doc.data(),
-                    })) as Message[];
+                    let newMessages = snapshot.docs.map((doc) => {
+                        const data = doc.data();
+                        // Map Firestore data to AppMessage type
+                        return {
+                            id: doc.id,
+                            text: data.text || '',
+                            imageUrl: data.imageUrl,
+                            gifUrl: data.gifUrl,
+                            audioUrl: data.audioUrl,
+                            voiceMessageUrl: data.voiceMessageUrl,
+                            fileUrl: data.fileUrl,
+                            fileName: data.fileName,
+                            fileSize: data.fileSize,
+                            fileType: data.fileType,
+                            replyToId: data.replyToId,
+                            replyToMessage: data.replyToMessage,
+                            threadId: data.threadId,
+                            uid: data.uid || data.userId,
+                            userId: data.uid || data.userId,
+                            userName: data.userName,
+                            displayName: data.displayName,
+                            photoURL: data.photoURL || data.userPhotoURL,
+                            createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date(),
+                            updatedAt: data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)) : new Date(),
+                            status: data.status || 'sent',
+                            readBy: data.readBy || [],
+                            isEdited: data.isEdited,
+                            reactions: data.reactions,
+                            expiresAt: data.expiresAt ? (data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)) : null,
+                            expirationTimer: data.expirationTimer,
+                        } as AppMessage;
+                    });
 
-                    // For lobby, filter out messages that have roomId or dmId
                     if (roomType === 'lobby') {
                         newMessages = newMessages.filter(message =>
                             !message.roomId && !message.dmId
@@ -158,6 +177,9 @@ export const useRoomMessages = (
                     }
 
                     setMessages(newMessages);
+                    if (roomId) {
+                        saveCachedMessages(roomId, newMessages);
+                    }
                     setError(null);
                     setIsConnected(true);
                     setIsLoading(false);
@@ -174,12 +196,10 @@ export const useRoomMessages = (
                 setIsConnected(false);
                 setIsLoading(false);
 
-                // Check if it's a network-related error
                 if (err.code === 'unavailable' || err.code === 'unauthenticated' || err.message.includes('transport errored')) {
                     console.log('Network connection issue detected, attempting to retry...');
                     retryConnection();
                 } else {
-                    // For other errors, don't retry automatically
                     setMessages([]);
                 }
             }

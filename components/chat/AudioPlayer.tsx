@@ -248,34 +248,35 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
     return (
       <div className="flex items-center gap-2 p-2 bg-red-900/20 border border-red-600/50 rounded-lg">
         <AlertCircle className="h-4 w-4 text-red-400 shrink-0" />
-        <div className="flex-1 min-w-0">
-          <span className="text-sm text-red-300 block truncate">{errorMessage}</span>
-          {retryCount < maxRetries && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={retryLoad}
-              className="text-red-300 hover:text-red-200 h-auto p-1 mt-1"
-            >
-              <RefreshCw className="h-3 w-3 mr-1" />
-              Retry ({retryCount}/{maxRetries})
-            </Button>
-          )}
-        </div>
+        <span className="text-red-200 text-xs font-medium">{errorMessage || "Audio playback failed. Try a different browser or file format (mp3/m4a recommended for mobile)."}</span>
+        {retryCount < maxRetries && (
+          <Button variant="ghost" size="sm" onClick={retryLoad} className="ml-2">
+            <RefreshCw className="h-4 w-4 animate-spin mr-1" /> Retry
+          </Button>
+        )}
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col gap-2 w-full max-w-md">
+    <div className="flex flex-col gap-2 w-full">
       <audio
         ref={audioRef}
-        src={src}
         preload="metadata"
-        crossOrigin="anonymous"
-        playsInline
-        controls={false}
-      />
+        className="w-full"
+        onPlay={() => setIsPlaying(true)}
+        onPause={() => setIsPlaying(false)}
+        onError={() => setHasError(true)}
+        controls
+      >
+        <source src={src} type="audio/webm" />
+        <source src={src} type="audio/mp3" />
+        <source src={src} type="audio/mpeg" />
+        <source src={src} type="audio/mp4" />
+        <source src={src} type="audio/x-m4a" />
+        <source src={src} type="audio/m4a" />
+        Your browser does not support the audio element. Try a different browser or file format (mp3/m4a recommended for mobile).
+      </audio>
 
       <div className="flex items-center gap-2">
         <Button

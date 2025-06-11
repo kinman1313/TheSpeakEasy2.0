@@ -5,6 +5,7 @@ import { Firestore, collection, query, orderBy, onSnapshot, Timestamp, enableNet
 export interface Message {
   id: string;
   text: string;
+  uid: string;
   userId: string;
   userName: string;
   userPhotoURL?: string;
@@ -12,7 +13,12 @@ export interface Message {
   reactions?: { [emoji: string]: string[] };
   voiceMessageUrl?: string;
   voiceMessageDuration?: number;
-  gifUrl?: string; // Added for Giphy GIFs
+  gifUrl?: string;
+  status: string;
+  readBy: string[];
+  isEdited?: boolean;
+  expiresAt?: Date | null;
+  expirationTimer?: string;
 }
 
 interface UseMessagesReturn {
