@@ -629,7 +629,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               console.log(`Provider: Received offer from ${offerPayload.senderId}, current call status: ${currentCallStatus}`);
               console.log('Provider: Full offer payload:', offerPayload);
 
-              if (currentCallStatus === 'idle' || currentCallStatus === 'callEnded' || currentCallStatus === 'callDeclined') {
+              if (currentCallStatus === 'idle' || currentCallStatus === 'ended' || currentCallStatus === 'callDeclined') {
                 console.log("Provider: Processing incoming offer:", offerPayload);
 
                 // Set incoming call state

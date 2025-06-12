@@ -248,16 +248,19 @@
   opacity: 1 !important;
 }
 
+/* Enhanced tap feedback for mobile */
 .tap-feedback {
   position: relative;
   overflow: hidden;
   transition: transform 0.12s cubic-bezier(.4, 0, .2, 1);
+  -webkit-tap-highlight-color: transparent;
 }
 
 .tap-feedback:active {
   transform: scale(0.97);
 }
 
+/* Ripple effect for touch devices */
 @media (hover: none) {
   .tap-feedback:active::after {
     content: '';
@@ -266,9 +269,9 @@
     top: 50%;
     width: 120%;
     height: 120%;
-    background: rgba(255, 255, 255, 0.12);
+    background: rgba(34, 197, 94, 0.15);
     border-radius: 50%;
-    transform: translate(-50%, -50%) scale(1.2);
+    transform: translate(-50%, -50%) scale(0.8);
     pointer-events: none;
     animation: tap-ripple 0.4s cubic-bezier(.4, 0, .2, 1);
   }

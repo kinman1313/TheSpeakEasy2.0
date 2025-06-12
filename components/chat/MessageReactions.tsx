@@ -1,11 +1,8 @@
 "use client"
 
-import React, { useState } from 'react'
-import { Button } from '@/components/ui/button'
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { Smile, Heart, ThumbsUp, Laugh, Frown, Star } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { EmojiPicker } from "./EmojiPicker"
+import { Button } from "@/components/ui/button"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Smile } from "lucide-react"
 
 interface MessageReactionsProps {
   messageId: string
@@ -15,30 +12,18 @@ interface MessageReactionsProps {
   onRemoveReaction: (messageId: string, emoji: string) => void
 }
 
-const REACTION_OPTIONS = [
-  { emoji: '👍', label: 'Thumbs up', icon: <ThumbsUp className="h-4 w-4" /> },
-  { emoji: '❤️', label: 'Heart', icon: <Heart className="h-4 w-4" /> },
-  { emoji: '😂', label: 'Laugh', icon: <Laugh className="h-4 w-4" /> },
-  { emoji: '😢', label: 'Sad', icon: <Frown className="h-4 w-4" /> },
-  { emoji: '⭐', label: 'Star', icon: <Star className="h-4 w-4" /> },
-  { emoji: '🔥', label: 'Fire' },
-  { emoji: '🎉', label: 'Celebrate' },
-  { emoji: '👏', label: 'Clap' },
-]
-
 const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
 
 export function MessageReactions({
   messageId,
-  reactions = {},
+  reactions,
   currentUserId,
   onReact,
   onRemoveReaction
 }: MessageReactionsProps) {
-  const [isOpen, setIsOpen] = useState(false)
-
   const handleReaction = (emoji: string) => {
     const hasReacted = reactions[emoji]?.includes(currentUserId)
+
     if (hasReacted) {
       onRemoveReaction(messageId, emoji)
     } else {
@@ -46,40 +31,53 @@ export function MessageReactions({
     }
   }
 
-  const hasReactions = Object.keys(reactions).length > 0
+  const handleEmojiSelect = (emoji: string) => {
+    handleReaction(emoji)
+  }
 
   return (
-    <div className="flex items-center gap-1">
-      {/* Quick reaction buttons */}
-      {REACTION_EMOJIS.map(emoji => (
+    <div className="flex items-center gap-1 mt-2">
+      {/* Display existing reactions */}
+      {Object.entries(reactions).map(([emoji, userIds]) => (
         <Button
           key={emoji}
           variant="ghost"
           size="sm"
-          className={`h-8 w-8 p-0 text-xs ${reactions[emoji]?.includes(currentUserId) ? 'bg-primary/10' : ''}`}
+          className={`h-6 px-2 text-xs ${userIds.includes(currentUserId)
+            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
+            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            }`}
           onClick={() => handleReaction(emoji)}
         >
-          {emoji}
-          {reactions[emoji]?.length > 0 && (
-            <span className="ml-1 text-xs">
-              {reactions[emoji].length}
-            </span>
-          )}
+          {emoji} {userIds.length}
         </Button>
       ))}
 
-      {/* Emoji picker for more reactions */}
+      {/* Add reaction button */}
       <Popover>
         <PopoverTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+          <Button
+            variant="ghost"
+            size="sm"
+            className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+          >
             <Smile className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-0" align="end">
-          <EmojiPicker
-            onSelectEmoji={(emoji) => handleReaction(emoji)}
-            disableRecent
-          />
+        <PopoverContent className="w-auto p-2 bg-slate-800 border-slate-600">
+          <div className="flex gap-1">
+            {REACTION_EMOJIS.map((emoji) => (
+              <Button
+                key={emoji}
+                variant="ghost"
+                size="sm"
+                className="h-8 w-8 p-0 hover:bg-slate-700"
+                onClick={() => handleEmojiSelect(emoji)}
+              >
+                {emoji}
+              </Button>
+            ))}
+          </div>
         </PopoverContent>
       </Popover>
     </div>

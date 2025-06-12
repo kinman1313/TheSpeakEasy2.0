@@ -1,4 +1,6 @@
-import { createContext, useContext, ReactNode } from 'react';
+"use client"
+
+import React, { createContext, useContext, useState, ReactNode } from 'react'
 import { Room } from '../../types/room';
 
 type RoomContextType = {

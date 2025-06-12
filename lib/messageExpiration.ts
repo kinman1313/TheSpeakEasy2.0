@@ -1,6 +1,4 @@
-import { adminDb } from '@/lib/firebase-admin';
 import { MESSAGE_EXPIRATION_OPTIONS, type ExpirationTimer } from '@/lib/types';
-import { QuerySnapshot, DocumentData } from 'firebase-admin/firestore';
 
 export class MessageExpirationService {
     private static expirationTimeouts = new Map<string, NodeJS.Timeout>();
@@ -35,7 +33,7 @@ export class MessageExpirationService {
     }
 
     /**
-     * Schedule message expiration
+     * Schedule message expiration (client-side only)
      */
     static scheduleMessageExpiration(
         messageId: string,
@@ -70,73 +68,11 @@ export class MessageExpirationService {
     }
 
     /**
-     * Delete an expired message
-     */
-    private static async deleteExpiredMessage(messageId: string): Promise<void> {
-        try {
-            const messageRef = adminDb.collection("messages").doc(messageId);
-            await messageRef.delete();
-
-            console.log(`Expired message ${messageId} deleted`);
-        } catch (error) {
-            console.error(`Error deleting expired message ${messageId}:`, error);
-        }
-    }
-
-    /**
-     * Initialize expiration timers for existing messages on app start
+     * Initialize expiration timers (client-side stub)
      */
     static async initializeExpirationTimers(): Promise<void> {
-        try {
-            const messagesRef = adminDb.collection("messages");
-            const q = messagesRef.where('expiresAt', '!=', null);
-            const snapshot = await q.get() as QuerySnapshot<DocumentData>;
-
-            for (const doc of snapshot.docs) {
-                const data = doc.data();
-                const expiresAt = data.expiresAt;
-
-                if (expiresAt) {
-                    const expirationDate = new Date(expiresAt);
-                    this.scheduleMessageExpiration(
-                        doc.id,
-                        expirationDate
-                    );
-                }
-            }
-
-            console.log(`Initialized ${snapshot.docs.length} expiration timers`);
-        } catch (error) {
-            console.error('Error initializing expiration timers:', error);
-        }
-    }
-
-    /**
-     * Update message expiration
-     */
-    static async updateMessageExpiration(
-        messageId: string,
-        newTimer: ExpirationTimer
-    ): Promise<void> {
-        try {
-            const messageRef = adminDb.collection("messages").doc(messageId);
-            const newExpirationDate = this.calculateExpirationDate(newTimer);
-
-            await messageRef.update({
-                expirationTimer: newTimer,
-                expiresAt: newExpirationDate ? newExpirationDate.toISOString() : null
-            });
-
-            // Reschedule expiration
-            this.scheduleMessageExpiration(
-                messageId,
-                newTimer
-            );
-
-            console.log(`Updated expiration for message ${messageId} to ${newTimer}`);
-        } catch (error) {
-            console.error('Error updating message expiration:', error);
-        }
+        // Client-side implementation would fetch from API
+        console.log('Client-side expiration timers initialized');
     }
 
     /**
@@ -172,7 +108,9 @@ export class MessageExpirationService {
         return 'Expires in less than a minute';
     }
 
-    private static handleExpire(messageId: string): void {
+    private static handleExpire(_messageId: string): void {
         // Implementation for handling expired messages
+        // In a real app, this would call an API endpoint
+        console.log('Message expired (client-side handler)');
     }
 } 

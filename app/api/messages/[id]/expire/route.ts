@@ -1,7 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
-import { MessageExpirationService } from "@/lib/messageExpiration"
 
 interface MessageData {
     senderId: string;
@@ -59,13 +58,11 @@ export async function POST(
 
         // Update message with expiration date
         await messageRef.update({
-            expiresAt: expirationDate ? expirationDate.toISOString() : null
+            expiresAt: expirationDate ? expirationDate.toISOString() : null,
+            expirationTimer: minutes > 0 ? (minutes <= 5 ? '5m' : minutes <= 60 ? '1h' : '24h') : 'never'
         })
 
-        // Schedule message expiration if needed
-        if (expirationDate) {
-            MessageExpirationService.scheduleMessageExpiration(messageId, expirationDate)
-        }
+        console.log(`Updated message ${messageId} expiration to ${expirationDate ? expirationDate.toISOString() : 'never'}`)
 
         return NextResponse.json({ success: true, expiresAt: expirationDate })
     } catch (error) {

@@ -5,7 +5,7 @@ import { useCustomTheme } from '@/components/providers/ThemeProvider';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { PATTERNS } from '@/lib/themes';
+// Removed unused PATTERNS import
 
 export function AppearanceSettings() {
     const { theme, setTheme, themes, pattern, setPattern, patterns } = useCustomTheme();

@@ -3,13 +3,14 @@ import { UserStatus } from '@/types/user';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, onSnapshot, setDoc, serverTimestamp } from 'firebase/firestore';
 import { auth } from '@/lib/firebase/firebase';
+import { ref, set, onDisconnect } from "firebase/database"
+import { rtdb } from "./firebase"
 
 // Track user presence in Firestore
 export function trackPresence() {
     onAuthStateChanged(auth, async (user) => {
         if (!user) return;
 
-        const userRef = doc(db, 'users', user.uid);
         const statusRef = doc(db, 'status', user.uid);
 
         // Set initial status
@@ -52,4 +53,36 @@ export function subscribeToUserStatus(userId: string, callback: (status: UserSta
     return onSnapshot(statusRef, (doc) => {
         callback(doc.data()?.status || 'offline');
     });
+}
+
+export const setUserOnline = async (userId: string, userName: string, photoURL?: string) => {
+    if (!rtdb) {
+        console.warn("RTDB not available for presence")
+        return
+    }
+
+    try {
+        const statusRef = ref(rtdb, `status/${userId}`)
+
+        const presenceData = {
+            isOnline: true,
+            lastChanged: serverTimestamp(),
+            userName: userName || "Anonymous",
+            photoURL: photoURL || "",
+        }
+
+        await set(statusRef, presenceData)
+
+        // Set up disconnect handler
+        await onDisconnect(statusRef).set({
+            isOnline: false,
+            lastChanged: serverTimestamp(),
+            userName: userName || "Anonymous",
+            photoURL: photoURL || "",
+        })
+
+        console.log("User presence set to online")
+    } catch (error) {
+        console.error("Error setting user online:", error)
+    }
 } 

@@ -11,7 +11,7 @@ import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import VideoCallView from "@/components/chat/VideoCallView"
+import { VideoCallView } from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserSettingsModal from "@/components/user/UserSettingsModal"
@@ -23,7 +23,7 @@ import { uploadVoiceMessage } from "@/lib/storage"
 import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
-import { type ExpirationTimer, type Message as MessageType } from "@/lib/types"
+import { type ExpirationTimer } from "@/lib/types"
 import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
@@ -33,12 +33,19 @@ import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo, set } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
-import type { Message } from '@/lib/types'
+import { usePullToRefresh } from "@/hooks/usePullToRefresh"
+import { useMobileNotifications } from "@/lib/mobileNotifications"
+import { useHaptics } from "@/lib/haptics"
+// Removed unused Message type import
 
 export default function ChatApp() {
   const { user } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
+
+  // Mobile features
+  const { showMessage, showCall } = useMobileNotifications()
+  const { success: hapticSuccess } = useHaptics()
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
@@ -49,7 +56,7 @@ export default function ChatApp() {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
   const [currentRoomType, setCurrentRoomType] = useState<'lobby' | 'room' | 'dm'>('lobby')
   const [currentRoomName, setCurrentRoomName] = useState<string>("Lobby")
-  const [selectedThread, setSelectedThread] = useState<MessageType | null>(null)
+  const [selectedThread, setSelectedThread] = useState<any | null>(null)
 
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -58,7 +65,7 @@ export default function ChatApp() {
   const [onlineUsers, setOnlineUsers] = useState<Array<{ uid: string, userName?: string, photoURL?: string }>>([])
 
   // New feature states
-  const [replyToMessage, setReplyToMessage] = useState<MessageType | null>(null)
+  const [replyToMessage, setReplyToMessage] = useState<any | null>(null)
 
   // Initialize push notifications on app start
   useEffect(() => {
@@ -186,6 +193,20 @@ export default function ChatApp() {
     currentRoomType
   )
 
+  // Pull-to-refresh for messages
+  const {
+    containerRef: messagesContainerRef,
+    isRefreshing,
+    refreshIndicatorStyle,
+    isThresholdReached
+  } = usePullToRefresh({
+    onRefresh: async () => {
+      await hapticSuccess()
+      await retryConnection()
+    },
+    enabled: true
+  })
+
   // Hook for sending messages (room-aware)
   const { sendMessage, error: sendMessageError } = useRoomSendMessage(
     db,
@@ -214,22 +235,26 @@ export default function ChatApp() {
 
   // Effect for WebRTC signaling listeners
   useEffect(() => {
-    if (user && firebaseStatus === 'ready' && webRTCCallStatus !== 'active' && peerConnection !== null) {
+    if (user && firebaseStatus === 'ready' && webRTCCallStatus !== 'connected' && peerConnection !== null) {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid)
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
         (_, fromUserId, fromUserName) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
           console.log(`ChatApp: Current webRTCCallStatus after offer: ${webRTCCallStatus}`)
-          console.log(`ChatApp: Should show IncomingCallDialog: ${webRTCCallStatus === 'receivingCall'}`)
+          console.log(`ChatApp: Should show IncomingCallDialog: ${webRTCCallStatus === 'ringing'}`)
 
           // Check status after a short delay to see if it updates
           setTimeout(() => {
             console.log(`ChatApp: webRTCCallStatus after timeout: ${webRTCCallStatus}`)
-            console.log(`ChatApp: Should show IncomingCallDialog after timeout: ${webRTCCallStatus === 'receivingCall'}`)
+            console.log(`ChatApp: Should show IncomingCallDialog after timeout: ${webRTCCallStatus === 'ringing'}`)
           }, 100)
 
           soundManager.playCall()
+
+          // Show mobile notification for incoming call
+          showCall(fromUserName || "Unknown User", true)
+
           toast({
             title: "Incoming Call",
             description: `Call from ${fromUserName || "Unknown User"}. Check call UI.`,
@@ -354,6 +379,17 @@ export default function ChatApp() {
       const hasNewMessageFromOthers = newMessages.some(msg => msg.uid !== user?.uid)
 
       if (hasNewMessageFromOthers) {
+        const latestMessage = newMessages[newMessages.length - 1]
+
+        // Show mobile notification for new message
+        if (latestMessage && !document.hasFocus()) {
+          showMessage(
+            latestMessage.userName || "Unknown User",
+            latestMessage.text || "New message",
+            { roomId: currentRoomId, roomType: currentRoomType }
+          )
+        }
+
         if (currentRoomType === 'dm') {
           soundManager.playDM()
         } else {
@@ -612,7 +648,7 @@ export default function ChatApp() {
     }
   }
 
-  const handleReplyToMessage = (message: MessageType) => {
+  const handleReplyToMessage = (message: any) => {
     setReplyToMessage(message)
   }
 
@@ -642,42 +678,38 @@ export default function ChatApp() {
   }
 
   // Updated message reactions endpoints
-  const [messages, setMessages] = useState<Message[]>([]);
-
   const handleReaction = async (messageId: string, emoji: string) => {
-    setMessages(prevMessages =>
-      prevMessages.map(msg =>
-        msg.id === messageId
-          ? {
-            ...msg,
-            reactions: {
-              ...msg.reactions,
-              [emoji]: [...(msg.reactions?.[emoji] || []), user?.uid || '']
-            }
-          }
-          : msg
-      )
-    );
+    if (!user) return;
 
     try {
-      const response = await fetch(`/api/messages/${messageId}/reactions`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ emoji, userId: user?.uid })
+      const roomPath = currentRoomType === 'lobby' ? 'lobby' : currentRoomId;
+      const response = await fetch(`/api/rooms/${roomPath}/messages/${messageId}/reactions`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${await user.getIdToken()}`
+        },
+        body: JSON.stringify({
+          emoji,
+          action: 'add',
+          userId: await user.getIdToken()
+        })
       });
 
       if (!response.ok) throw new Error('Failed to add reaction');
+
+      toast({
+        title: "Reaction Added",
+        description: `Added ${emoji} reaction to message`,
+      });
     } catch (error) {
       console.error('Error adding reaction:', error);
+      toast({
+        title: "Error",
+        description: "Failed to add reaction. Please try again.",
+        variant: "destructive",
+      });
     }
-  };
-
-  // Correct API paths for message operations
-  const messageApiPaths = {
-    send: `/api/rooms/${currentRoomId}/messages`,
-    edit: `/api/messages`,
-    delete: `/api/messages`,
-    reactions: `/api/messages`
   };
 
   const handleExpire = async (messageId: string, duration: number) => {
@@ -712,7 +744,7 @@ export default function ChatApp() {
     }
   }
 
-  const handleThreadClick = (message: MessageType) => {
+  const handleThreadClick = (message: any) => {
     setSelectedThread(message)
   }
 
@@ -720,7 +752,7 @@ export default function ChatApp() {
     setSelectedThread(null)
   }
 
-  const renderMessage = (message: MessageType) => {
+  const renderMessage = (message: any) => {
     const isCurrentUser = message.uid === user?.uid
 
     return (
@@ -1023,7 +1055,23 @@ export default function ChatApp() {
               )}
 
               {/* Messages Area */}
-              <div className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6">
+              <div
+                ref={messagesContainerRef}
+                className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6 relative"
+              >
+                {/* Pull-to-refresh indicator */}
+                <div
+                  className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
+                  style={refreshIndicatorStyle}
+                >
+                  <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
+                    {!isRefreshing && (
+                      <div className="w-full h-full flex items-center justify-center">
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                      </div>
+                    )}
+                  </div>
+                </div>
                 {/* Connection Status Banner */}
                 {!isConnected && !isLoading && firebaseStatus === 'ready' && (
                   <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
@@ -1134,9 +1182,11 @@ export default function ChatApp() {
           onToggleVideo={toggleLocalVideo}
           onEndCall={hangUpCall}
           targetUserName={activeCallTargetUserName || callerUserName}
-          callStatus={webRTCCallStatus}
+          callStatus={webRTCCallStatus === 'ended' ? 'callEnded' : webRTCCallStatus as any}
           isLocalAudioMuted={isLocalAudioMuted}
           isLocalVideoEnabled={isLocalVideoEnabled}
+          peerConnection={peerConnection}
+          setRemoteStream={() => { }}
         />
       )}
 
@@ -1150,7 +1200,7 @@ export default function ChatApp() {
 
       {/* Incoming Call Dialog */}
       <IncomingCallDialog
-        open={webRTCCallStatus === 'receivingCall'}
+        open={webRTCCallStatus === 'ringing'}
         callerName={callerUserName || 'Unknown User'}
         onAcceptVideo={async () => {
           try {

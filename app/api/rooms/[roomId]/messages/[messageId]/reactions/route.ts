@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server"
-import { adminAuth, adminDb } from "@/lib/firebase-admin"
+import { adminAuth, getAdminDb } from "@/lib/firebase-admin"
 
 export async function PATCH(
     request: Request,
@@ -16,7 +16,8 @@ export async function PATCH(
             )
         }
 
-        const messageRef = adminDb.collection("rooms").doc(roomId)
+        const db = getAdminDb()
+        const messageRef = db.collection("rooms").doc(roomId)
             .collection("messages").doc(messageId)
 
         const messageDoc = await messageRef.get()
@@ -28,17 +29,28 @@ export async function PATCH(
         }
 
         const messageData = messageDoc.data()
-        const reactions = messageData?.reactions || {}
+        if (!messageData) {
+            return NextResponse.json(
+                { error: "Message data not found" },
+                { status: 404 }
+            )
+        }
+
+        const decodedToken = await adminAuth.verifyIdToken(userId)
+        let reactions = messageData.reactions || {}
 
         if (action === "add") {
             if (!reactions[emoji]) {
-                reactions[emoji] = [userId]
-            } else if (!reactions[emoji].includes(userId)) {
-                reactions[emoji] = [...reactions[emoji], userId]
+                reactions[emoji] = []
+            }
+            if (!reactions[emoji].includes(decodedToken.uid)) {
+                reactions[emoji].push(decodedToken.uid)
             }
         } else if (action === "remove") {
-            if (reactions[emoji]?.includes(userId)) {
-                reactions[emoji] = reactions[emoji].filter(id => id !== userId)
+            if (reactions[emoji]) {
+                reactions[emoji] = reactions[emoji].filter(
+                    (uid: string) => uid !== decodedToken.uid
+                )
                 if (reactions[emoji].length === 0) {
                     delete reactions[emoji]
                 }
@@ -49,9 +61,9 @@ export async function PATCH(
 
         return NextResponse.json({ success: true })
     } catch (error) {
-        console.error("Error updating reaction:", error)
+        console.error("Error updating reactions:", error)
         return NextResponse.json(
-            { error: "Failed to update reaction" },
+            { error: "Failed to update reactions" },
             { status: 500 }
         )
     }
