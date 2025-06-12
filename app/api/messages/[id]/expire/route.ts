@@ -64,9 +64,7 @@ export async function POST(
 
         // Schedule message expiration if needed
         if (expirationDate) {
-            const roomType = messageData.roomId ? 'room' : messageData.dmId ? 'dm' : 'lobby'
-            const roomId = messageData.roomId || messageData.dmId || 'lobby'
-            await MessageExpirationService.scheduleMessageExpiration(messageId, expirationDate, roomId, roomType)
+            MessageExpirationService.scheduleMessageExpiration(messageId, expirationDate)
         }
 
         return NextResponse.json({ success: true, expiresAt: expirationDate })

@@ -154,3 +154,15 @@ declare module 'csstype' {
   }
 }
 
+export interface Room {
+  id: string;
+  name: string;
+  description?: string;
+  isPrivate: boolean;
+  members: string[];
+  admins: string[];
+  createdAt: Date;
+  updatedAt: Date;
+  pattern?: string;
+}
+

@@ -5,7 +5,7 @@ import { db } from "@/lib/firebase"
 import { collection, query, onSnapshot, addDoc, serverTimestamp } from "firebase/firestore"
 import { MessageList } from "./chat/MessageList"
 import { MessageInput } from "./MessageInput"
-import type { Message, SimpleUser } from "@/lib/types"
+import type { Message } from "@/lib/types"
 
 interface ChatInterfaceProps {
   roomId: string

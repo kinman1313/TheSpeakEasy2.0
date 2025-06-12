@@ -14,6 +14,8 @@ import { doc, updateDoc, getDoc, arrayUnion, arrayRemove } from "firebase/firest
 import { toast } from "sonner"
 import { UserPlus, UserMinus, Copy, Check } from 'lucide-react'
 import { useRouter } from "next/navigation"
+import { PATTERNS } from '@/lib/themes'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 
 interface RoomSettingsProps {
     roomId: string
@@ -37,6 +39,9 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
     const [isAdmin, setIsAdmin] = useState<boolean>(false)
     const [isLoading, setIsLoading] = useState<boolean>(true)
     const [copied, setCopied] = useState<boolean>(false)
+    const [roomPattern, setRoomPattern] = useState<string>('none')
+    const [currentPattern, setCurrentPattern] = useState<typeof PATTERNS[number] | null>(null)
+    const [patternConfig, setPatternConfig] = useState<{ scale: number; color: string; opacity: number }>({ scale: 100, color: "#000000", opacity: 0.5 })
 
     // Check if Firebase is initialized
     const isFirebaseReady = typeof window !== 'undefined' && !!db;
@@ -58,6 +63,7 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
                     const roomData = roomSnap.data();
                     setRoomName(roomData.name);
                     setIsPrivate(roomData.isPrivate || false);
+                    setRoomPattern(roomData.pattern || 'none');
 
                     // Fetch member details
                     const memberPromises = roomData.members.map(async (memberId: string) => {
@@ -77,6 +83,17 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
 
                     // Check if current user is admin (creator) of the room
                     setIsAdmin(roomData.createdBy === user.uid);
+
+                    // Fetch current pattern
+                    const pattern = PATTERNS.find(p => p.id === roomData.pattern);
+                    if (pattern) {
+                        setCurrentPattern(pattern);
+                        setPatternConfig({
+                            scale: 100,
+                            color: "#000000",
+                            opacity: 0.5
+                        });
+                    }
                 }
             } catch (error) {
                 console.error("Error fetching room data:", error);
@@ -114,6 +131,7 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
             await updateDoc(roomRef, {
                 name: roomName,
                 isPrivate,
+                pattern: roomPattern,
                 updatedAt: new Date(),
             })
 
@@ -211,20 +229,20 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
     }
 
     const copyInviteLink = async () => {
-    try {
-        const inviteLink = `${window.location.origin}/invite/${roomId}`;
-        await navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        toast.success("Invite link copied to clipboard");
+        try {
+            const inviteLink = `${window.location.origin}/invite/${roomId}`;
+            await navigator.clipboard.writeText(inviteLink);
+            setCopied(true);
+            toast.success("Invite link copied to clipboard");
 
-        setTimeout(() => {
-            setCopied(false);
-        }, 2000);
-    } catch (error) {
-        console.error("Failed to copy to clipboard:", error);
-        toast.error("Failed to copy invite link to clipboard");
-    }
-};
+            setTimeout(() => {
+                setCopied(false);
+            }, 2000);
+        } catch (error) {
+            console.error("Failed to copy to clipboard:", error);
+            toast.error("Failed to copy invite link to clipboard");
+        }
+    };
 
     // Early return if not in browser
     if (typeof window === 'undefined') {
@@ -290,6 +308,109 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
                                 </Button>
                             </div>
                         </div>
+
+                        <div className="space-y-2">
+                            <Label htmlFor="room-pattern" className="text-neon-white">
+                                Room Background
+                            </Label>
+                            <Select
+                                value={roomPattern}
+                                onValueChange={setRoomPattern}
+                                disabled={!isAdmin || !isFirebaseReady}
+                            >
+                                <SelectTrigger className="bg-opacity-30 border-neon-blue text-neon-white">
+                                    <SelectValue placeholder="Select a pattern" />
+                                </SelectTrigger>
+                                <SelectContent className="glass-card max-h-[300px]">
+                                    {PATTERNS.map(pattern => (
+                                        <SelectItem
+                                            key={pattern.id}
+                                            value={pattern.id}
+                                            className="flex items-center gap-2"
+                                        >
+                                            {pattern.preview ? (
+                                                <div className="flex items-center gap-2">
+                                                    <img
+                                                        src={pattern.preview}
+                                                        alt=""
+                                                        className="w-6 h-6 object-cover rounded"
+                                                    />
+                                                    <span>{pattern.name}</span>
+                                                </div>
+                                            ) : (
+                                                pattern.name
+                                            )}
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
+
+                        {currentPattern && (
+                            <div className="relative p-4 bg-muted/10 rounded-lg border border-muted mb-4 overflow-hidden">
+                                <div className="flex items-center justify-between mb-2">
+                                    <Label className="text-sm font-medium text-neon-blue">Live Preview</Label>
+                                    <div className="text-xs text-muted-foreground">
+                                        {currentPattern.name}
+                                    </div>
+                                </div>
+
+                                <div
+                                    className="w-full h-40 rounded-md border border-muted/50 relative overflow-hidden shadow-inner"
+                                    style={{
+                                        backgroundSize: `${patternConfig.scale}px`,
+                                        backgroundImage: currentPattern.id !== 'none'
+                                            ? `url("data:image/svg+xml;utf8,${encodeURIComponent(
+                                                currentPattern.preview
+                                                    .replace(/%23([0-9a-f]{6})/gi, patternConfig.color.replace('#', '%23'))
+                                                    .replace(/fill-opacity=\"([0-9.]+)\"/g, `fill-opacity="${patternConfig.opacity}"`)
+                                                    .replace(/stroke-opacity=\"([0-9.]+)\"/g, `stroke-opacity="${patternConfig.opacity}"`)
+                                            )}")`
+                                            : undefined,
+                                        backgroundColor: currentPattern.id === 'none' ? 'transparent' : 'hsl(var(--background))',
+                                        opacity: patternConfig.opacity
+                                    }}
+                                >
+                                    <div className="absolute inset-0 flex flex-col p-3">
+                                        <div className="w-3/4 h-4 bg-muted/50 rounded-full mb-2"></div>
+                                        <div className="w-1/2 h-4 bg-muted/30 rounded-full mb-3"></div>
+
+                                        <div className="flex-1 flex items-end gap-2">
+                                            <div className="w-8 h-8 rounded-full bg-muted/50"></div>
+                                            <div className="flex-1">
+                                                <div className="w-full h-10 bg-muted/20 rounded-lg"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <div className="absolute inset-0 pointer-events-none" style={{
+                                        background: `
+                                            radial-gradient(ellipse at 20% 20%, rgba(255,255,255,0.1) 0%, transparent 70%),
+                                            linear-gradient(to bottom, transparent 60%, hsl(var(--background)/0.8))
+                                        `
+                                    }}></div>
+                                </div>
+
+                                {currentPattern.id !== 'none' && (
+                                    <div className="flex items-center justify-between mt-2 text-xs text-muted-foreground">
+                                        <span>Subtle</span>
+                                        <div className="flex-1 mx-2">
+                                            <div className="relative h-1 bg-muted/20 rounded-full overflow-hidden">
+                                                <div
+                                                    className="absolute inset-y-0 left-0 bg-current"
+                                                    style={{
+                                                        width: `${patternConfig.opacity * 100}%`,
+                                                        backgroundColor: patternConfig.color,
+                                                        opacity: 0.5
+                                                    }}
+                                                ></div>
+                                            </div>
+                                        </div>
+                                        <span>Bold</span>
+                                    </div>
+                                )}
+                            </div>
+                        )}
 
                         <div className="space-y-2">
                             <Label className="text-neon-white">Members ({members.length})</Label>

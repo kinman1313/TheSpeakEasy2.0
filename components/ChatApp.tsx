@@ -33,6 +33,7 @@ import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo, set } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
+import type { Message } from '@/lib/types'
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -101,17 +102,14 @@ export default function ChatApp() {
   // Initialize message expiration timers
   useEffect(() => {
     if (firebaseStatus === 'ready') {
-      MessageExpirationService.initializeExpirationTimers(
-        currentRoomId,
-        currentRoomType
-      )
+      MessageExpirationService.initializeExpirationTimers()
     }
 
     // Cleanup on unmount
     return () => {
       MessageExpirationService.cleanup()
     }
-  }, [firebaseStatus, currentRoomId, currentRoomType])
+  }, [firebaseStatus])
 
   // Set up typing indicators
   useEffect(() => {
@@ -465,12 +463,7 @@ export default function ChatApp() {
 
       // Schedule expiration if needed
       if (expiresAt) {
-        MessageExpirationService.scheduleMessageExpiration(
-          messageId,
-          expiresAt,
-          currentRoomId || 'lobby',
-          currentRoomType
-        )
+        MessageExpirationService.scheduleMessageExpiration(messageId, expiresAt)
       }
 
       // Clear reply state
@@ -648,57 +641,44 @@ export default function ChatApp() {
     }
   }
 
-  const handleReaction = async (messageId: string, emoji: string) => {
-    if (!user) return
+  // Updated message reactions endpoints
+  const [messages, setMessages] = useState<Message[]>([]);
 
-    console.log('Adding reaction:', { messageId, emoji, currentRoomId, currentRoomType })
+  const handleReaction = async (messageId: string, emoji: string) => {
+    setMessages(prevMessages =>
+      prevMessages.map(msg =>
+        msg.id === messageId
+          ? {
+            ...msg,
+            reactions: {
+              ...msg.reactions,
+              [emoji]: [...(msg.reactions?.[emoji] || []), user?.uid || '']
+            }
+          }
+          : msg
+      )
+    );
 
     try {
-      const token = await user.getIdToken()
+      const response = await fetch(`/api/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emoji, userId: user?.uid })
+      });
 
-      // Use proper RESTful API endpoints
-      let apiUrl: string
-      if (currentRoomType === 'lobby') {
-        apiUrl = '/api/messages/reactions'
-      } else if (currentRoomType === 'dm') {
-        apiUrl = `/api/direct-messages/${currentRoomId}/messages/${messageId}/reactions`
-      } else {
-        apiUrl = `/api/rooms/${currentRoomId}/messages/${messageId}/reactions`
-      }
-
-      const response = await fetch(apiUrl, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        body: JSON.stringify({
-          emoji,
-          action: 'add'
-        })
-      })
-
-      if (!response.ok) {
-        const errorText = await response.text()
-        console.error('Failed to add reaction:', response.status, errorText)
-        toast({
-          title: "Error",
-          description: `Failed to add reaction: ${response.status}`,
-          variant: "destructive"
-        })
-      } else {
-        const result = await response.json()
-        console.log('Reaction added successfully:', result)
-      }
+      if (!response.ok) throw new Error('Failed to add reaction');
     } catch (error) {
-      console.error('Error adding reaction:', error)
-      toast({
-        title: "Error",
-        description: "Failed to add reaction",
-        variant: "destructive"
-      })
+      console.error('Error adding reaction:', error);
     }
-  }
+  };
+
+  // Correct API paths for message operations
+  const messageApiPaths = {
+    send: `/api/rooms/${currentRoomId}/messages`,
+    edit: `/api/messages`,
+    delete: `/api/messages`,
+    reactions: `/api/messages`
+  };
 
   const handleExpire = async (messageId: string, duration: number) => {
     if (!user) return

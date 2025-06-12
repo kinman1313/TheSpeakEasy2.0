@@ -1,27 +1,21 @@
 import { adminDb } from '@/lib/firebase-admin';
 import { MESSAGE_EXPIRATION_OPTIONS, type ExpirationTimer } from '@/lib/types';
-import { QuerySnapshot, DocumentData, QueryDocumentSnapshot } from 'firebase-admin/firestore';
+import { QuerySnapshot, DocumentData } from 'firebase-admin/firestore';
 
 export class MessageExpirationService {
-    private static expirationTimeouts: Map<string, NodeJS.Timeout> = new Map();
+    private static expirationTimeouts = new Map<string, NodeJS.Timeout>();
 
     /**
      * Calculate expiration date based on timer option
      */
-    static calculateExpirationDate(timer: ExpirationTimer): Date | null {
+    static calculateExpirationDate(timer: ExpirationTimer | Date): Date | null {
+        if (timer instanceof Date) return timer;
         if (timer === 'never') return null;
 
-        const option = MESSAGE_EXPIRATION_OPTIONS[timer];
-        if (!option.duration) return null;
-
-        // Enforce minimum duration
-        const minDuration = option.minDuration;
-        if (minDuration && option.duration < minDuration) {
-            console.warn(`Duration ${option.duration}ms is less than minimum ${minDuration}ms for timer ${timer}`);
-            return new Date(Date.now() + minDuration);
-        }
-
-        return new Date(Date.now() + option.duration);
+        const now = new Date();
+        const minutes = timer === '5m' ? 5 : timer === '1h' ? 60 : 24 * 60;
+        now.setMinutes(now.getMinutes() + minutes);
+        return now;
     }
 
     /**
@@ -45,32 +39,23 @@ export class MessageExpirationService {
      */
     static scheduleMessageExpiration(
         messageId: string,
-        expirationDate: Date | null,
-        roomId: string,
-        roomType: 'lobby' | 'room' | 'dm'
+        timer: ExpirationTimer | Date
     ): void {
-        // Clear existing timeout if any
         this.clearMessageExpiration(messageId);
 
-        if (!expirationDate) return;
+        const expirationTime = timer instanceof Date ? timer : this.calculateExpirationDate(timer);
+        if (!expirationTime) return;
 
-        const now = Date.now();
-        const expirationTime = expirationDate.getTime();
-        const delay = expirationTime - now;
+        const now = new Date();
+        const delay = expirationTime.getTime() - now.getTime();
 
-        if (delay <= 0) {
-            // Already expired, delete immediately
-            this.deleteExpiredMessage(messageId, roomId, roomType);
-            return;
+        if (delay > 0) {
+            const timeout = setTimeout(() => {
+                this.handleExpire(messageId);
+            }, delay);
+
+            this.expirationTimeouts.set(messageId, timeout);
         }
-
-        // Schedule deletion
-        const timeout = setTimeout(() => {
-            this.deleteExpiredMessage(messageId, roomId, roomType);
-            this.expirationTimeouts.delete(messageId);
-        }, delay);
-
-        this.expirationTimeouts.set(messageId, timeout);
     }
 
     /**
@@ -87,11 +72,7 @@ export class MessageExpirationService {
     /**
      * Delete an expired message
      */
-    private static async deleteExpiredMessage(
-        messageId: string,
-        roomId: string,
-        roomType: 'lobby' | 'room' | 'dm'
-    ): Promise<void> {
+    private static async deleteExpiredMessage(messageId: string): Promise<void> {
         try {
             const messageRef = adminDb.collection("messages").doc(messageId);
             await messageRef.delete();
@@ -105,10 +86,7 @@ export class MessageExpirationService {
     /**
      * Initialize expiration timers for existing messages on app start
      */
-    static async initializeExpirationTimers(
-        roomId: string | null,
-        roomType: 'lobby' | 'room' | 'dm'
-    ): Promise<void> {
+    static async initializeExpirationTimers(): Promise<void> {
         try {
             const messagesRef = adminDb.collection("messages");
             const q = messagesRef.where('expiresAt', '!=', null);
@@ -122,9 +100,7 @@ export class MessageExpirationService {
                     const expirationDate = new Date(expiresAt);
                     this.scheduleMessageExpiration(
                         doc.id,
-                        expirationDate,
-                        roomId || 'lobby',
-                        roomType
+                        expirationDate
                     );
                 }
             }
@@ -140,9 +116,7 @@ export class MessageExpirationService {
      */
     static async updateMessageExpiration(
         messageId: string,
-        newTimer: ExpirationTimer,
-        roomId: string | null,
-        roomType: 'lobby' | 'room' | 'dm'
+        newTimer: ExpirationTimer
     ): Promise<void> {
         try {
             const messageRef = adminDb.collection("messages").doc(messageId);
@@ -156,9 +130,7 @@ export class MessageExpirationService {
             // Reschedule expiration
             this.scheduleMessageExpiration(
                 messageId,
-                newExpirationDate,
-                roomId || 'lobby',
-                roomType
+                newTimer
             );
 
             console.log(`Updated expiration for message ${messageId} to ${newTimer}`);
@@ -198,5 +170,9 @@ export class MessageExpirationService {
         if (hours > 0) return `Expires in ${hours} hour${hours > 1 ? 's' : ''}`;
         if (minutes > 0) return `Expires in ${minutes} minute${minutes > 1 ? 's' : ''}`;
         return 'Expires in less than a minute';
+    }
+
+    private static handleExpire(messageId: string): void {
+        // Implementation for handling expired messages
     }
 } 

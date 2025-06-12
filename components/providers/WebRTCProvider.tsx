@@ -5,22 +5,13 @@ import { useAuth } from '@/components/auth/AuthProvider';
 import { rtdb } from '@/lib/firebase';
 import { ref, set, onValue, push, off, remove, serverTimestamp } from 'firebase/database';
 
-const configuration = {
-  iceServers: [{ urls: 'stun:stun.l.google.com:19302' }],
-};
-
 export type CallStatus =
   | 'idle'
-  | 'requestingMedia'
-  | 'creatingOffer'
-  | 'waitingForAnswer'
-  | 'receivingCall'
-  | 'processingOffer'
-  | 'creatingAnswer'
-  | 'processingAnswer'
-  | 'active'
+  | 'calling'
+  | 'ringing'
+  | 'connected'
+  | 'ended'
   | 'error'
-  | 'callEnded'
   | 'callDeclined';
 
 export interface SignalingPayload {
@@ -73,7 +64,7 @@ interface WebRTCContextType {
     onCallEndedSignalCb: () => void
   ) => () => void;
   closePeerConnection: (isInitiator?: boolean, reason?: CallStatus) => void; // Added reason
-  setCallStatus: React.Dispatch<React.SetStateAction<CallStatus>>;
+  setCallStatus: (status: CallStatus) => void;
   hangUpCall: () => Promise<void>;
 }
 
@@ -106,8 +97,6 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [cameraPermission, setCameraPermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [microphonePermission, setMicrophonePermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [signalingError, setSignalingError] = useState<Error | null>(null);
-
-  const [pendingCandidates, setPendingCandidates] = useState<RTCIceCandidate[]>([]);
 
   const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
   const offerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -225,7 +214,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       pc.onconnectionstatechange = () => {
         console.log(`Connection state changed: ${pc.connectionState}`);
         if (pc.connectionState === 'connected') {
-          setCallStatus('active');
+          setCallStatus('connected');
         } else if (pc.connectionState === 'failed') {
           console.error('Connection failed, attempting to restart ICE');
           pc.restartIce();
@@ -301,7 +290,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
     try {
       await set(ref(rtdb, offerPath), payload);
-      setCallStatus('waitingForAnswer');
+      setCallStatus('calling');
     } catch (e: any) {
       console.error("Error sending offer:", e);
       setSignalingError(new Error(`Failed to send offer: ${e.message}`));
@@ -338,7 +327,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const stream = await requestMediaPermissionsHandleErrors();
     if (!stream) { return; }
 
-    setCallStatus('creatingOffer');
+    setCallStatus('calling');
     setActiveCallTargetUserId(targetId);
     setActiveCallTargetUserName(targetName || "User");
 
@@ -382,10 +371,10 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       const pc = initializePeerConnection(user.uid, callerUserId);
       stream.getTracks().forEach(track => pc.addTrack(track, stream));
 
-      setCallStatus('processingOffer');
+      setCallStatus('connected');
       await pc.setRemoteDescription(new RTCSessionDescription(incomingOffer));
 
-      setCallStatus('creatingAnswer');
+      setCallStatus('connected');
       const answerDesc = await pc.createAnswer();
       await pc.setLocalDescription(answerDesc);
 
@@ -503,7 +492,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setCallStatus('error');
       return null;
     }
-    setCallStatus('requestingMedia');
+    setCallStatus('calling');
     try {
       const constraints = audioOnly ?
         {
@@ -572,7 +561,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const stream = await requestMediaPermissionsHandleErrors(true); // Audio only
     if (!stream) { return; }
 
-    setCallStatus('creatingOffer');
+    setCallStatus('calling');
     setActiveCallTargetUserId(targetId);
     setActiveCallTargetUserName(targetName || "User");
 
@@ -647,7 +636,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setIncomingOffer({ type: 'offer', sdp: offerPayload.sdp });
                 setCallerUserId(offerPayload.senderId);
                 setCallerUserName(offerPayload.senderName || 'Unknown User');
-                setCallStatus('receivingCall');
+                setCallStatus('calling');
 
                 // Also call the callback for additional handling (like sound/toast)
                 console.log('Provider: Calling onOfferReceivedCb for UI notification');
@@ -672,7 +661,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
               // Only process answer if we're in the right state
               const currentCallStatus = callStatusRef.current;
-              if (currentCallStatus === 'waitingForAnswer' || currentCallStatus === 'creatingOffer') {
+              if (currentCallStatus === 'calling' || currentCallStatus === 'connected') {
                 clearOfferTimeout(); // Clear offer timeout on receiving an answer
                 onAnswerReceivedCb({ type: 'answer', sdp: answerPayload.sdp }, answerPayload.senderId);
                 // Remove the answer from database after processing
@@ -730,56 +719,6 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState, peerConnection]); // Added peerConnection to deps
 
-  const handleSignalingMessage = async (message: any) => {
-    if (!peerConnection) return;
-
-    try {
-      switch (message.type) {
-        case 'offer':
-          if (peerConnection.signalingState !== 'stable') {
-            console.log('Connection not stable, ignoring offer');
-            return;
-          }
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(message));
-          const answer = await peerConnection.createAnswer();
-          await peerConnection.setLocalDescription(answer);
-          // Send answer through Firebase
-          const answerRef = ref(rtdb, `calls/${message.from}/answer`);
-          await set(answerRef, {
-            type: 'answer',
-            sdp: answer,
-            from: user?.uid
-          });
-          break;
-
-        case 'answer':
-          if (peerConnection.signalingState !== 'have-local-offer') {
-            console.log('Connection not in have-local-offer state, ignoring answer');
-            return;
-          }
-          await peerConnection.setRemoteDescription(new RTCSessionDescription(message));
-          // Add any pending candidates
-          for (const candidate of pendingCandidates) {
-            await peerConnection.addIceCandidate(candidate);
-          }
-          setPendingCandidates([]);
-          break;
-
-        case 'candidate':
-          if (peerConnection.remoteDescription) {
-            await peerConnection.addIceCandidate(new RTCIceCandidate(message.candidate));
-          } else {
-            // Store candidate for later if remote description isn't set yet
-            setPendingCandidates(prev => [...prev, message.candidate]);
-          }
-          break;
-      }
-    } catch (error) {
-      console.error('Error handling signaling message:', error);
-      setCallStatus('error');
-    }
-  };
-
   // Update ICE candidate handling
   useEffect(() => {
     if (!peerConnection) return;
@@ -799,7 +738,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleConnectionStateChange = () => {
       console.log('Connection state changed:', peerConnection.connectionState);
       if (peerConnection.connectionState === 'connected') {
-        setCallStatus('active');
+        setCallStatus('connected');
       } else if (peerConnection.connectionState === 'failed' ||
         peerConnection.connectionState === 'disconnected' ||
         peerConnection.connectionState === 'closed') {

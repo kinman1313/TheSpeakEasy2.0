@@ -25,17 +25,14 @@ export function MessageList({ messages, currentUser, roomId, isDM = false }: Mes
   // Initialize expiration timers for messages
   useEffect(() => {
     if (messages.length > 0) {
-      MessageExpirationService.initializeExpirationTimers(
-        roomId,
-        isDM ? 'dm' : 'room'
-      )
+      MessageExpirationService.initializeExpirationTimers()
     }
 
     // Cleanup on unmount
     return () => {
       MessageExpirationService.cleanup()
     }
-  }, [messages.length, roomId, isDM])
+  }, [messages.length])
 
   useEffect(() => {
     scrollToBottom()

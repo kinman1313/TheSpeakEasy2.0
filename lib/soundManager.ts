@@ -6,22 +6,14 @@ interface SoundSettings {
     volume: number
 }
 
-const DEFAULT_SOUNDS = {
-    message1: '/sounds/message1.mp3',
-    message2: '/sounds/message2.mp3',
-    message3: '/sounds/message3.mp3',
-    message4: '/sounds/message4.mp3',
-    call1: '/sounds/call1.mp3',
-    call2: '/sounds/call2.mp3',
-    call3: '/sounds/call3.mp3',
-    dm1: '/sounds/dm1.mp3',
-    dm2: '/sounds/dm2.mp3',
-    dm3: '/sounds/dm3.mp3',
+interface Sound {
+    buffer: AudioBuffer;
+    name: string;
 }
 
-class SoundManager {
+export class SoundManager {
     private audioContext: AudioContext | null = null;
-    private sounds: { [key: string]: AudioBuffer } = {};
+    private sounds: Record<string, Sound> = {};
     private isInitialized = false;
     private settings: SoundSettings | null = null
     private audioCache: Map<string, HTMLAudioElement> = new Map()
@@ -73,11 +65,11 @@ class SoundManager {
         }
     }
 
-    updateSettings(settings: SoundSettings) {
-        this.settings = settings
+    updateSettings(newSettings: SoundSettings) {
+        this.settings = newSettings
         // Only save to localStorage on client side
         if (typeof window !== 'undefined') {
-            localStorage.setItem('soundSettings', JSON.stringify(settings))
+            localStorage.setItem('soundSettings', JSON.stringify(newSettings))
         }
     }
 
@@ -111,29 +103,34 @@ class SoundManager {
 
             const response = await fetch(url);
             const arrayBuffer = await response.arrayBuffer();
-            this.sounds[name] = await this.audioContext.decodeAudioData(arrayBuffer);
+            this.sounds[name] = {
+                buffer: await this.audioContext.decodeAudioData(arrayBuffer),
+                name: name
+            };
         } catch (error) {
             console.warn(`Failed to load sound ${name}:`, error);
         }
     }
 
-    async playSound(name: string) {
+    public playSound(soundName: string, volume = 1): void {
+        const sound = this.sounds[soundName];
+        if (!this.isInitialized || !sound) {
+            console.warn(`Sound '${soundName}' not available or audio not initialized`);
+            return;
+        }
+
         try {
-            if (!this.isInitialized) {
-                await this.initialize();
-            }
+            const source = this.audioContext!.createBufferSource();
+            source.buffer = sound.buffer;
 
-            if (!this.audioContext || !this.sounds[name]) {
-                console.warn(`Sound ${name} not available`);
-                return;
-            }
+            const gainNode = this.audioContext!.createGain();
+            gainNode.gain.value = volume * (this.settings?.volume || 1);
 
-            const source = this.audioContext.createBufferSource();
-            source.buffer = this.sounds[name];
-            source.connect(this.audioContext.destination);
+            source.connect(gainNode);
+            gainNode.connect(this.audioContext!.destination);
             source.start(0);
         } catch (error) {
-            console.warn(`Error playing sound ${name}:`, error);
+            console.error('Error playing sound:', error);
         }
     }
 
@@ -154,6 +151,17 @@ class SoundManager {
             audio.pause()
             audio.currentTime = 0
         })
+    }
+
+    // Fixed audio context initialization
+    private initAudioContext(): void {
+        try {
+            this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+            this.isInitialized = true;
+        } catch (error) {
+            console.error('AudioContext initialization failed:', error);
+            this.isInitialized = false;
+        }
     }
 }
 

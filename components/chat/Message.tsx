@@ -398,8 +398,10 @@ export function Message({
                         <AudioPlayer src={message.voiceMessageUrl} />
                     </div>
                 )}
+            </div>
 
-                {/* Reactions */}
+            {/* Reactions - Always visible and accessible */}
+            <div className="mt-3 flex items-center justify-between">
                 <MessageReactions
                     messageId={message.id}
                     reactions={message.reactions || {}}
@@ -407,81 +409,117 @@ export function Message({
                     onReact={handleReaction}
                     onRemoveReaction={handleReaction}
                 />
+
+                {/* Quick action buttons for mobile */}
+                <div className="flex gap-1 md:hidden">
+                    <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => onReply && onReply(message)}
+                        className="h-8 px-2 text-xs touch-manipulation"
+                    >
+                        <Reply className="h-3 w-3 mr-1" />
+                        Reply
+                    </Button>
+                    {isCurrentUser && onEdit && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setIsEditing(true)}
+                            className="h-8 px-2 text-xs touch-manipulation"
+                        >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                        </Button>
+                    )}
+                </div>
             </div>
 
             {/* Message Actions - Always visible on mobile, hover on desktop */}
-            {showActions && (
-                <div className="absolute top-2 right-2 flex space-x-2 bg-white dark:bg-gray-900 rounded-lg shadow-lg p-2">
+            <div className={cn(
+                "absolute top-2 right-2 flex space-x-1 bg-white dark:bg-gray-900 rounded-lg shadow-lg p-1 transition-opacity",
+                // Always show on mobile (< md), show on hover for desktop
+                showActions || "md:opacity-0 md:group-hover:opacity-100"
+            )}>
+                {/* Desktop actions */}
+                <button
+                    onClick={() => onReply && onReply(message)}
+                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback hidden md:block"
+                    title="Reply"
+                >
+                    <Reply className="w-4 h-4" />
+                </button>
+                {isCurrentUser && onEdit && (
                     <button
-                        onClick={() => onReply && onReply(message)}
-                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
-                        title="Reply"
+                        onClick={() => setIsEditing(true)}
+                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback hidden md:block"
+                        title="Edit"
                     >
-                        <Reply className="w-4 h-4" />
+                        <Edit className="w-4 h-4" />
                     </button>
-                    {isCurrentUser && (
-                        <>
-                            <button
-                                onClick={() => onDelete && onDelete(message.id)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-red-500 tap-feedback"
-                                title="Delete"
-                            >
-                                <Trash2 className="w-4 h-4" />
-                            </button>
-                            <DropdownMenu>
-                                <DropdownMenuTrigger asChild>
-                                    <button
-                                        className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
-                                        title="Set expiration"
+                )}
+                {isCurrentUser && (
+                    <>
+                        <button
+                            onClick={() => onDelete && onDelete(message.id)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full text-red-500 tap-feedback"
+                            title="Delete"
+                        >
+                            <Trash2 className="w-4 h-4" />
+                        </button>
+                        <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                                <button
+                                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
+                                    title="Set expiration"
+                                >
+                                    <Clock className="w-4 h-4" />
+                                </button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent>
+                                {Object.entries(MESSAGE_EXPIRATION_OPTIONS).map(([key, option]) => (
+                                    <DropdownMenuItem
+                                        key={key}
+                                        onClick={() => {
+                                            if (key === 'never') {
+                                                handleExpire(0)
+                                            } else if (option.duration) {
+                                                const minutes = option.duration / (1000 * 60)
+                                                handleExpire(minutes)
+                                            }
+                                        }}
                                     >
-                                        <Clock className="w-4 h-4" />
-                                    </button>
-                                </DropdownMenuTrigger>
-                                <DropdownMenuContent>
-                                    {Object.entries(MESSAGE_EXPIRATION_OPTIONS).map(([key, option]) => (
-                                        <DropdownMenuItem
-                                            key={key}
-                                            onClick={() => {
-                                                if (key === 'never') {
-                                                    onExpire(message.id, 0)
-                                                } else if (option.duration) {
-                                                    const minutes = option.duration / (1000 * 60)
-                                                    onExpire(message.id, minutes)
-                                                }
-                                            }}
-                                        >
-                                            {option.label}
-                                        </DropdownMenuItem>
-                                    ))}
-                                </DropdownMenuContent>
-                            </DropdownMenu>
-                        </>
-                    )}
-                    {message.threadId && !isThreadView && (
-                        <>
-                            <button
-                                onClick={() => onThreadClick(message)}
-                                className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
-                                title="View thread"
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                            </button>
-                            <button
-                                onClick={handleSubscribeToggle}
-                                className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback ${isSubscribed ? 'text-blue-500' : ''
-                                    }`}
-                                title={isSubscribed ? 'Unsubscribe from thread' : 'Subscribe to thread'}
-                            >
-                                {isSubscribed ? (
-                                    <Bell className="w-4 h-4" />
-                                ) : (
-                                    <BellOff className="w-4 h-4" />
-                                )}
-                            </button>
-                        </>
-                    )}
-                </div>
-            )}
+                                        {option.label}
+                                    </DropdownMenuItem>
+                                ))}
+                            </DropdownMenuContent>
+                        </DropdownMenu>
+                    </>
+                )}
+                {message.threadId && !isThreadView && (
+                    <>
+                        <button
+                            onClick={() => onThreadClick(message)}
+                            className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback"
+                            title="View thread"
+                        >
+                            <MessageSquare className="w-4 h-4" />
+                        </button>
+                        <button
+                            onClick={handleSubscribeToggle}
+                            className={`p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-full tap-feedback ${isSubscribed ? 'text-blue-500' : ''
+                                }`}
+                            title={isSubscribed ? 'Unsubscribe from thread' : 'Subscribe to thread'}
+                        >
+                            {isSubscribed ? (
+                                <Bell className="w-4 h-4" />
+                            ) : (
+                                <BellOff className="w-4 h-4" />
+                            )}
+                        </button>
+                    </>
+                )}
+            </div>
 
             {/* Expiration Info */}
             {expirationInfo && (

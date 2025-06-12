@@ -1,0 +1,17 @@
+/* styles/video-call.css */
+.video-call-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.video-container {
+    display: flex;
+    gap: 1rem;
+}
+
+.controls {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+}

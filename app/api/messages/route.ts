@@ -9,6 +9,15 @@ interface RoomData {
     [key: string]: any; // Allow other properties
 }
 
+interface MessageData {
+    text?: string;
+    senderId?: string;
+    uid?: string;
+    roomId?: string;
+    dmId?: string;
+    [key: string]: any; // Allow other properties
+}
+
 const limiter = rateLimit({
     interval: 60 * 1000, // 1 minute
     uniqueTokenPerInterval: 500,
@@ -129,5 +138,63 @@ export async function GET(request: NextRequest) {
     } catch (error) {
         console.error("Messages fetch error:", error)
         return NextResponse.json({ error: "Failed to fetch messages" }, { status: 500 })
+    }
+}
+
+export async function PATCH(request: NextRequest) {
+    try {
+        await limiter.check(request, 60, "EDIT_MESSAGE") // 60 edits per minute
+
+        const token = request.headers.get("Authorization")?.split("Bearer ")[1]
+        if (!token) {
+            return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        }
+
+        const decodedToken = await adminAuth.verifyIdToken(token)
+        const { messageId, text, action } = await request.json()
+
+        if (!messageId) {
+            return NextResponse.json({ error: "Message ID is required" }, { status: 400 })
+        }
+
+        if (action === 'edit') {
+            if (!text?.trim()) {
+                return NextResponse.json({ error: "Message text is required" }, { status: 400 })
+            }
+
+            // Get the message
+            const messageRef = adminDb.collection("messages").doc(messageId)
+            const messageSnap = await messageRef.get()
+
+            if (!messageSnap.exists) {
+                return NextResponse.json({ error: "Message not found" }, { status: 404 })
+            }
+
+            const messageData = messageSnap.data() as MessageData
+
+            // Verify this is a lobby message (no roomId or dmId)
+            if (messageData?.roomId || messageData?.dmId) {
+                return NextResponse.json({ error: "This endpoint is only for lobby messages" }, { status: 403 })
+            }
+
+            // Verify user owns the message
+            if (messageData?.senderId !== decodedToken.uid && messageData?.uid !== decodedToken.uid) {
+                return NextResponse.json({ error: "Unauthorized to edit this message" }, { status: 403 })
+            }
+
+            // Update the message
+            await messageRef.update({
+                text: text.trim(),
+                isEdited: true,
+                editedAt: new Date().toISOString()
+            })
+
+            return NextResponse.json({ success: true })
+        }
+
+        return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+    } catch (error) {
+        console.error("Message edit error:", error)
+        return NextResponse.json({ error: "Failed to edit message" }, { status: 500 })
     }
 }

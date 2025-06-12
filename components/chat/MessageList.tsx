@@ -50,6 +50,8 @@ export function MessageList({
                 unsubscribe()
             }
         }
+        // Explicitly return undefined when condition is not met
+        return undefined
     }, [selectedThread, user])
 
     useEffect(() => {
@@ -58,17 +60,14 @@ export function MessageList({
 
     useEffect(() => {
         if (messages.length > 0) {
-            MessageExpirationService.initializeExpirationTimers(
-                roomId,
-                roomId.startsWith('dm_') ? 'dm' : 'room'
-            )
+            MessageExpirationService.initializeExpirationTimers()
         }
 
         // Cleanup on unmount
         return () => {
             MessageExpirationService.cleanup()
         }
-    }, [messages.length, roomId])
+    }, [messages.length])
 
     const handleThreadClick = (message: MessageType) => {
         setSelectedThread(message)

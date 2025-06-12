@@ -3,8 +3,9 @@
 import React, { useState } from 'react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
-import { SmilePlus, Heart, ThumbsUp, Laugh, Frown, Star } from 'lucide-react'
+import { Smile, Heart, ThumbsUp, Laugh, Frown, Star } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { EmojiPicker } from "./EmojiPicker"
 
 interface MessageReactionsProps {
   messageId: string
@@ -25,6 +26,8 @@ const REACTION_OPTIONS = [
   { emoji: '👏', label: 'Clap' },
 ]
 
+const REACTION_EMOJIS = ["👍", "❤️", "😂", "😮", "😢", "🙏"]
+
 export function MessageReactions({
   messageId,
   reactions = {},
@@ -36,76 +39,47 @@ export function MessageReactions({
 
   const handleReaction = (emoji: string) => {
     const hasReacted = reactions[emoji]?.includes(currentUserId)
-
     if (hasReacted) {
       onRemoveReaction(messageId, emoji)
     } else {
       onReact(messageId, emoji)
     }
-    setIsOpen(false)
   }
 
   const hasReactions = Object.keys(reactions).length > 0
 
   return (
-    <div className="flex items-center gap-1 flex-wrap">
-      {/* Display existing reactions */}
-      {Object.entries(reactions).map(([emoji, userIds]) => {
-        const hasReacted = userIds.includes(currentUserId)
-        const count = userIds.length
+    <div className="flex items-center gap-1">
+      {/* Quick reaction buttons */}
+      {REACTION_EMOJIS.map(emoji => (
+        <Button
+          key={emoji}
+          variant="ghost"
+          size="sm"
+          className={`h-8 w-8 p-0 text-xs ${reactions[emoji]?.includes(currentUserId) ? 'bg-primary/10' : ''}`}
+          onClick={() => handleReaction(emoji)}
+        >
+          {emoji}
+          {reactions[emoji]?.length > 0 && (
+            <span className="ml-1 text-xs">
+              {reactions[emoji].length}
+            </span>
+          )}
+        </Button>
+      ))}
 
-        if (count === 0) return null
-
-        return (
-          <Button
-            key={emoji}
-            variant="ghost"
-            size="sm"
-            onClick={() => handleReaction(emoji)}
-            className={cn(
-              "h-8 px-2 py-1 text-xs gap-1 transition-all touch-manipulation",
-              hasReacted
-                ? "bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-400 border border-indigo-500/50"
-                : "bg-slate-700/50 hover:bg-slate-700/70 text-slate-300"
-            )}
-          >
-            <span className="text-sm">{emoji}</span>
-            <span>{count}</span>
-          </Button>
-        )
-      })}
-
-      {/* Add reaction button */}
-      <Popover open={isOpen} onOpenChange={setIsOpen}>
+      {/* Emoji picker for more reactions */}
+      <Popover>
         <PopoverTrigger asChild>
-          <Button
-            variant="ghost"
-            size="sm"
-            className={cn(
-              "h-8 w-8 p-0 transition-all touch-manipulation",
-              hasReactions
-                ? "opacity-60 md:opacity-0 md:group-hover:opacity-100"
-                : "opacity-70 hover:opacity-100"
-            )}
-          >
-            <SmilePlus className="h-4 w-4" />
+          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+            <Smile className="h-4 w-4" />
           </Button>
         </PopoverTrigger>
-        <PopoverContent className="w-auto p-2 glass-card">
-          <div className="grid grid-cols-4 gap-1">
-            {REACTION_OPTIONS.map((reaction) => (
-              <Button
-                key={reaction.emoji}
-                variant="ghost"
-                size="sm"
-                onClick={() => handleReaction(reaction.emoji)}
-                className="h-12 w-12 p-0 hover:bg-slate-700/50 touch-manipulation"
-                title={reaction.label}
-              >
-                <span className="text-lg">{reaction.emoji}</span>
-              </Button>
-            ))}
-          </div>
+        <PopoverContent className="w-auto p-0" align="end">
+          <EmojiPicker
+            onSelectEmoji={(emoji) => handleReaction(emoji)}
+            disableRecent
+          />
         </PopoverContent>
       </Popover>
     </div>

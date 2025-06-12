@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Firestore, collection, query, orderBy, onSnapshot, Timestamp, enableNetwork, disableNetwork, where } from 'firebase/firestore';
+import { Firestore, collection, query, orderBy, onSnapshot, enableNetwork, disableNetwork, where } from 'firebase/firestore';
 import { getMessages as getCachedMessages, saveMessages as saveCachedMessages } from '../messageCache';
 import { Message as AppMessage } from '../types';
 

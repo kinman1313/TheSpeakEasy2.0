@@ -57,59 +57,31 @@ export function MessageInput({
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // Typing indicators with improved debouncing
+  // Enhanced typing indicators with multiple event listeners
   useEffect(() => {
-    if (!currentUserId || !currentUserName || !roomId) return
+    if (!currentUserId || !currentUserName || !roomId) return;
 
-    let typingTimeout: NodeJS.Timeout
+    const inputElement = inputRef.current;
+    if (!inputElement) return;
 
     const handleTyping = () => {
-      const currentMessage = inputRef.current?.value || ''
-
+      const currentMessage = inputElement.value || '';
       if (currentMessage.trim()) {
-        // User is typing - start/continue typing indicator
-        TypingIndicatorService.startTyping(currentUserId, currentUserName, roomId)
-
-        // Clear existing timeout
-        if (typingTimeout) {
-          clearTimeout(typingTimeout)
-        }
-
-        // Set timeout to stop typing after 3 seconds of inactivity
-        typingTimeout = setTimeout(() => {
-          TypingIndicatorService.stopTyping(currentUserId, roomId)
-        }, 3000)
+        TypingIndicatorService.debounceTyping(currentUserId, currentUserName, roomId);
       } else {
-        // User cleared the input - stop typing immediately
-        TypingIndicatorService.stopTyping(currentUserId, roomId)
-        if (typingTimeout) {
-          clearTimeout(typingTimeout)
-        }
+        TypingIndicatorService.stopTyping(currentUserId, roomId);
       }
-    }
+    };
 
-    // Add event listeners for various input events
-    const inputElement = inputRef.current
-    if (inputElement) {
-      inputElement.addEventListener('input', handleTyping)
-      inputElement.addEventListener('keyup', handleTyping)
-      inputElement.addEventListener('paste', handleTyping)
-    }
+    // Add multiple event listeners
+    const events = ['input', 'keydown', 'keyup', 'paste', 'cut'];
+    events.forEach(event => inputElement.addEventListener(event, handleTyping));
 
-    // Cleanup on unmount or dependency change
     return () => {
-      if (inputElement) {
-        inputElement.removeEventListener('input', handleTyping)
-        inputElement.removeEventListener('keyup', handleTyping)
-        inputElement.removeEventListener('paste', handleTyping)
-      }
-      if (typingTimeout) {
-        clearTimeout(typingTimeout)
-      }
-      // Always stop typing when component unmounts
-      TypingIndicatorService.stopTyping(currentUserId, roomId)
-    }
-  }, [currentUserId, currentUserName, roomId]) // Remove message from dependencies to avoid excessive re-renders
+      events.forEach(event => inputElement.removeEventListener(event, handleTyping));
+      TypingIndicatorService.stopTyping(currentUserId, roomId);
+    };
+  }, [currentUserId, currentUserName, roomId]);
 
   const handleEmojiSelect = (emoji: string) => {
     const newMessage = message + emoji

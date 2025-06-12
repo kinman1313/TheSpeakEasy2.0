@@ -6,6 +6,10 @@ export interface Pattern {
     name: string;
     className: string; // CSS class for the pattern
     preview: string; // SVG or image data URI for preview
+    configurable: boolean;
+    defaultColor?: string;
+    defaultScale?: number;
+    defaultOpacity?: number;
 }
 
 export const PATTERNS: Pattern[] = [
@@ -14,49 +18,65 @@ export const PATTERNS: Pattern[] = [
         name: 'None',
         className: '',
         preview: '',
+        configurable: false
     },
     {
         id: 'subtle-dots',
         name: 'Subtle Dots',
-        className: 'pattern-subtle-dots',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><circle cx="2" cy="2" r="2" fill="%23ccc" fill-opacity="0.2"/></svg>',
+        className: 'bg-[length:20px_20px] bg-center bg-repeat',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="1" fill="%23ccc" fill-opacity="0.2"/><circle cx="30" cy="10" r="1" fill="%23ccc" fill-opacity="0.2"/><circle cx="10" cy="30" r="1" fill="%23ccc" fill-opacity="0.2"/><circle cx="30" cy="30" r="1" fill="%23ccc" fill-opacity="0.2"/></svg>',
+        configurable: true,
+        defaultColor: '#cccccc',
+        defaultScale: 20,
+        defaultOpacity: 0.2
     },
     {
         id: 'retro-grid',
         name: 'Retro Grid',
-        className: 'pattern-retro-grid',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="none" stroke="%23fff" stroke-width="0.5"/><line x1="20" y1="0" x2="20" y2="40" stroke="%23fff" stroke-width="0.5"/><line x1="0" y1="20" x2="40" y2="20" stroke="%23fff" stroke-width="0.5"/></svg>',
+        className: 'bg-[length:40px_40px] bg-center bg-repeat',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h40v40H0z" fill="none" stroke="%23fff" stroke-width="0.5"/><path d="M20 0v40M0 20h40" stroke="%23fff" stroke-width="0.5"/></svg>',
+        configurable: true,
+        defaultColor: '#ffffff',
+        defaultScale: 40,
+        defaultOpacity: 0.5
     },
     {
-        id: 'retro-70s',
-        name: 'Retro 70s',
-        className: 'pattern-retro-70s',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><ellipse cx="20" cy="20" rx="18" ry="8" fill="%23fbbf24" fill-opacity="0.2"/><ellipse cx="20" cy="20" rx="10" ry="4" fill="%23f87171" fill-opacity="0.2"/></svg>',
+        id: 'diagonal-lines',
+        name: 'Diagonal Lines',
+        className: 'bg-[length:30px_30px] bg-center bg-repeat',
+        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg"><path d="M0,40L40,0" stroke="%23f472b6" stroke-width="1" stroke-opacity="0.3"/></svg>',
+        configurable: true,
+        defaultColor: '#f472b6',
+        defaultScale: 30,
+        defaultOpacity: 0.3
     },
     {
-        id: 'retro-80s',
-        name: 'Retro 80s',
-        className: 'pattern-retro-80s',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%23a21caf" fill-opacity="0.1"/><circle cx="30" cy="10" r="6" fill="%23f472b6" fill-opacity="0.3"/></svg>',
+        id: 'hexagons',
+        name: 'Hexagons',
+        className: 'bg-[length:50px_50px] bg-center bg-repeat',
+        preview: 'data:image/svg+xml;utf8,<svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg"><path d="M25,0L50,15V35L25,50L0,35V15Z" fill="none" stroke="%23a78bfa" stroke-width="1" stroke-opacity="0.2"/></svg>',
+        configurable: true,
+        defaultColor: '#a78bfa',
+        defaultScale: 50,
+        defaultOpacity: 0.2
     },
     {
-        id: 'neon-future',
-        name: 'Neon Future',
-        className: 'pattern-neon-future',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%2300f0ff" fill-opacity="0.08"/><line x1="0" y1="40" x2="40" y2="0" stroke="%23f0f" stroke-width="2"/></svg>',
+        id: 'noise',
+        name: 'Noise Texture',
+        className: 'bg-[length:200px_200px] bg-center bg-repeat opacity-30',
+        preview: 'data:image/svg+xml;utf8,<svg width="200" height="200" xmlns="http://www.w3.org/2000/svg"><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.8" numOctaves="3" stitchTiles="stitch"/></filter><rect width="100%" height="100%" filter="url(%23noise)" opacity="0.3"/></svg>',
+        configurable: false
     },
     {
-        id: 'cyberpunk',
-        name: 'Cyberpunk',
-        className: 'pattern-cyberpunk',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect x="0" y="0" width="40" height="40" fill="%2300f0ff" fill-opacity="0.05"/><rect x="10" y="10" width="20" height="20" fill="%23f0f" fill-opacity="0.1"/></svg>',
-    },
-    {
-        id: 'matrix',
-        name: 'Matrix',
-        className: 'pattern-matrix',
-        preview: 'data:image/svg+xml;utf8,<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="40" height="40" fill="%23000"/><text x="5" y="20" font-size="12" fill="%230f0" fill-opacity="0.5">101</text></svg>',
-    },
+        id: 'bubbles',
+        name: 'Bubbles',
+        className: 'bg-[length:100px_100px] bg-center bg-repeat',
+        preview: 'data:image/svg+xml;utf8,<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg"><circle cx="25" cy="25" r="10" fill="%2338bdf8" fill-opacity="0.1"/><circle cx="75" cy="25" r="15" fill="%2338bdf8" fill-opacity="0.1"/><circle cx="50" cy="75" r="20" fill="%2338bdf8" fill-opacity="0.1"/></svg>',
+        configurable: true,
+        defaultColor: '#38bdf8',
+        defaultScale: 100,
+        defaultOpacity: 0.1
+    }
 ];
 
 export interface Theme {
@@ -163,4 +183,10 @@ export const ThemeService = {
         const userDocRef = doc(db, 'user_settings', userId);
         await setDoc(userDocRef, { themeId }, { merge: true });
     },
-}; 
+};
+
+export interface PatternConfig {
+    color?: string;
+    scale?: number;
+    opacity?: number;
+} 

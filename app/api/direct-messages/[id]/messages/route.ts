@@ -144,14 +144,10 @@ export async function PATCH(
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
         }
 
-        const { messageId, emoji, action } = await request.json()
+        const { messageId, emoji, action, text } = await request.json()
 
-        if (!messageId || !emoji || !action) {
-            return NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-        }
-
-        if (action !== 'add' && action !== 'remove') {
-            return NextResponse.json({ error: "Invalid action" }, { status: 400 })
+        if (!messageId) {
+            return NextResponse.json({ error: "Message ID is required" }, { status: 400 })
         }
 
         // Get the message
@@ -162,9 +158,39 @@ export async function PATCH(
             return NextResponse.json({ error: "Message not found" }, { status: 404 })
         }
 
-        const messageData = messageSnap.data() as { dmId?: string; reactions?: Record<string, string[]> }
+        const messageData = messageSnap.data() as { dmId?: string; senderId?: string; reactions?: Record<string, string[]> }
         if (messageData?.dmId !== dmId) {
             return NextResponse.json({ error: "Message not in this direct message" }, { status: 403 })
+        }
+
+        // Handle message editing
+        if (action === 'edit') {
+            if (!text?.trim()) {
+                return NextResponse.json({ error: "Message text is required" }, { status: 400 })
+            }
+
+            // Verify user owns the message
+            if (messageData?.senderId !== decodedToken.uid) {
+                return NextResponse.json({ error: "Unauthorized to edit this message" }, { status: 403 })
+            }
+
+            // Update the message
+            await messageRef.update({
+                text: text.trim(),
+                isEdited: true,
+                editedAt: Timestamp.now()
+            })
+
+            return NextResponse.json({ success: true })
+        }
+
+        // Handle reactions
+        if (!emoji || !action) {
+            return NextResponse.json({ error: "Missing required fields for reaction" }, { status: 400 })
+        }
+
+        if (action !== 'add' && action !== 'remove') {
+            return NextResponse.json({ error: "Invalid reaction action" }, { status: 400 })
         }
 
         // Update reactions

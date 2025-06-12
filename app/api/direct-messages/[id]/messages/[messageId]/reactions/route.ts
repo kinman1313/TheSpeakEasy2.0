@@ -46,7 +46,7 @@ export async function PATCH(
         }
 
         // Get the message
-        const messageRef = adminDb.collection("directMessages").doc(dmId).collection("messages").doc(messageId)
+        const messageRef = adminDb.collection("messages").doc(messageId)
         const messageSnap = await messageRef.get()
 
         if (!messageSnap.exists) {
@@ -54,6 +54,11 @@ export async function PATCH(
         }
 
         const messageData = messageSnap.data() as MessageData
+
+        // Verify message belongs to this DM
+        if (messageData?.dmId !== dmId) {
+            return NextResponse.json({ error: "Message not in this direct message" }, { status: 403 })
+        }
 
         // Update reactions
         const reactions = messageData?.reactions || {}
