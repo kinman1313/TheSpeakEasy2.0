@@ -110,23 +110,25 @@ export const useRoomMessages = (
 
         if (roomType === 'lobby') {
             const messagesRef = collection(db, "messages");
+            // For lobby messages: query all messages and filter client-side
+            // This is because Firestore doesn't handle null queries well
             q = query(
                 messagesRef,
-                orderBy("timestamp", "asc")
+                orderBy("createdAt", "asc")
             );
         } else if (roomType === 'room' && roomId) {
             const messagesRef = collection(db, "messages");
             q = query(
                 messagesRef,
                 where("roomId", "==", roomId),
-                orderBy("timestamp", "asc")
+                orderBy("createdAt", "asc")
             );
         } else if (roomType === 'dm' && roomId) {
             const messagesRef = collection(db, "messages");
             q = query(
                 messagesRef,
                 where("dmId", "==", roomId),
-                orderBy("timestamp", "asc")
+                orderBy("createdAt", "asc")
             );
         } else {
             setMessages([]);
@@ -154,8 +156,8 @@ export const useRoomMessages = (
                             replyToId: data.replyToId,
                             replyToMessage: data.replyToMessage,
                             threadId: data.threadId,
-                            uid: data.uid || data.userId,
-                            userId: data.uid || data.userId,
+                            uid: data.uid || data.senderId,
+                            userId: data.uid || data.senderId,
                             userName: data.userName,
                             displayName: data.displayName,
                             photoURL: data.photoURL || data.userPhotoURL,
@@ -167,6 +169,9 @@ export const useRoomMessages = (
                             reactions: data.reactions,
                             expiresAt: data.expiresAt ? (data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)) : null,
                             expirationTimer: data.expirationTimer,
+                            attachments: data.attachments || [],
+                            roomId: data.roomId,
+                            dmId: data.dmId
                         } as AppMessage;
                     });
 

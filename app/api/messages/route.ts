@@ -2,6 +2,7 @@ export const dynamic = "force-dynamic";
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
+import { FieldValue } from "firebase-admin/firestore"
 // Add this interface to define the room data structure
 interface RoomData {
     ownerId: string;
@@ -39,6 +40,12 @@ export async function POST(request: NextRequest) {
             return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
+        // Get user information for the message
+        const userDoc = await adminDb.collection("users").doc(decodedToken.uid).get()
+        const userData = userDoc.exists ? userDoc.data() : {}
+        const userName = userData?.displayName || (decodedToken as any).name || decodedToken.email || 'Anonymous'
+        const userPhotoURL = userData?.photoURL || (decodedToken as any).picture || null
+
         // Handle lobby messages (roomId === 'lobby' or no roomId)
         if (!roomId || roomId === 'lobby') {
             // Create lobby message in Firestore
@@ -48,7 +55,10 @@ export async function POST(request: NextRequest) {
                 attachments,
                 senderId: decodedToken.uid,
                 uid: decodedToken.uid, // For backward compatibility
-                createdAt: new Date().toISOString(),
+                userName: userName,
+                displayName: userName,
+                photoURL: userPhotoURL,
+                createdAt: FieldValue.serverTimestamp(),
                 // No roomId for lobby messages
             }
 
@@ -61,7 +71,7 @@ export async function POST(request: NextRequest) {
             if (expirationTimer && expirationTimer !== 'never') {
                 const expirationDate = calculateExpirationDate(expirationTimer)
                 if (expirationDate) {
-                    messageData.expiresAt = expirationDate.toISOString()
+                    messageData.expiresAt = expirationDate
                     messageData.expirationTimer = expirationTimer
                 }
             }
@@ -92,7 +102,10 @@ export async function POST(request: NextRequest) {
             attachments,
             senderId: decodedToken.uid,
             roomId,
-            createdAt: new Date().toISOString(),
+            userName: userName,
+            displayName: userName,
+            photoURL: userPhotoURL,
+            createdAt: FieldValue.serverTimestamp(),
         }
 
         // Add reply context if provided
@@ -104,7 +117,7 @@ export async function POST(request: NextRequest) {
         if (expirationTimer && expirationTimer !== 'never') {
             const expirationDate = calculateExpirationDate(expirationTimer)
             if (expirationDate) {
-                messageData.expiresAt = expirationDate.toISOString()
+                messageData.expiresAt = expirationDate
                 messageData.expirationTimer = expirationTimer
             }
         }
@@ -113,7 +126,7 @@ export async function POST(request: NextRequest) {
 
         // Update room's updatedAt timestamp
         await roomRef.update({
-            updatedAt: new Date().toISOString(),
+            updatedAt: FieldValue.serverTimestamp(),
         })
 
         return NextResponse.json({ id: newMessage.id })
@@ -268,7 +281,7 @@ export async function PATCH(request: NextRequest) {
             await messageRef.update({
                 text: text.trim(),
                 isEdited: true,
-                editedAt: new Date().toISOString()
+                editedAt: FieldValue.serverTimestamp()
             })
 
             return NextResponse.json({ success: true })

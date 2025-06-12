@@ -63,7 +63,18 @@ export function MessageList({ messages, currentUser, roomId, isDM = false }: Mes
 
     try {
       const token = await user.getIdToken()
-      const response = await fetch(`/api/rooms/${roomId}/messages`, {
+
+      // Determine correct API endpoint based on room type
+      let apiUrl: string
+      if (roomId === 'lobby') {
+        apiUrl = '/api/messages/reactions'
+      } else if (isDM) {
+        apiUrl = `/api/direct-messages/${roomId}/messages/${messageId}/reactions`
+      } else {
+        apiUrl = `/api/rooms/${roomId}/messages/${messageId}/reactions`
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -89,7 +100,18 @@ export function MessageList({ messages, currentUser, roomId, isDM = false }: Mes
 
     try {
       const token = await user.getIdToken()
-      const response = await fetch(`/api/rooms/${roomId}/messages`, {
+
+      // Determine correct API endpoint based on room type
+      let apiUrl: string
+      if (roomId === 'lobby') {
+        apiUrl = '/api/messages/reactions'
+      } else if (isDM) {
+        apiUrl = `/api/direct-messages/${roomId}/messages/${messageId}/reactions`
+      } else {
+        apiUrl = `/api/rooms/${roomId}/messages/${messageId}/reactions`
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',

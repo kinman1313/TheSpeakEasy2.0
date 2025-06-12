@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { adminAuth, adminDb } from "@/lib/firebase-admin"
 import { rateLimit } from "@/lib/rate-limit"
-import { Timestamp } from "firebase-admin/firestore"
+import { FieldValue } from "firebase-admin/firestore"
 
 const limiter = rateLimit({
     interval: 60 * 1000, // 1 minute
@@ -43,20 +43,30 @@ export async function POST(
             return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
+        // Get user information for the message
+        const userDoc = await adminDb.collection("users").doc(decodedToken.uid).get()
+        const userData = userDoc.exists ? userDoc.data() : {}
+        const userName = userData?.displayName || (decodedToken as any).name || decodedToken.email || 'Anonymous'
+        const userPhotoURL = userData?.photoURL || (decodedToken as any).picture || null
+
         // Create message in Firestore
         const messagesRef = adminDb.collection("messages")
         const messageData = {
             text: text?.trim() || "",
             attachments,
             senderId: decodedToken.uid,
+            uid: decodedToken.uid,
+            userName: userName,
+            displayName: userName,
+            photoURL: userPhotoURL,
             dmId,
-            createdAt: Timestamp.now(),
+            createdAt: FieldValue.serverTimestamp(),
         }
         const newMessage = await messagesRef.add(messageData)
 
         // Update DM's updatedAt timestamp
         await dmRef.update({
-            updatedAt: Timestamp.now(),
+            updatedAt: FieldValue.serverTimestamp(),
         })
 
         return NextResponse.json({ id: newMessage.id })
@@ -178,7 +188,7 @@ export async function PATCH(
             await messageRef.update({
                 text: text.trim(),
                 isEdited: true,
-                editedAt: Timestamp.now()
+                editedAt: FieldValue.serverTimestamp()
             })
 
             return NextResponse.json({ success: true })
