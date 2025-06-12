@@ -33,16 +33,44 @@ export async function POST(request: NextRequest) {
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token)
-        const { roomId, text, attachments = [] } = await request.json()
-
-        if (!roomId) {
-            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
-        }
+        const { roomId, text, attachments = [], replyToId, expirationTimer } = await request.json()
 
         if (!text?.trim() && attachments.length === 0) {
             return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
+        // Handle lobby messages (roomId === 'lobby' or no roomId)
+        if (!roomId || roomId === 'lobby') {
+            // Create lobby message in Firestore
+            const messagesRef = adminDb.collection("messages")
+            const messageData: any = {
+                text: text?.trim() || "",
+                attachments,
+                senderId: decodedToken.uid,
+                uid: decodedToken.uid, // For backward compatibility
+                createdAt: new Date().toISOString(),
+                // No roomId for lobby messages
+            }
+
+            // Add reply context if provided
+            if (replyToId) {
+                messageData.replyToId = replyToId
+            }
+
+            // Add expiration timer if provided
+            if (expirationTimer && expirationTimer !== 'never') {
+                const expirationDate = calculateExpirationDate(expirationTimer)
+                if (expirationDate) {
+                    messageData.expiresAt = expirationDate.toISOString()
+                    messageData.expirationTimer = expirationTimer
+                }
+            }
+
+            const newMessage = await messagesRef.add(messageData)
+            return NextResponse.json({ id: newMessage.id })
+        }
+
+        // Handle room messages (existing logic)
         // Check if user is a member of the room
         const roomRef = adminDb.collection("rooms").doc(roomId)
         const roomSnap = await roomRef.get()
@@ -59,13 +87,29 @@ export async function POST(request: NextRequest) {
 
         // Create message in Firestore
         const messagesRef = adminDb.collection("messages")
-        const newMessage = await messagesRef.add({
+        const messageData: any = {
             text: text?.trim() || "",
             attachments,
             senderId: decodedToken.uid,
             roomId,
             createdAt: new Date().toISOString(),
-        })
+        }
+
+        // Add reply context if provided
+        if (replyToId) {
+            messageData.replyToId = replyToId
+        }
+
+        // Add expiration timer if provided
+        if (expirationTimer && expirationTimer !== 'never') {
+            const expirationDate = calculateExpirationDate(expirationTimer)
+            if (expirationDate) {
+                messageData.expiresAt = expirationDate.toISOString()
+                messageData.expirationTimer = expirationTimer
+            }
+        }
+
+        const newMessage = await messagesRef.add(messageData)
 
         // Update room's updatedAt timestamp
         await roomRef.update({
@@ -76,6 +120,23 @@ export async function POST(request: NextRequest) {
     } catch (error) {
         console.error("Message creation error:", error)
         return NextResponse.json({ error: "Failed to send message" }, { status: 500 })
+    }
+}
+
+// Helper function to calculate expiration date
+function calculateExpirationDate(timer: string): Date | null {
+    if (timer === 'never') return null
+
+    const now = new Date()
+    switch (timer) {
+        case '5m':
+            return new Date(now.getTime() + 5 * 60 * 1000)
+        case '1h':
+            return new Date(now.getTime() + 60 * 60 * 1000)
+        case '24h':
+            return new Date(now.getTime() + 24 * 60 * 60 * 1000)
+        default:
+            return null
     }
 }
 
@@ -92,11 +153,35 @@ export async function GET(request: NextRequest) {
 
         // Get query parameters
         const roomId = request.nextUrl.searchParams.get("roomId")
+        const limit = parseInt(request.nextUrl.searchParams.get("limit") || "50", 10)
+        const before = request.nextUrl.searchParams.get("before")
 
-        if (!roomId) {
-            return NextResponse.json({ error: "Room ID is required" }, { status: 400 })
+        // Handle lobby messages (no roomId or roomId === 'lobby')
+        if (!roomId || roomId === 'lobby') {
+            // Query lobby messages (messages without roomId or dmId)
+            let query = adminDb.collection("messages")
+                .where("roomId", "==", null) // Lobby messages have no roomId
+                .orderBy("createdAt", "desc")
+                .limit(limit)
+
+            if (before) {
+                // Get the message to use as a cursor
+                const cursorDoc = await adminDb.collection("messages").doc(before).get()
+                if (cursorDoc.exists) {
+                    query = query.startAfter(cursorDoc)
+                }
+            }
+
+            const snapshot = await query.get()
+            const messages = snapshot.docs.map((doc) => ({
+                id: doc.id,
+                ...doc.data(),
+            }))
+
+            return NextResponse.json({ messages })
         }
 
+        // Handle room messages (existing logic)
         // Check if user is a member of the room
         const roomRef = adminDb.collection("rooms").doc(roomId)
         const roomSnap = await roomRef.get()
@@ -111,10 +196,7 @@ export async function GET(request: NextRequest) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 403 })
         }
 
-        const limit = parseInt(request.nextUrl.searchParams.get("limit") || "50", 10)
-        const before = request.nextUrl.searchParams.get("before")
-
-        // Query messages
+        // Query room messages
         let query = adminDb.collection("messages")
             .where("roomId", "==", roomId)
             .orderBy("createdAt", "desc")

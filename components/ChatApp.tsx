@@ -682,21 +682,35 @@ export default function ChatApp() {
     if (!user) return;
 
     try {
-      const roomPath = currentRoomType === 'lobby' ? 'lobby' : currentRoomId;
-      const response = await fetch(`/api/rooms/${roomPath}/messages/${messageId}/reactions`, {
+      const token = await user.getIdToken()
+      let apiUrl: string
+
+      // Determine the correct API endpoint based on room type
+      if (currentRoomType === 'lobby') {
+        apiUrl = '/api/messages/reactions'
+      } else if (currentRoomType === 'dm') {
+        apiUrl = `/api/direct-messages/${currentRoomId}/messages/${messageId}/reactions`
+      } else {
+        apiUrl = `/api/rooms/${currentRoomId}/messages/${messageId}/reactions`
+      }
+
+      const response = await fetch(apiUrl, {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${await user.getIdToken()}`
+          'Authorization': `Bearer ${token}`
         },
         body: JSON.stringify({
+          messageId,
           emoji,
-          action: 'add',
-          userId: await user.getIdToken()
+          action: 'add'
         })
       });
 
-      if (!response.ok) throw new Error('Failed to add reaction');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to add reaction')
+      }
 
       toast({
         title: "Reaction Added",
