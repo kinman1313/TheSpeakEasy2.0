@@ -45,10 +45,19 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
             Object.entries(currentTheme.colors).forEach(([key, value]) => {
                 root.style.setProperty(key, String(value));
             });
-            // Apply pattern class to body
-            document.body.classList.remove(...PATTERNS.map(p => p.className).filter(Boolean));
+
+            // Remove all pattern classes from body
+            PATTERNS.forEach(pattern => {
+                if (pattern.className) {
+                    const classes = pattern.className.split(' ').filter(Boolean);
+                    document.body.classList.remove(...classes);
+                }
+            });
+
+            // Apply current pattern classes to body
             if (currentPattern.className) {
-                document.body.classList.add(currentPattern.className);
+                const classes = currentPattern.className.split(' ').filter(Boolean);
+                document.body.classList.add(...classes);
             }
         }
     }, [currentTheme, currentPattern, isLoading]);
