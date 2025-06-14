@@ -1,0 +1,15 @@
+{
+    "mcpServers": {
+        "mcpServers": {
+            "context7-toolkit": {
+                "command": "node",
+                "args": [
+                    "C:/Users/kevin/context7mcp/index.mjs",
+                    "--transport",
+                    "stdio"
+                ],
+                "timeout": 60
+            }
+        }
+    }
+}

@@ -88,12 +88,15 @@ export function GiphyPicker({ onSelect }: { onSelect: (url: string) => void }) {
                   key={gif.id}
                   onClick={() => handleSelect(gif)}
                   className="relative aspect-video overflow-hidden rounded-lg hover:ring-2 hover:ring-primary focus:outline-none focus:ring-2 focus:ring-primary"
+                  aria-label={`Select GIF: ${gif.title}`}
+                  title={gif.title}
                 >
                   <Image
                     src={gif.images.fixed_height.url || "/placeholder.svg"}
                     alt={gif.title}
-                    fill
-                    className="object-cover"
+                    width={200}
+                    height={200}
+                    className="object-cover h-auto"
                   />
                 </button>
               ))

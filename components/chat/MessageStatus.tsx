@@ -1,12 +1,12 @@
 "use client"
 
 import { useEffect, useRef } from 'react'
-import { Check, CheckCheck } from 'lucide-react'
-import { type MessageStatus } from '@/lib/types'
+import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react'
+import { type MessageStatus as MessageStatusType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
 interface MessageStatusProps {
-    status: MessageStatus
+    status: MessageStatusType
     className?: string
 }
 
@@ -49,20 +49,43 @@ export function MessageStatus({ status, className }: MessageStatusProps) {
         }
     }, [])
 
+    const getStatusIcon = () => {
+        switch (status) {
+            case 'sending':
+                return <Clock className="h-3 w-3 text-slate-400 animate-pulse" />
+            case 'sent':
+                return <Check className="h-3 w-3 text-slate-400" />
+            case 'delivered':
+                return <CheckCheck className="h-3 w-3 text-slate-400" />
+            case 'read':
+                return <CheckCheck className="h-3 w-3 text-blue-400" />
+            case 'failed':
+                return <AlertCircle className="h-3 w-3 text-red-400" />
+            default:
+                return null
+        }
+    }
+
+    const getStatusText = () => {
+        switch (status) {
+            case 'sending':
+                return 'Sending...'
+            case 'sent':
+                return 'Sent'
+            case 'delivered':
+                return 'Delivered'
+            case 'read':
+                return 'Read'
+            case 'failed':
+                return 'Failed to send'
+            default:
+                return ''
+        }
+    }
+
     return (
-        <div ref={messageRef} className={cn("flex items-center gap-1", className)}>
-            {status === 'sending' && (
-                <span className="text-xs text-muted-foreground">Sending...</span>
-            )}
-            {status === 'sent' && (
-                <Check className="h-3 w-3 text-muted-foreground" />
-            )}
-            {status === 'delivered' && (
-                <Check className="h-3 w-3 text-muted-foreground" />
-            )}
-            {status === 'read' && (
-                <CheckCheck className="h-3 w-3 text-primary" />
-            )}
+        <div ref={messageRef} className={cn("flex items-center gap-1", className)} title={getStatusText()}>
+            {getStatusIcon()}
         </div>
     )
 } 

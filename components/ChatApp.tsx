@@ -31,7 +31,7 @@ import { useRouter } from "next/navigation"
 import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
-import { ref, onValue, query, orderByChild, equalTo, set } from 'firebase/database'
+import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
 import { usePullToRefresh } from "@/hooks/usePullToRefresh"
 import { useMobileNotifications } from "@/lib/mobileNotifications"
@@ -436,6 +436,7 @@ export default function ChatApp() {
       replyToId?: string
       expirationTimer?: ExpirationTimer
       threadId?: string
+      status?: string
     }
   ) => {
     if (!user) {
@@ -473,32 +474,12 @@ export default function ChatApp() {
       // Send message and get the message ID
       const messageId = await sendMessage(messageText, user, messageData)
 
-      // Update message status to 'sent'
       if (messageId) {
-        const messageRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/status`)
-        await set(messageRef, 'sent')
-
-        // Listen for delivery status
-        const deliveryRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/delivered`)
-        onValue(deliveryRef, (snapshot) => {
-          const delivered = snapshot.val()
-          if (delivered) {
-            set(messageRef, 'delivered')
-          }
-        })
-
-        // Listen for read status
-        const readRef = ref(rtdb, `messages/${currentRoomType}/${currentRoomId || 'lobby'}/${messageId}/read`)
-        onValue(readRef, (snapshot) => {
-          const read = snapshot.val()
-          if (read) {
-            set(messageRef, 'read')
-          }
-        })
+        console.log('Message sent successfully with ID:', messageId)
       }
 
       // Schedule expiration if needed
-      if (expiresAt) {
+      if (expiresAt && messageId) {
         MessageExpirationService.scheduleMessageExpiration(messageId, expiresAt)
       }
 
@@ -1041,9 +1022,12 @@ export default function ChatApp() {
                                   }}
                                   disabled={webRTCCallStatus !== 'idle'}
                                   className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
-                                  title="Voice Call"
+                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
                                 >
                                   <Phone size={20} />
+                                  <span className="sr-only">
+                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
+                                  </span>
                                 </Button>
                                 <Button
                                   size="sm"
@@ -1054,9 +1038,12 @@ export default function ChatApp() {
                                   }}
                                   disabled={webRTCCallStatus !== 'idle'}
                                   className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
-                                  title="Video Call"
+                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
                                 >
                                   <Video size={20} />
+                                  <span className="sr-only">
+                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
+                                  </span>
                                 </Button>
                               </div>
                             </div>

@@ -101,12 +101,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
   const offerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const disconnectedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const callStatusRef = useRef<CallStatus>(callStatus);
+  const callStatusRef = useRef<CallStatus>('idle');
 
-  // Update the ref whenever callStatus changes
+  // Update ref when state changes
   useEffect(() => {
     callStatusRef.current = callStatus;
-    console.log(`WebRTC Provider: Call status changed to: ${callStatus}`);
   }, [callStatus]);
 
   // Clean up any stale offers when component initializes
@@ -239,27 +238,18 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     [peerConnection, rtdb]
   );
 
-  const resetCallState = useCallback(() => { // Wrapped in useCallback
-    console.log('Provider: Resetting call state');
-    clearOfferTimeout();
-    clearDisconnectedTimeout();
-    localStream?.getTracks().forEach(track => track.stop());
-    setLocalStream(null);
-    remoteStream?.getTracks().forEach(track => track.stop());
-    setRemoteStream(null);
-
+  const resetCallState = useCallback(() => {
+    console.log("Resetting call state");
     setCallStatus('idle');
     setActiveCallTargetUserId(null);
     setActiveCallTargetUserName(null);
     setIncomingOffer(null);
     setCallerUserId(null);
     setCallerUserName(null);
-    setIsLocalAudioMuted(false);
-    setIsLocalVideoEnabled(true);
     setSignalingError(null);
-    console.log('Provider: Call state reset completed');
-    // Do not setPeerConnection(null) here, closePeerConnection handles it.
-  }, [localStream, remoteStream]);
+    clearOfferTimeout();
+    clearDisconnectedTimeout();
+  }, []);
 
   const closePeerConnection = useCallback((_isInitiatorCleanUp = false, reason?: CallStatus) => {
     console.log(`Closing peer connection and related state. Reason: ${reason || 'general cleanup'}`);
@@ -636,7 +626,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setIncomingOffer({ type: 'offer', sdp: offerPayload.sdp });
                 setCallerUserId(offerPayload.senderId);
                 setCallerUserName(offerPayload.senderName || 'Unknown User');
-                setCallStatus('calling');
+                setCallStatus('ringing');
 
                 // Also call the callback for additional handling (like sound/toast)
                 console.log('Provider: Calling onOfferReceivedCb for UI notification');

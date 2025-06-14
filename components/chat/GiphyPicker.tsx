@@ -128,10 +128,10 @@ export default function GiphyPicker({ onSelectGif, onClose }: GiphyPickerProps) 
               <Image
                 src={gif.images.fixed_height.url}
                 alt={gif.title || 'GIF'}
-                layout="fill"
-                objectFit="cover" // Or "contain" depending on desired look
-                className="group-hover:scale-105 transition-transform duration-150"
-                unoptimized // If Giphy URLs are not configured in next.config.js
+                width={200}
+                height={200}
+                className="group-hover:scale-105 transition-transform duration-150 object-cover h-auto"
+                unoptimized
               />
             </div>
           ))}

@@ -50,7 +50,7 @@ export interface MessageSettings {
 }
 
 // Message status types
-export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read'
+export type MessageStatus = 'sending' | 'sent' | 'delivered' | 'read' | 'failed'
 
 // Message expiration options with minimum times
 export const MESSAGE_EXPIRATION_OPTIONS = {
@@ -103,6 +103,7 @@ export interface Message {
   // Expiration
   expiresAt?: Date | null
   expirationTimer?: ExpirationTimer
+  chatColor?: string
 }
 
 // Typing indicator interface

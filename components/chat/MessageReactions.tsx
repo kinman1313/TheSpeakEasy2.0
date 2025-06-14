@@ -21,8 +21,9 @@ export function MessageReactions({
   onReact,
   onRemoveReaction
 }: MessageReactionsProps) {
-  const handleReaction = (emoji: string) => {
-    const hasReacted = reactions[emoji]?.includes(currentUserId)
+  const handleEmojiSelect = (emoji: string) => {
+    const userReactions = reactions[emoji] || []
+    const hasReacted = userReactions.includes(currentUserId)
 
     if (hasReacted) {
       onRemoveReaction(messageId, emoji)
@@ -31,8 +32,15 @@ export function MessageReactions({
     }
   }
 
-  const handleEmojiSelect = (emoji: string) => {
-    handleReaction(emoji)
+  const handleReactionClick = (emoji: string) => {
+    const userReactions = reactions[emoji] || []
+    const hasReacted = userReactions.includes(currentUserId)
+
+    if (hasReacted) {
+      onRemoveReaction(messageId, emoji)
+    } else {
+      onReact(messageId, emoji)
+    }
   }
 
   return (
@@ -47,7 +55,7 @@ export function MessageReactions({
             ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
             : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
             }`}
-          onClick={() => handleReaction(emoji)}
+          onClick={() => handleReactionClick(emoji)}
         >
           {emoji} {userIds.length}
         </Button>

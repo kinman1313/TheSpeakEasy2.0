@@ -54,13 +54,10 @@ export async function POST(
 ) {
     try {
         const { roomId } = params
-        const { text, attachments = [], replyToId, expirationTimer } = await request.json()
+        const { text, attachments = [], replyToId, expirationTimer, imageUrl, gifUrl, voiceMessageUrl, voiceMessageDuration, fileUrl, fileName, fileSize, fileType } = await request.json()
 
-        if (!text?.trim() && attachments.length === 0) {
-            return NextResponse.json(
-                { error: "Message content is required" },
-                { status: 400 }
-            )
+        if (!text?.trim() && attachments.length === 0 && !imageUrl && !gifUrl && !voiceMessageUrl && !fileUrl) {
+            return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
         // Get authorization token
@@ -72,24 +69,60 @@ export async function POST(
         const token = authHeader.split("Bearer ")[1]
         const decodedToken = await adminAuth.verifyIdToken(token)
 
-        // Get user information
+        // Get user information for the message
         const db = getAdminDb()
         const userDoc = await db.collection("users").doc(decodedToken.uid).get()
         const userData = userDoc.exists ? userDoc.data() : {}
         const userName = userData?.displayName || (decodedToken as any).name || decodedToken.email || 'Anonymous'
         const userPhotoURL = userData?.photoURL || (decodedToken as any).picture || null
+        const userChatColor = userData?.chatColor || '#00f3ff';
 
-        // Create message in main collection
+        // Verify room exists
+        const roomRef = db.collection("rooms").doc(roomId)
+        const roomSnap = await roomRef.get()
+
+        if (!roomSnap.exists) {
+            return NextResponse.json({ error: "Room not found" }, { status: 404 })
+        }
+
+        const messagesRef = db.collection("messages")
+
         const messageData: any = {
             text: text?.trim() || "",
             attachments,
             senderId: decodedToken.uid,
-            uid: decodedToken.uid,
+            roomId,
             userName: userName,
             displayName: userName,
             photoURL: userPhotoURL,
-            roomId: roomId,
+            chatColor: userChatColor,
             createdAt: FieldValue.serverTimestamp(),
+            status: 'sent',
+            readBy: [decodedToken.uid],
+            reactions: {}
+        }
+
+        // Add media content
+        if (imageUrl) {
+            messageData.imageUrl = imageUrl;
+        }
+
+        if (gifUrl) {
+            messageData.gifUrl = gifUrl;
+        }
+
+        if (voiceMessageUrl) {
+            messageData.voiceMessageUrl = voiceMessageUrl;
+            if (voiceMessageDuration) {
+                messageData.voiceMessageDuration = voiceMessageDuration;
+            }
+        }
+
+        if (fileUrl) {
+            messageData.fileUrl = fileUrl;
+            messageData.fileName = fileName;
+            messageData.fileSize = fileSize;
+            messageData.fileType = fileType;
         }
 
         // Add reply context if provided
@@ -106,10 +139,10 @@ export async function POST(
             }
         }
 
-        const newMessage = await db.collection("messages").add(messageData)
+        const newMessage = await messagesRef.add(messageData)
 
         // Update room's updatedAt timestamp
-        await db.collection("rooms").doc(roomId).update({
+        await roomRef.update({
             updatedAt: FieldValue.serverTimestamp(),
         })
 

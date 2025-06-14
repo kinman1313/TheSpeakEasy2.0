@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
         }
 
         const decodedToken = await adminAuth.verifyIdToken(token)
-        const { roomId, text, attachments = [], replyToId, expirationTimer } = await request.json()
+        const { roomId, text, attachments = [], replyToId, expirationTimer, imageUrl, gifUrl, voiceMessageUrl, voiceMessageDuration, fileUrl, fileName, fileSize, fileType } = await request.json()
 
         if (!text?.trim() && attachments.length === 0) {
             return NextResponse.json({ error: "Message content is required" }, { status: 400 })
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
         const userData = userDoc.exists ? userDoc.data() : {}
         const userName = userData?.displayName || (decodedToken as any).name || decodedToken.email || 'Anonymous'
         const userPhotoURL = userData?.photoURL || (decodedToken as any).picture || null
+        const userChatColor = (userData && 'chatColor' in userData && userData.chatColor) ? userData.chatColor : '#00f3ff';
 
         // Handle lobby messages (roomId === 'lobby' or no roomId)
         if (!roomId || roomId === 'lobby') {
@@ -58,8 +59,34 @@ export async function POST(request: NextRequest) {
                 userName: userName,
                 displayName: userName,
                 photoURL: userPhotoURL,
+                chatColor: userChatColor,
                 createdAt: FieldValue.serverTimestamp(),
-                // No roomId for lobby messages
+                status: 'sent', // Set proper status
+                readBy: [decodedToken.uid], // Mark as read by sender
+                reactions: {}
+            }
+
+            // Add media content
+            if (imageUrl) {
+                messageData.imageUrl = imageUrl;
+            }
+
+            if (gifUrl) {
+                messageData.gifUrl = gifUrl;
+            }
+
+            if (voiceMessageUrl) {
+                messageData.voiceMessageUrl = voiceMessageUrl;
+                if (voiceMessageDuration) {
+                    messageData.voiceMessageDuration = voiceMessageDuration;
+                }
+            }
+
+            if (fileUrl) {
+                messageData.fileUrl = fileUrl;
+                messageData.fileName = fileName;
+                messageData.fileSize = fileSize;
+                messageData.fileType = fileType;
             }
 
             // Add reply context if provided
@@ -105,7 +132,34 @@ export async function POST(request: NextRequest) {
             userName: userName,
             displayName: userName,
             photoURL: userPhotoURL,
+            chatColor: userChatColor,
             createdAt: FieldValue.serverTimestamp(),
+            status: 'sent', // Set proper status
+            readBy: [decodedToken.uid], // Mark as read by sender
+            reactions: {}
+        }
+
+        // Add media content
+        if (imageUrl) {
+            messageData.imageUrl = imageUrl;
+        }
+
+        if (gifUrl) {
+            messageData.gifUrl = gifUrl;
+        }
+
+        if (voiceMessageUrl) {
+            messageData.voiceMessageUrl = voiceMessageUrl;
+            if (voiceMessageDuration) {
+                messageData.voiceMessageDuration = voiceMessageDuration;
+            }
+        }
+
+        if (fileUrl) {
+            messageData.fileUrl = fileUrl;
+            messageData.fileName = fileName;
+            messageData.fileSize = fileSize;
+            messageData.fileType = fileType;
         }
 
         // Add reply context if provided

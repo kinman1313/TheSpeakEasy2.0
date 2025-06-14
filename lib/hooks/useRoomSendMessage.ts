@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { User as FirebaseAuthUser } from 'firebase/auth';
+import type { User as FirebaseUser } from 'firebase/auth';
 
-export type User = FirebaseAuthUser;
+export type User = FirebaseUser;
 
 interface SendMessageOptions {
     fileUrl?: string;
@@ -22,91 +22,97 @@ interface SendMessageOptions {
 interface UseRoomSendMessageReturn {
     sendMessage: (
         text: string,
-        user: User,
-        options?: SendMessageOptions
-    ) => Promise<string>;
+        user: FirebaseUser,
+        options: SendMessageOptions
+    ) => Promise<string | null>;
     error: Error | null;
     isSending: boolean;
 }
 
 export function useRoomSendMessage(
-    db: any, // Not used in API-based approach
-    firebaseStatus: "initializing" | "ready" | "error",
+    _db: any, // Not used in API-based approach, prefixed with underscore to indicate intentionally unused
+    _firebaseStatus: "initializing" | "ready" | "error", // Not used in API-based approach
     roomId: string | null,
     roomType: 'lobby' | 'room' | 'dm'
 ): UseRoomSendMessageReturn {
-    const [error, setError] = useState<Error | null>(null);
     const [isSending, setIsSending] = useState(false);
+    const [error, setError] = useState<Error | null>(null);
 
     const sendMessage = async (
         text: string,
-        user: User,
-        options?: SendMessageOptions
-    ): Promise<string> => {
-        if (firebaseStatus !== "ready") {
-            throw new Error("Firebase is not ready");
+        user: FirebaseUser,
+        options: SendMessageOptions = {}
+    ): Promise<string | null> => {
+        if (isSending) {
+            console.warn('Message send already in progress');
+            return null;
         }
 
         setIsSending(true);
         setError(null);
 
         try {
+            if (!user?.uid) {
+                throw new Error("User not authenticated");
+            }
+
+            if (!text?.trim() && !options.fileUrl && !options.imageUrl && !options.voiceMessageUrl && !options.gifUrl) {
+                throw new Error("Message content is required");
+            }
+
             const token = await user.getIdToken();
 
-            // Determine the correct API endpoint
+            // Determine API endpoint based on room type
             let apiUrl: string;
-            let requestBody: any = {
-                text: text.trim(),
-                attachments: options?.attachments || []
-            };
-
             if (roomType === 'lobby') {
                 apiUrl = '/api/messages';
-                requestBody.roomId = 'lobby'; // Special case for lobby
-            } else if (roomType === 'dm') {
+            } else if (roomType === 'dm' && roomId) {
                 apiUrl = `/api/direct-messages/${roomId}/messages`;
-                // DM messages don't need roomId in body
-            } else {
+            } else if (roomType === 'room' && roomId) {
                 apiUrl = `/api/rooms/${roomId}/messages`;
-                requestBody.roomId = roomId;
+            } else {
+                throw new Error("Invalid room configuration");
             }
 
-            // Add file attachments if present
-            if (options?.fileUrl) {
-                requestBody.attachments.push({
-                    type: 'file',
-                    url: options.fileUrl,
-                    fileName: options.fileName,
-                    fileSize: options.fileSize,
-                    fileType: options.fileType
-                });
+            // Prepare request body
+            const requestBody: any = {
+                text: text?.trim() || "",
+                roomId: roomType === 'room' ? roomId : undefined,
+                dmId: roomType === 'dm' ? roomId : undefined,
+                status: 'sending' // Set initial status
+            };
+
+            // Add optional fields
+            if (options.fileUrl) {
+                requestBody.fileUrl = options.fileUrl;
+                requestBody.fileName = options.fileName;
+                requestBody.fileSize = options.fileSize;
+                requestBody.fileType = options.fileType;
             }
 
-            if (options?.imageUrl) {
-                requestBody.attachments.push({
-                    type: 'image',
-                    url: options.imageUrl
-                });
+            if (options.imageUrl) {
+                requestBody.imageUrl = options.imageUrl;
             }
 
-            if (options?.voiceMessageUrl) {
-                requestBody.attachments.push({
-                    type: 'voice',
-                    url: options.voiceMessageUrl,
-                    duration: options.voiceMessageDuration
-                });
+            if (options.voiceMessageUrl) {
+                requestBody.voiceMessageUrl = options.voiceMessageUrl;
+                requestBody.voiceMessageDuration = options.voiceMessageDuration;
             }
 
-            if (options?.gifUrl) {
-                requestBody.attachments.push({
-                    type: 'gif',
-                    url: options.gifUrl
-                });
+            if (options.gifUrl) {
+                requestBody.gifUrl = options.gifUrl;
             }
 
-            // Add reply context
-            if (options?.replyToId) {
+            if (options.replyToId) {
                 requestBody.replyToId = options.replyToId;
+            }
+
+            if (options.threadId) {
+                requestBody.threadId = options.threadId;
+            }
+
+            if (options.attachments) {
+                requestBody.attachments = options.attachments;
             }
 
             // Add expiration timer
@@ -127,13 +133,32 @@ export function useRoomSendMessage(
 
             if (!response.ok) {
                 const errorData = await response.json().catch(() => ({}));
-                throw new Error(errorData.error || `HTTP ${response.status}: Failed to send message`);
+
+                // Handle specific error cases
+                if (response.status === 401) {
+                    throw new Error("Authentication failed. Please log in again.");
+                } else if (response.status === 403) {
+                    throw new Error("Permission denied. You don't have access to this resource.");
+                } else if (response.status === 429) {
+                    throw new Error("Rate limit exceeded. Please wait a moment before sending another message.");
+                } else {
+                    throw new Error(errorData.error || `HTTP ${response.status}: Failed to send message`);
+                }
             }
 
             const result = await response.json();
+            console.log('Message sent successfully:', result.id);
+
+            // Update message status to 'sent' after successful API call
+            if (result.id) {
+                // The message status will be updated via Firestore listener
+                // No need to manually update here as the real-time listener will handle it
+            }
+
             return result.id;
         } catch (err) {
             const error = err instanceof Error ? err : new Error('Failed to send message');
+            console.error('Send message error:', error);
             setError(error);
             throw error;
         } finally {

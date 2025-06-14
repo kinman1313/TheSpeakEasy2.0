@@ -8,6 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Smile, Paperclip, Mic, Send, ImageIcon, X, Upload, Clock, Reply } from "lucide-react"
 import EmojiPicker from "@/components/chat/EmojiPicker"
 import { VoiceRecorder } from "@/components/audio/VoiceRecorder"
+import GiphyPicker from "@/components/chat/GiphyPicker"
 import { uploadFile, uploadImage, formatFileSize, getFileIcon } from "@/lib/storage"
 import { MESSAGE_EXPIRATION_OPTIONS, type ExpirationTimer, type FileUpload, type Message } from "@/lib/types"
 import { TypingIndicatorService } from "@/lib/typingIndicators"
@@ -53,6 +54,7 @@ export function MessageInput({
   const [fileUploads, setFileUploads] = useState<FileUpload[]>([])
   const [expirationTimer, setExpirationTimer] = useState<ExpirationTimer>('never')
   const [isUploading, setIsUploading] = useState(false)
+  const [showGifPicker, setShowGifPicker] = useState(false)
 
   const inputRef = useRef<HTMLInputElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -199,9 +201,18 @@ export function MessageInput({
   }
 
   const handleGifClick = () => {
+    setShowGifPicker(true)
+  }
+
+  const handleGifSelect = (gifUrl: string) => {
     if (onGifSelect) {
-      onGifSelect("")
+      onGifSelect(gifUrl)
     }
+    setShowGifPicker(false)
+  }
+
+  const handleCloseGifPicker = () => {
+    setShowGifPicker(false)
   }
 
   return (
@@ -212,6 +223,14 @@ export function MessageInput({
       {/* Emoji Picker Modal */}
       {isEmojiPickerOpen && (
         <EmojiPicker onSelectEmoji={handleEmojiSelect} onClose={() => setIsEmojiPickerOpen(false)} />
+      )}
+
+      {/* GIF Picker Modal */}
+      {showGifPicker && (
+        <GiphyPicker
+          onSelectGif={handleGifSelect}
+          onClose={handleCloseGifPicker}
+        />
       )}
 
       {/* Voice Recorder */}

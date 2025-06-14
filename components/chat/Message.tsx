@@ -295,13 +295,18 @@ export function Message({
     return (
         <div
             className={cn(
-                `relative group p-4 rounded-lg tap-feedback`,
+                `relative group p-4 rounded-lg tap-feedback message-bubble`,
                 isCurrentUser
-                    ? 'bg-blue-100 dark:bg-blue-900 ml-auto'
-                    : 'bg-gray-100 dark:bg-gray-800',
-                'max-w-[80%] mb-4',
+                    ? 'bg-blue-100 dark:bg-blue-900 ml-auto bg-opacity-70 dark:bg-opacity-60'
+                    : 'bg-gray-100 dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-60',
+                'mb-4',
                 className
             )}
+            style={{
+                maxWidth: '60%',
+                minWidth: 'fit-content',
+                width: message.text && message.text.length < 30 ? 'fit-content' : undefined,
+            }}
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
         >
@@ -340,10 +345,13 @@ export function Message({
                     />
                 ) : (
                     message.text && (
-                        <p className={cn(
-                            "text-sm break-words",
-                            isCurrentUser && "text-right"
-                        )}>
+                        <p
+                            className={cn(
+                                "text-sm break-words",
+                                isCurrentUser && "text-right"
+                            )}
+                            style={{ color: message.chatColor || '#fff' }}
+                        >
                             {message.text}
                         </p>
                     )
@@ -365,7 +373,7 @@ export function Message({
                             alt="Shared content"
                             width={300}
                             height={200}
-                            className="rounded-lg object-cover max-w-sm cursor-pointer hover:opacity-90 transition-opacity"
+                            className="rounded-lg object-cover max-w-sm h-auto cursor-pointer hover:opacity-90 transition-opacity"
                             onClick={() => window.open(message.imageUrl, '_blank')}
                         />
                     </div>
@@ -379,7 +387,7 @@ export function Message({
                             alt="GIF"
                             width={300}
                             height={200}
-                            className="rounded-lg max-w-sm"
+                            className="rounded-lg max-w-sm h-auto"
                             unoptimized
                         />
                     </div>

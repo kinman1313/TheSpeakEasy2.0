@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { Firestore, collection, query, orderBy, onSnapshot, enableNetwork, disableNetwork, where } from 'firebase/firestore';
 import { getMessages as getCachedMessages, saveMessages as saveCachedMessages } from '../messageCache';
 import { Message as AppMessage } from '../types';
+import { useAuth } from '@/components/auth/AuthProvider';
 
 interface UseRoomMessagesReturn {
     messages: AppMessage[];
@@ -17,6 +18,7 @@ export const useRoomMessages = (
     roomId: string | null, // null for lobby, room ID for rooms, DM ID for direct messages
     roomType: 'lobby' | 'room' | 'dm' = 'lobby'
 ): UseRoomMessagesReturn => {
+    const { user, loading: authLoading } = useAuth();
     const [messages, setMessages] = useState<AppMessage[]>([]);
     const [error, setError] = useState<Error | null>(null);
     const [isConnected, setIsConnected] = useState(true);
@@ -94,7 +96,15 @@ export const useRoomMessages = (
     }, [roomId]);
 
     useEffect(() => {
+        // Don't start Firestore queries until user is authenticated
+        if (authLoading || !user) {
+            console.log('useRoomMessages: Waiting for authentication...', { authLoading, hasUser: !!user });
+            setIsLoading(false);
+            return;
+        }
+
         if (firebaseStatus !== 'ready' || !db) {
+            console.log('useRoomMessages: Firebase not ready', { firebaseStatus, hasDb: !!db });
             if (messages.length > 0) setMessages([]);
             setIsConnected(false);
             setIsLoading(false);
@@ -102,122 +112,147 @@ export const useRoomMessages = (
             return;
         }
 
+        console.log('useRoomMessages: Starting query for', { roomType, roomId, userId: user.uid });
         setError(null);
         setIsLoading(true);
         resetRetryCount();
 
         let q;
 
-        if (roomType === 'lobby') {
-            const messagesRef = collection(db, "messages");
-            // For lobby messages: query all messages and filter client-side
-            // This is because Firestore doesn't handle null queries well
-            q = query(
-                messagesRef,
-                orderBy("createdAt", "asc")
-            );
-        } else if (roomType === 'room' && roomId) {
-            const messagesRef = collection(db, "messages");
-            q = query(
-                messagesRef,
-                where("roomId", "==", roomId),
-                orderBy("createdAt", "asc")
-            );
-        } else if (roomType === 'dm' && roomId) {
-            const messagesRef = collection(db, "messages");
-            q = query(
-                messagesRef,
-                where("dmId", "==", roomId),
-                orderBy("createdAt", "asc")
-            );
-        } else {
-            setMessages([]);
-            setIsLoading(false);
-            return;
-        }
-
-        const unsubscribe = onSnapshot(q,
-            (snapshot) => {
-                try {
-                    let newMessages = snapshot.docs.map((doc) => {
-                        const data = doc.data();
-                        // Map Firestore data to AppMessage type
-                        return {
-                            id: doc.id,
-                            text: data.text || '',
-                            imageUrl: data.imageUrl,
-                            gifUrl: data.gifUrl,
-                            audioUrl: data.audioUrl,
-                            voiceMessageUrl: data.voiceMessageUrl,
-                            fileUrl: data.fileUrl,
-                            fileName: data.fileName,
-                            fileSize: data.fileSize,
-                            fileType: data.fileType,
-                            replyToId: data.replyToId,
-                            replyToMessage: data.replyToMessage,
-                            threadId: data.threadId,
-                            uid: data.uid || data.senderId,
-                            userId: data.uid || data.senderId,
-                            userName: data.userName,
-                            displayName: data.displayName,
-                            photoURL: data.photoURL || data.userPhotoURL,
-                            createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date(),
-                            updatedAt: data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)) : new Date(),
-                            status: data.status || 'sent',
-                            readBy: data.readBy || [],
-                            isEdited: data.isEdited,
-                            reactions: data.reactions,
-                            expiresAt: data.expiresAt ? (data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)) : null,
-                            expirationTimer: data.expirationTimer,
-                            attachments: data.attachments || [],
-                            roomId: data.roomId,
-                            dmId: data.dmId
-                        } as AppMessage;
-                    });
-
-                    if (roomType === 'lobby') {
-                        newMessages = newMessages.filter(message =>
-                            !message.roomId && !message.dmId
-                        );
-                    }
-
-                    setMessages(newMessages);
-                    if (roomId) {
-                        saveCachedMessages(roomId, newMessages);
-                    }
-                    setError(null);
-                    setIsConnected(true);
-                    setIsLoading(false);
-                    resetRetryCount();
-                } catch (err) {
-                    console.error("Error processing message snapshot:", err);
-                    setError(err as Error);
-                    setIsLoading(false);
-                }
-            },
-            (err) => {
-                console.error("Firestore listener error:", err);
-                setError(err);
-                setIsConnected(false);
+        try {
+            if (roomType === 'lobby') {
+                const messagesRef = collection(db, "messages");
+                // For lobby messages: query all messages and filter client-side
+                // This is because Firestore doesn't handle null queries well
+                q = query(
+                    messagesRef,
+                    orderBy("createdAt", "asc")
+                );
+            } else if (roomType === 'room' && roomId) {
+                const messagesRef = collection(db, "messages");
+                q = query(
+                    messagesRef,
+                    where("roomId", "==", roomId),
+                    orderBy("createdAt", "asc")
+                );
+            } else if (roomType === 'dm' && roomId) {
+                const messagesRef = collection(db, "messages");
+                q = query(
+                    messagesRef,
+                    where("dmId", "==", roomId),
+                    orderBy("createdAt", "asc")
+                );
+            } else {
+                setMessages([]);
                 setIsLoading(false);
+                return;
+            }
 
-                if (err.code === 'unavailable' || err.code === 'unauthenticated' || err.message.includes('transport errored')) {
-                    console.log('Network connection issue detected, attempting to retry...');
-                    retryConnection();
-                } else {
-                    setMessages([]);
+            const unsubscribe = onSnapshot(q,
+                (snapshot) => {
+                    try {
+                        let newMessages = snapshot.docs.map((doc) => {
+                            const data = doc.data();
+                            // Map Firestore data to AppMessage type
+                            return {
+                                id: doc.id,
+                                text: data.text || '',
+                                imageUrl: data.imageUrl,
+                                gifUrl: data.gifUrl,
+                                audioUrl: data.audioUrl,
+                                voiceMessageUrl: data.voiceMessageUrl,
+                                fileUrl: data.fileUrl,
+                                fileName: data.fileName,
+                                fileSize: data.fileSize,
+                                fileType: data.fileType,
+                                replyToId: data.replyToId,
+                                replyToMessage: data.replyToMessage,
+                                threadId: data.threadId,
+                                uid: data.uid || data.senderId, // Use senderId as fallback
+                                userId: data.uid || data.senderId,
+                                userName: data.userName,
+                                displayName: data.displayName,
+                                photoURL: data.photoURL || data.userPhotoURL,
+                                createdAt: data.createdAt ? (data.createdAt.toDate ? data.createdAt.toDate() : new Date(data.createdAt)) : new Date(),
+                                updatedAt: data.updatedAt ? (data.updatedAt.toDate ? data.updatedAt.toDate() : new Date(data.updatedAt)) : new Date(),
+                                status: data.status || 'sent',
+                                readBy: data.readBy || [],
+                                isEdited: data.isEdited,
+                                reactions: data.reactions,
+                                expiresAt: data.expiresAt ? (data.expiresAt.toDate ? data.expiresAt.toDate() : new Date(data.expiresAt)) : null,
+                                expirationTimer: data.expirationTimer,
+                                attachments: data.attachments || [],
+                                roomId: data.roomId,
+                                dmId: data.dmId,
+                                chatColor: data.chatColor,
+                            } as AppMessage;
+                        });
+
+                        // Additional filtering for lobby messages to ensure consistency
+                        if (roomType === 'lobby') {
+                            newMessages = newMessages.filter(message =>
+                                !message.roomId && !message.dmId
+                            );
+                        }
+
+                        // Filter out expired messages
+                        const now = new Date();
+                        newMessages = newMessages.filter(message => {
+                            if (!message.expiresAt) return true;
+                            return new Date(message.expiresAt) > now;
+                        });
+
+                        console.log(`useRoomMessages: Loaded ${newMessages.length} messages for ${roomType}`);
+                        setMessages(newMessages);
+                        if (roomId) {
+                            saveCachedMessages(roomId, newMessages);
+                        }
+                        setError(null);
+                        setIsConnected(true);
+                        setIsLoading(false);
+                        resetRetryCount();
+                        return null;
+                    } catch (err) {
+                        console.error("Error processing message snapshot:", err);
+                        setError(err as Error);
+                        setIsLoading(false);
+                        return null;
+                    }
+                },
+                (err) => {
+                    console.error("Firestore listener error:", err);
+
+                    // Handle specific permission errors
+                    if (err.code === 'permission-denied') {
+                        console.error("🚨 Firestore permission denied. Check security rules and authentication.");
+                        setError(new Error("Permission denied. Please check your authentication and try again."));
+                    } else if (err.code === 'unavailable' || err.code === 'unauthenticated' || err.message.includes('transport errored')) {
+                        console.log('Network connection issue detected, attempting to retry...');
+                        setError(new Error("Connection issue. Retrying..."));
+                        retryConnection();
+                    } else {
+                        setError(err);
+                    }
+
+                    setIsConnected(false);
+                    setIsLoading(false);
                 }
-            }
-        );
+            );
 
-        unsubscribeRef.current = unsubscribe;
+            unsubscribeRef.current = unsubscribe;
 
-        return () => {
-            if (unsubscribe) {
-                unsubscribe();
-            }
-        };
-    }, [db, firebaseStatus, roomId, roomType, retryConnection, resetRetryCount]);
+            return () => {
+                if (unsubscribe) {
+                    unsubscribe();
+                }
+            };
+        } catch (err) {
+            console.error("Error setting up Firestore query:", err);
+            setError(err as Error);
+            setIsLoading(false);
+            return undefined;
+        }
+    }, [db, firebaseStatus, roomId, roomType, retryConnection, resetRetryCount, user, authLoading]);
 
     // Manual retry function for UI
     const manualRetry = useCallback(() => {

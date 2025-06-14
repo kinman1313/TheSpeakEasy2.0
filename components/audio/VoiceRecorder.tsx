@@ -21,10 +21,18 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
 
     const startRecording = useCallback(async () => {
         try {
-            const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
+            const audioStream = await navigator.mediaDevices.getUserMedia({
+                audio: {
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }
+            })
             setStream(audioStream)
 
-            const recorder = new MediaRecorder(audioStream)
+            const recorder = new MediaRecorder(audioStream, {
+                mimeType: 'audio/webm;codecs=opus'
+            })
             mediaRecorder.current = recorder
             chunks.current = []
 
@@ -57,6 +65,7 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
             }, 1000)
         } catch (error) {
             console.error("Error accessing microphone:", error)
+            alert("Could not access microphone. Please check your permissions and try again.")
         }
     }, [maxDuration, onRecordingComplete])
 

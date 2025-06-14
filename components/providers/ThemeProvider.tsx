@@ -39,26 +39,67 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
         }
     }, [user]);
 
+    // One-time cleanup on mount
     useEffect(() => {
-        if (!isLoading) {
+        if (typeof window !== 'undefined') {
+            // Clean up any existing problematic pattern classes immediately
+            const problematicClasses = [
+                'bg-[length:20px_20px]',
+                'bg-center',
+                'bg-repeat',
+                'bg-[length:40px_40px]',
+                'bg-[length:30px_30px]',
+                'bg-[length:50px_50px]',
+                'bg-[length:200px_200px]',
+                'bg-[length:100px_100px]',
+                'opacity-30'
+            ];
+
+            problematicClasses.forEach(className => {
+                try {
+                    document.body.classList.remove(className);
+                } catch (error) {
+                    // Silently ignore errors for classes that don't exist
+                }
+            });
+
+            console.log('Initial cleanup of problematic CSS classes completed');
+        }
+    }, []); // Empty dependency array - runs only once on mount
+
+    useEffect(() => {
+        if (!isLoading && typeof window !== 'undefined') {
             const root = document.documentElement;
             Object.entries(currentTheme.colors).forEach(([key, value]) => {
                 root.style.setProperty(key, String(value));
             });
 
-            // Remove all pattern classes from body
-            PATTERNS.forEach(pattern => {
-                if (pattern.className) {
-                    const classes = pattern.className.split(' ').filter(Boolean);
-                    document.body.classList.remove(...classes);
-                }
-            });
+            // Clean up any existing problematic pattern classes
+            try {
+                const problematicClasses = [
+                    'bg-[length:20px_20px]',
+                    'bg-center',
+                    'bg-repeat',
+                    'bg-[length:40px_40px]',
+                    'bg-[length:30px_30px]',
+                    'bg-[length:50px_50px]',
+                    'bg-[length:200px_200px]',
+                    'bg-[length:100px_100px]',
+                    'opacity-30'
+                ];
 
-            // Apply current pattern classes to body
-            if (currentPattern.className) {
-                const classes = currentPattern.className.split(' ').filter(Boolean);
-                document.body.classList.add(...classes);
+                problematicClasses.forEach(className => {
+                    if (document.body.classList.contains(className)) {
+                        console.log('Removing problematic class:', className);
+                        document.body.classList.remove(className);
+                    }
+                });
+            } catch (error) {
+                console.warn('Error cleaning up CSS classes:', error);
             }
+
+            // Pattern application completely disabled to prevent CSS class errors
+            console.log('Pattern application disabled to prevent CSS class errors');
         }
     }, [currentTheme, currentPattern, isLoading]);
 
