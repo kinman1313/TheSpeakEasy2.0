@@ -21,7 +21,10 @@ app.prepare().then(() => {
   const io = new Server(server, {
     cors: {
       // Update the origin to match the deployment environment
-      origin: dev ? "http://localhost:3001" : ["https://thespeakeasy.app", "https://thespeakeasy-2-0.onrender.com"],
+      origin: dev ? "http://localhost:3001" : [
+        "https://thespeakeasy2-0.onrender.com",
+        "https://thespeakeasy.app"
+      ],
       methods: ["GET", "POST"],
       credentials: true,
     },
