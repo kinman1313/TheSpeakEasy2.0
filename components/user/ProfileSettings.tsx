@@ -7,11 +7,21 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, Camera, AlertTriangle, Save } from 'lucide-react';
+import { Loader2, Camera, AlertTriangle, Save, Info } from 'lucide-react';
 import { useToast } from "@/components/ui/toast"
 import { auth, db } from '@/lib/firebase';
 import { uploadAvatar } from '@/lib/storage';
 import { useAuth } from '@/components/auth/AuthProvider';
+import { CirclePicker } from 'react-color';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+
+const NEON_COLORS = [
+    '#00f3ff', // bright blue
+    '#39ff14', // bright green
+    '#ff0099', // bright pink
+    '#ffa500', // bright orange
+    '#ffffff', // white
+];
 
 export function ProfileSettings() {
     const { user } = useAuth();
@@ -21,6 +31,7 @@ export function ProfileSettings() {
     const [displayName, setDisplayName] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+    const [chatColor, setChatColor] = useState<string>((user as any)?.chatColor || '#00f3ff');
 
     // UI states
     const [isUploading, setIsUploading] = useState(false);
@@ -38,6 +49,7 @@ export function ProfileSettings() {
             setSelectedFile(null);
             setError(null);
             setHasChanges(false);
+            setChatColor((user as any)?.chatColor || '#00f3ff');
         }
     }, [user]);
 
@@ -96,7 +108,7 @@ export function ProfileSettings() {
             }
 
             // Update Firebase Auth profile
-            const updateData: { displayName?: string; photoURL?: string } = {};
+            const updateData: { displayName?: string; photoURL?: string; chatColor?: string } = {};
 
             if (displayName.trim() !== (user.displayName || '')) {
                 updateData.displayName = displayName.trim();
@@ -104,6 +116,10 @@ export function ProfileSettings() {
 
             if (photoURL !== user.photoURL) {
                 updateData.photoURL = photoURL || undefined;
+            }
+
+            if (chatColor !== (user as any)?.chatColor) {
+                updateData.chatColor = chatColor;
             }
 
             if (Object.keys(updateData).length > 0) {
@@ -124,6 +140,10 @@ export function ProfileSettings() {
 
                 if (updateData.photoURL !== undefined) {
                     userDocData.photoURL = updateData.photoURL;
+                }
+
+                if (updateData.chatColor !== undefined) {
+                    userDocData.chatColor = updateData.chatColor;
                 }
 
                 await setDoc(userDocRef, userDocData, { merge: true });
@@ -219,6 +239,38 @@ export function ProfileSettings() {
                     />
                     <p className="text-xs text-slate-400">
                         This is how other users will see your name in chat.
+                    </p>
+                </div>
+
+                {/* Chat Text Color Picker */}
+                <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                        <Label htmlFor="chatColor" className="text-white">Chat Text Color</Label>
+                        <TooltipProvider>
+                            <Tooltip>
+                                <TooltipTrigger asChild>
+                                    <Info className="w-4 h-4 text-slate-400 cursor-pointer" />
+                                </TooltipTrigger>
+                                <TooltipContent side="top">
+                                    <span>
+                                        This color will be used for your message text in chat. It does not affect the app's theme or background.
+                                    </span>
+                                </TooltipContent>
+                            </Tooltip>
+                        </TooltipProvider>
+                    </div>
+                    <CirclePicker
+                        colors={NEON_COLORS}
+                        color={chatColor}
+                        onChange={(color) => setChatColor(color.hex)}
+                    />
+                    <div className="mt-2">
+                        <span className="text-sm" style={{ color: chatColor }}>
+                            Preview: This is your chat text color.
+                        </span>
+                    </div>
+                    <p className="text-xs text-slate-400 mt-1">
+                        Your chat color is only visible to others in your messages. To change the app's overall look, use the Appearance tab.
                     </p>
                 </div>
 

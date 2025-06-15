@@ -216,7 +216,7 @@ export function Message({
         if (isAudio) {
             return (
                 <div className="mt-2">
-                    <AudioPlayer src={message.fileUrl} />
+                    <AudioPlayer src={message.fileUrl} mp3Url={message.mp3Url} />
                 </div>
             )
         }
@@ -396,14 +396,14 @@ export function Message({
                 {/* Audio message */}
                 {message.audioUrl && (
                     <div className="mt-2">
-                        <AudioPlayer src={message.audioUrl} />
+                        <AudioPlayer src={message.audioUrl} mp3Url={message.mp3Url} />
                     </div>
                 )}
 
                 {/* Voice message */}
                 {message.voiceMessageUrl && (
                     <div className="mt-2">
-                        <AudioPlayer src={message.voiceMessageUrl} />
+                        <AudioPlayer src={message.voiceMessageUrl} mp3Url={message.mp3Url} />
                     </div>
                 )}
             </div>

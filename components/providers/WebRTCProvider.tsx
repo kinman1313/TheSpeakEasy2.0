@@ -669,9 +669,17 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 const candidates = senderSnapshot.val();
                 if (candidates) {
                   Object.values(candidates).forEach((candidate) => {
-                    if ((candidate as RTCIceCandidate).candidate) {
+                    if (
+                      (candidate as RTCIceCandidate).candidate &&
+                      (candidate as RTCIceCandidateInit).sdpMid !== null &&
+                      (candidate as RTCIceCandidateInit).sdpMid !== undefined &&
+                      (candidate as RTCIceCandidateInit).sdpMLineIndex !== null &&
+                      (candidate as RTCIceCandidateInit).sdpMLineIndex !== undefined
+                    ) {
                       console.log("Provider: Processing ICE candidate from", senderSnapshot.key);
                       onRemoteIceCandidateReceivedCb(candidate as RTCIceCandidateInit);
+                    } else {
+                      console.warn("Provider: Skipping invalid ICE candidate:", candidate);
                     }
                   });
                   remove(senderSnapshot.ref).catch(e => console.warn("Could not remove ICE candidates for sender", e));

@@ -70,6 +70,8 @@ export interface Message {
   gifUrl?: string
   audioUrl?: string
   voiceMessageUrl?: string
+  mp3Url?: string
+  transcodedAt?: Date
   // File sharing
   fileUrl?: string
   fileName?: string

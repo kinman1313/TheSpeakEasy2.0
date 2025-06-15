@@ -290,9 +290,18 @@ export default function ChatApp() {
         },
         (candidate) => {
           console.log("ChatApp: Received remote ICE candidate")
-          if (peerConnection && candidate) {
+          if (
+            peerConnection &&
+            candidate &&
+            candidate.sdpMid !== null &&
+            candidate.sdpMid !== undefined &&
+            candidate.sdpMLineIndex !== null &&
+            candidate.sdpMLineIndex !== undefined
+          ) {
             peerConnection.addIceCandidate(new RTCIceCandidate(candidate))
               .catch((e: Error) => console.error("Error adding received ICE candidate:", e))
+          } else {
+            console.warn("Received invalid ICE candidate, skipping:", candidate)
           }
         },
         (_, fromUserName) => {

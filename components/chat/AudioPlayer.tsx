@@ -7,10 +7,11 @@ import { Play, Pause, Volume2, VolumeX, AlertCircle, RefreshCw } from "lucide-re
 
 interface AudioPlayerProps {
   src: string
+  mp3Url?: string
   onError?: () => void
 }
 
-export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
+export function AudioPlayer({ src, mp3Url, onError }: AudioPlayerProps): ReactElement {
   const [isPlaying, setIsPlaying] = useState(false)
   const [duration, setDuration] = useState(0)
   const [currentTime, setCurrentTime] = useState(0)
@@ -269,6 +270,8 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps): ReactElement {
         onError={() => setHasError(true)}
         controls
       >
+        {mp3Url && <source src={mp3Url} type="audio/mpeg" />}
+        {mp3Url && <source src={mp3Url} type="audio/mp3" />}
         <source src={src} type="audio/webm" />
         <source src={src} type="audio/mp3" />
         <source src={src} type="audio/mpeg" />

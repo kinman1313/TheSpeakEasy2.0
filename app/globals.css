@@ -464,6 +464,15 @@
     max-width: 60%;
     min-width: -webkit-fill-available;
     transition: width 0.2s, max-width 0.2s;
+    background: rgba(30, 41, 59, 0.7);
+    /* dark mode default */
+  }
+
+  @media (prefers-color-scheme: light) {
+    .message-bubble {
+      background: rgba(255, 255, 255, 0.8);
+      /* light mode default */
+    }
   }
 
   @media (max-width: 768px) {

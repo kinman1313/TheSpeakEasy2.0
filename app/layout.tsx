@@ -35,7 +35,7 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
-        <meta name="theme-color" content="#22c55e" />
+        <meta name="theme-color" content="#22223b" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SpeakEasy" />
@@ -45,6 +45,7 @@ export default function RootLayout({
         <meta name="format-detection" content="telephone=no" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="display-mode" content="standalone" />
+        <meta name="msapplication-TileColor" content="#22223b" />
       </head>
       <body className={inter.className}>
         <Providers>{children}</Providers>

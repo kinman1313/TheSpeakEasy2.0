@@ -158,6 +158,8 @@ export const useRoomMessages = (
                                 id: doc.id,
                                 text: data.text || '',
                                 imageUrl: data.imageUrl,
+                                mp3Url: data.mp3Url,
+                                transcodedAt: data.transcodedAt?.toDate(),
                                 gifUrl: data.gifUrl,
                                 audioUrl: data.audioUrl,
                                 voiceMessageUrl: data.voiceMessageUrl,
