@@ -58,7 +58,7 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
             problematicClasses.forEach(className => {
                 try {
                     document.body.classList.remove(className);
-                } catch (error) {
+                } catch (_error) {
                     // Silently ignore errors for classes that don't exist
                 }
             });

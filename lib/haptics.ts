@@ -29,9 +29,9 @@ class HapticManager {
         this.isSupported = !!(
             'vibrate' in navigator ||
             'hapticFeedback' in navigator ||
-            // @ts-ignore - iOS specific
+            // @ts-expect-error - iOS specific
             window.DeviceMotionEvent?.requestPermission ||
-            // @ts-ignore - Android specific
+            // @ts-expect-error - Android specific
             navigator.vibrate
         )
     }
@@ -78,9 +78,9 @@ class HapticManager {
 
         try {
             // Try modern Haptic API first (iOS Safari 14.5+)
-            // @ts-ignore
+            // @ts-expect-error
             if (navigator.hapticFeedback) {
-                // @ts-ignore
+                // @ts-expect-error
                 await navigator.hapticFeedback.vibrate(this.mapToHapticType(type))
                 return
             }

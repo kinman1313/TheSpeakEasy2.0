@@ -28,13 +28,18 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
-  attribute = "class",
+  attribute: _attribute = "class",
   defaultTheme = "system",
   enableSystem = true,
-  disableTransitionOnChange = false,
+  disableTransitionOnChange: _disableTransitionOnChange = false,
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)
+  const [mounted, setMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setMounted(true)
+  }, [])
 
   useEffect(() => {
     const root = window.document.documentElement
@@ -55,6 +60,10 @@ export function ThemeProvider({
     setTheme: (theme: Theme) => {
       setTheme(theme)
     },
+  }
+
+  if (!mounted) {
+    return null
   }
 
   return (

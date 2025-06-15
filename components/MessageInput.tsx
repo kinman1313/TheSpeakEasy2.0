@@ -95,9 +95,7 @@ export function MessageInput({
   const handleSend = async () => {
     if ((!message.trim() && fileUploads.length === 0) || disabled || isUploading) return
 
-    let sendOptions: any = {
-      status: 'sending' // Initial status
-    }
+    const sendOptions: any = {}
 
     // Handle file uploads first
     if (fileUploads.length > 0) {

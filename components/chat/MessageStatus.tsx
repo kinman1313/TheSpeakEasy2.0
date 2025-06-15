@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from 'react'
-import { Check, CheckCheck, Clock, AlertCircle } from 'lucide-react'
+import { Check, CheckCheck, Clock, AlertCircle, X } from 'lucide-react'
 import { type MessageStatus as MessageStatusType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -52,15 +52,16 @@ export function MessageStatus({ status, className }: MessageStatusProps) {
     const getStatusIcon = () => {
         switch (status) {
             case 'sending':
-                return <Clock className="h-3 w-3 text-slate-400 animate-pulse" />
+                return <Clock className="w-3 h-3 text-gray-400 animate-pulse" />
             case 'sent':
-                return <Check className="h-3 w-3 text-slate-400" />
+                return <Check className="w-3 h-3 text-gray-400" />
             case 'delivered':
-                return <CheckCheck className="h-3 w-3 text-slate-400" />
+                return <CheckCheck className="w-3 h-3 text-gray-500" />
             case 'read':
-                return <CheckCheck className="h-3 w-3 text-blue-400" />
+                return <CheckCheck className="w-3 h-3 text-blue-500" />
             case 'failed':
-                return <AlertCircle className="h-3 w-3 text-red-400" />
+                // @ts-expect-error - X icon from lucide-react
+                return <X className="w-3 h-3 text-red-500" />
             default:
                 return null
         }

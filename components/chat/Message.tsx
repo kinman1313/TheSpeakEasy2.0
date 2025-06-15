@@ -70,6 +70,19 @@ export function Message({
     const editInputRef = useRef<HTMLInputElement>(null)
     const [isSubscribed, setIsSubscribed] = useState(false)
     const [showActions, setShowActions] = useState(false)
+    const [isMobile, setIsMobile] = useState(false)
+
+    // Detect mobile device
+    useEffect(() => {
+        const checkMobile = () => {
+            setIsMobile(window.innerWidth < 768)
+        }
+        
+        checkMobile()
+        window.addEventListener('resize', checkMobile)
+        
+        return () => window.removeEventListener('resize', checkMobile)
+    }, [])
 
     // Update expiration info
     useEffect(() => {
