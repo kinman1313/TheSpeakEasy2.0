@@ -37,7 +37,7 @@ class MobileNotificationManager {
     }
 
     private checkSupport(): void {
-        if (typeof window === 'undefined') {
+        if (typeof window === 'undefined' || typeof navigator === 'undefined') {
             this.isSupported = false
             return
         }
@@ -128,7 +128,7 @@ class MobileNotificationManager {
         }
 
         // Add mobile-specific features if supported
-        if (options.vibrate && 'vibrate' in navigator) {
+        if (options.vibrate && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
             notificationOptions.vibrate = options.vibrate
         }
 

@@ -68,7 +68,6 @@ const nextConfig = {
   // Disable static error pages to prevent Html import issues
   experimental: {
     optimizePackageImports: ['@/components', '@/lib'],
-    staticGenerationOptimization: true,
   },
   // Disable prerendering of error pages
   generateEtags: false,
