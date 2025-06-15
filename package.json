@@ -79,6 +79,7 @@
     "tailwind-merge": "^3.3.1",
     "tailwindcss": "^3.3.5",
     "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.2.2",
     "uuid": "^11.1.0",
     "vaul": "^0.7.7",
     "workbox-background-sync": "^7.3.0",
@@ -109,7 +110,6 @@
     "@types/workbox-strategies": "^4.3.1",
     "babel-loader": "^10.0.0",
     "date-fns": "^3.6.0",
-    "typescript": "^5.2.2",
     "webpack": "^5.98.0",
     "webpack-cli": "^6.0.1"
   }
