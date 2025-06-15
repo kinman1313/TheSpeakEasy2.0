@@ -65,10 +65,13 @@ const nextConfig = {
   eslint: {
     ignoreDuringBuilds: true,
   },
-  // Optimize build output
+  // Disable static error pages to prevent Html import issues
   experimental: {
     optimizePackageImports: ['@/components', '@/lib'],
+    staticGenerationOptimization: true,
   },
+  // Disable prerendering of error pages
+  generateEtags: false,
   webpack: (config, { isServer, dev }) => {
     // Add a rule to handle the undici package
     config.module.rules.push({
