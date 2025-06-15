@@ -28,16 +28,27 @@ class MobileNotificationManager {
     private activeNotifications: Map<string, Notification> = new Map()
 
     constructor() {
-        this.checkSupport()
-        this.setupVisibilityHandling()
-        this.setupPermissionHandling()
+        // Only initialize if we're in the browser
+        if (typeof window !== 'undefined') {
+            this.checkSupport()
+            this.setupVisibilityHandling()
+            this.setupPermissionHandling()
+        }
     }
 
     private checkSupport(): void {
+        if (typeof window === 'undefined') {
+            this.isSupported = false
+            return
+        }
         this.isSupported = 'Notification' in window && 'serviceWorker' in navigator
     }
 
     private setupVisibilityHandling(): void {
+        if (typeof document === 'undefined' || typeof window === 'undefined') {
+            return
+        }
+
         document.addEventListener('visibilitychange', () => {
             this.isVisible = !document.hidden
 
@@ -59,7 +70,7 @@ class MobileNotificationManager {
     }
 
     private setupPermissionHandling(): void {
-        if (this.isSupported) {
+        if (this.isSupported && typeof window !== 'undefined' && 'Notification' in window) {
             this.permission = Notification.permission
         }
     }
