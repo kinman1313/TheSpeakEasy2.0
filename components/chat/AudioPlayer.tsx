@@ -97,15 +97,23 @@ export function AudioPlayer({ src, mp3Url, onError }: AudioPlayerProps): ReactEl
     }
 
     const handleSuspend = () => {
-      console.log('Audio loading suspended')
+      // This is normal browser behavior - audio loading paused due to network or policy
+      // Only log in development mode
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('Audio loading suspended (normal browser behavior)')
+      }
     }
 
     const handleStalled = () => {
-      console.log('Audio loading stalled')
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('Audio loading stalled')
+      }
     }
 
     const handleWaiting = () => {
-      console.log('Audio waiting for data')
+      if (process.env.NODE_ENV === 'development') {
+        console.debug('Audio waiting for data')
+      }
     }
 
     // Add comprehensive event listeners

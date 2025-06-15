@@ -67,6 +67,11 @@ export default function ChatApp() {
   // New feature states
   const [replyToMessage, setReplyToMessage] = useState<any | null>(null)
 
+  // Initialize sound manager on first user interaction
+  useEffect(() => {
+    soundManager.initializeOnUserInteraction()
+  }, [])
+
   // Initialize push notifications on app start
   useEffect(() => {
     const initializePushNotifications = async () => {
@@ -380,7 +385,14 @@ export default function ChatApp() {
 
   // Scroll to bottom when messages change and play sound for new messages
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+    // Enhanced smooth scroll to bottom
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest"
+      })
+    }
 
     // Play sound for new messages from others
     if (messages.length > previousMessageCount.current && previousMessageCount.current > 0) {
@@ -409,6 +421,18 @@ export default function ChatApp() {
 
     previousMessageCount.current = messages.length
   }, [messages, user, currentRoomType])
+
+  // Function to scroll to a specific message
+  const scrollToMessage = (messageId: string) => {
+    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
+    if (messageElement) {
+      messageElement.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+        inline: 'nearest'
+      })
+    }
+  }
 
   // Room management functions
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
@@ -1076,7 +1100,11 @@ export default function ChatApp() {
               {/* Messages Area */}
               <div
                 ref={messagesContainerRef}
-                className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6 relative"
+                className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6 relative scroll-smooth messages-container messages-scrollbar"
+                style={{
+                  scrollBehavior: 'smooth',
+                  scrollSnapType: 'y proximity',
+                }}
               >
                 {/* Pull-to-refresh indicator */}
                 <div
@@ -1155,10 +1183,10 @@ export default function ChatApp() {
                     onThreadClick={handleThreadClick}
                   />
                 ) : (
-                  <>
+                  <div className="space-y-4 message-list" style={{ scrollSnapType: 'y proximity' }}>
                     {messages.map(renderMessage)}
-                    <div ref={messagesEndRef} />
-                  </>
+                    <div ref={messagesEndRef} style={{ scrollSnapAlign: 'end' }} />
+                  </div>
                 )}
 
                 {/* Typing Indicators */}

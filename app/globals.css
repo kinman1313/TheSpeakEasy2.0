@@ -539,6 +539,72 @@
 
 /* Refresh indicator styling */
 .refresh-indicator {
-  transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
-  z-index: 10;
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Enhanced Message Scrolling and Snap Behavior */
+.messages-container {
+  scroll-behavior: smooth;
+  scroll-snap-type: y proximity;
+  scroll-padding-top: 1rem;
+  scroll-padding-bottom: 1rem;
+}
+
+.message-snap {
+  scroll-snap-align: start;
+  scroll-margin: 0.5rem 0;
+}
+
+/* Smooth scrolling for all containers */
+.scroll-smooth {
+  scroll-behavior: smooth;
+}
+
+/* Enhanced scroll snap for message lists */
+.message-list {
+  scroll-snap-type: y proximity;
+  scroll-padding: 1rem;
+}
+
+.message-list>* {
+  scroll-snap-align: start;
+  scroll-margin: 0.5rem 0;
+}
+
+/* Consistent message spacing */
+.message-spacing {
+  margin-bottom: 1rem;
+}
+
+.message-spacing:last-child {
+  margin-bottom: 0;
+}
+
+/* Smooth transitions for message appearance */
+.message-transition {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+/* Enhanced scrollbar for message containers */
+.messages-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(34, 197, 94, 0.3);
+  border-radius: 3px;
+}
+
+.messages-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(34, 197, 94, 0.5);
+}
+
+/* Firefox scrollbar styling */
+.messages-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
 }

@@ -77,22 +77,65 @@ export class SoundManager {
         if (this.isInitialized) return;
 
         try {
-            // Create audio context only when needed
+            // Create audio context only when needed and after user interaction
             if (!this.audioContext) {
                 this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
             }
 
+            // Resume audio context if suspended (required by browsers)
+            if (this.audioContext.state === 'suspended') {
+                await this.audioContext.resume();
+            }
+
             // Load all sounds
             await Promise.all([
-                this.loadSound('message', '/sounds/message.mp3'),
-                this.loadSound('dm', '/sounds/dm.mp3'),
-                this.loadSound('call', '/sounds/call.mp3')
+                this.loadSound('message', '/sounds/message1.mp3'),
+                this.loadSound('dm', '/sounds/dm1.mp3'),
+                this.loadSound('call', '/sounds/call1.mp3')
             ]);
 
             this.isInitialized = true;
+            console.log('Sound manager initialized successfully');
         } catch (error) {
             console.warn('Failed to initialize audio context:', error);
+            // Fallback to HTML5 audio
+            this.initializeFallbackAudio();
         }
+    }
+
+    private initializeFallbackAudio() {
+        try {
+            // Create HTML5 audio elements as fallback
+            const messageAudio = new Audio('/sounds/message1.mp3');
+            const dmAudio = new Audio('/sounds/dm1.mp3');
+            const callAudio = new Audio('/sounds/call1.mp3');
+
+            this.audioCache.set('message', messageAudio);
+            this.audioCache.set('dm', dmAudio);
+            this.audioCache.set('call', callAudio);
+
+            this.isInitialized = true;
+            console.log('Fallback audio initialized');
+        } catch (error) {
+            console.warn('Failed to initialize fallback audio:', error);
+        }
+    }
+
+    // Initialize on first user interaction
+    public initializeOnUserInteraction() {
+        if (this.isInitialized) return;
+
+        const initOnInteraction = () => {
+            this.initialize();
+            // Remove listeners after first interaction
+            document.removeEventListener('click', initOnInteraction);
+            document.removeEventListener('keydown', initOnInteraction);
+            document.removeEventListener('touchstart', initOnInteraction);
+        };
+
+        document.addEventListener('click', initOnInteraction);
+        document.addEventListener('keydown', initOnInteraction);
+        document.addEventListener('touchstart', initOnInteraction);
     }
 
     private async loadSound(name: string, url: string) {
@@ -113,24 +156,49 @@ export class SoundManager {
     }
 
     public playSound(soundName: string, volume = 1): void {
-        const sound = this.sounds[soundName];
-        if (!this.isInitialized || !sound) {
+        if (!this.isInitialized) {
             console.warn(`Sound '${soundName}' not available or audio not initialized`);
             return;
         }
 
-        try {
-            const source = this.audioContext!.createBufferSource();
-            source.buffer = sound.buffer;
+        // Check if settings allow sound
+        if (!this.settings?.enabled) {
+            return;
+        }
 
-            const gainNode = this.audioContext!.createGain();
-            gainNode.gain.value = volume * (this.settings?.volume || 1);
+        // Try Web Audio API first
+        const sound = this.sounds[soundName];
+        if (sound && this.audioContext) {
+            try {
+                const source = this.audioContext.createBufferSource();
+                source.buffer = sound.buffer;
 
-            source.connect(gainNode);
-            gainNode.connect(this.audioContext!.destination);
-            source.start(0);
-        } catch (error) {
-            console.error('Error playing sound:', error);
+                const gainNode = this.audioContext.createGain();
+                gainNode.gain.value = volume * (this.settings?.volume || 1);
+
+                source.connect(gainNode);
+                gainNode.connect(this.audioContext.destination);
+                source.start(0);
+                return;
+            } catch (error) {
+                console.warn('Error playing sound with Web Audio API:', error);
+            }
+        }
+
+        // Fallback to HTML5 audio
+        const audioElement = this.audioCache.get(soundName);
+        if (audioElement) {
+            try {
+                audioElement.volume = volume * (this.settings?.volume || 1);
+                audioElement.currentTime = 0; // Reset to beginning
+                audioElement.play().catch(error => {
+                    console.warn(`Error playing fallback audio for ${soundName}:`, error);
+                });
+            } catch (error) {
+                console.warn(`Error with fallback audio for ${soundName}:`, error);
+            }
+        } else {
+            console.warn(`Sound '${soundName}' not available or audio not initialized`);
         }
     }
 
@@ -144,6 +212,17 @@ export class SoundManager {
 
     playCall() {
         this.playSound('call');
+    }
+
+    public isReady(): boolean {
+        return this.isInitialized;
+    }
+
+    public getStatus(): string {
+        if (!this.isInitialized) return 'not initialized';
+        if (this.audioContext?.state === 'suspended') return 'suspended';
+        if (this.audioContext?.state === 'running') return 'running';
+        return 'fallback mode';
     }
 
     stopAll() {

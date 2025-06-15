@@ -264,7 +264,7 @@ class MobileNotificationManager {
         await this.show({
             title: from,
             body: message,
-            icon: '/icons/message-icon.png',
+            icon: '/icons/notification-icon.png',
             tag: `message-${from}`,
             data,
             vibrate: [100, 50, 100]

@@ -288,8 +288,9 @@ export function Message({
 
     return (
         <div
+            data-message-id={message.id}
             className={cn(
-                `relative group p-4 rounded-lg tap-feedback message-bubble`,
+                `relative group p-4 rounded-lg tap-feedback message-bubble backdrop-blur-sm message-snap message-spacing message-transition`,
                 isCurrentUser
                     ? 'bg-blue-100 dark:bg-blue-900 ml-auto bg-opacity-70 dark:bg-opacity-60'
                     : 'bg-gray-100 dark:bg-gray-800 bg-opacity-70 dark:bg-opacity-60',
@@ -300,6 +301,8 @@ export function Message({
                 maxWidth: '60%',
                 minWidth: 'fit-content',
                 width: message.text && message.text.length < 30 ? 'fit-content' : undefined,
+                scrollSnapAlign: 'start',
+                scrollMargin: '1rem',
             }}
             onMouseEnter={() => setShowActions(true)}
             onMouseLeave={() => setShowActions(false)}
