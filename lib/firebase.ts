@@ -8,32 +8,56 @@ import { getMessaging, type Messaging, onMessage } from "firebase/messaging"; //
 import { setLogLevel } from "firebase/app";
 
 const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID,
-  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || 'demo-api-key',
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN || 'demo-project.firebaseapp.com',
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || 'demo-project',
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || 'demo-project.appspot.com',
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID || '123456789',
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID || '1:123456789:web:abcdef123456',
+  measurementId: process.env.NEXT_PUBLIC_FIREBASE_MEASUREMENT_ID || 'G-XXXXXXXXXX',
 };
 
+// Check if we're in a build environment and Firebase config is missing
+const isBuildTime = typeof window === 'undefined' && process.env.NODE_ENV === 'production';
+const hasValidFirebaseConfig = process.env.NEXT_PUBLIC_FIREBASE_API_KEY && 
+                              process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID;
 
+// Only initialize Firebase if we have valid config or we're not in build time
+let app: any = null;
+let auth: any = null;
+let db: any = null;
+let rtdb: any = null;
+let storage: any = null;
 
-// Initialize Firebase
-const app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
+if (!isBuildTime || hasValidFirebaseConfig) {
+  try {
+    // Initialize Firebase
+    app = !getApps().length ? initializeApp(firebaseConfig) : getApp();
 
-// Initialize core services (these are safe to initialize on server-side)
-const auth = getAuth(app);
-const db = getFirestore(app);
-const rtdb = getDatabase(app);
-const storage = getStorage(app);
+    // Initialize core services (these are safe to initialize on server-side)
+    auth = getAuth(app);
+    db = getFirestore(app);
+    rtdb = getDatabase(app);
+    storage = getStorage(app);
+  } catch (error) {
+    console.warn('Firebase initialization failed:', error);
+    // Create dummy services for build time
+    if (isBuildTime) {
+      app = null;
+      auth = null;
+      db = null;
+      rtdb = null;
+      storage = null;
+    }
+  }
+}
 
 // Initialize messaging and analytics only on the client side
 let messaging: Messaging | undefined;
 let analytics: Analytics | null = null;
 
 // Configure Firebase logging to reduce verbosity
-if (typeof window !== "undefined") {
+if (typeof window !== "undefined" && app) {
   // Set Firebase logging to 'error' level to reduce console noise
   setLogLevel('error');
 
