@@ -9,15 +9,29 @@ const fs = require('fs');
 const path = require('path');
 
 function generateRenderEnvFormat() {
-  const envPath = path.join(process.cwd(), '.env.local');
+  // Check for .env files in order of preference
+  const envPaths = [
+    path.join(process.cwd(), '.env.local'),
+    path.join(process.cwd(), '.env')
+  ];
   
-  if (!fs.existsSync(envPath)) {
-    console.log('❌ No .env.local file found');
-    console.log('💡 Create a .env.local file with your environment variables first');
+  let envPath = null;
+  for (const envFilePath of envPaths) {
+    if (fs.existsSync(envFilePath)) {
+      envPath = envFilePath;
+      break;
+    }
+  }
+  
+  if (!envPath) {
+    console.log('❌ No .env or .env.local file found');
+    console.log('💡 Create a .env file with your environment variables first');
     console.log('📋 Use .env.example as a template');
     return;
   }
 
+  console.log(`📁 Reading environment variables from: ${path.basename(envPath)}`);
+  
   const envContent = fs.readFileSync(envPath, 'utf8');
   const lines = envContent.split('\n');
   
