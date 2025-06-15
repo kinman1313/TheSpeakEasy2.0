@@ -11,7 +11,7 @@ import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import { ImprovedVideoCallView } from "@/components/chat/ImprovedVideoCallView"
+import { VideoCallView } from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
@@ -432,18 +432,6 @@ export default function ChatApp() {
 
     previousMessageCount.current = messages.length
   }, [messages, user, currentRoomType])
-
-  // Function to scroll to a specific message
-  const scrollToMessage = (messageId: string) => {
-    const messageElement = document.querySelector(`[data-message-id="${messageId}"]`)
-    if (messageElement) {
-      messageElement.scrollIntoView({
-        behavior: 'smooth',
-        block: 'center',
-        inline: 'nearest'
-      })
-    }
-  }
 
   // Room management functions
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
@@ -1233,8 +1221,11 @@ export default function ChatApp() {
 
       {/* Video Call View */}
       {webRTCCallStatus !== 'idle' && (
-        <ImprovedVideoCallView
-          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
+        <VideoCallView
+          localStream={localStream}
+          remoteStream={remoteStream}
+          onToggleAudio={toggleLocalAudio}
+          onToggleVideo={toggleLocalVideo}
           onEndCall={async () => {
             try {
               await hangUpCall()
@@ -1247,6 +1238,12 @@ export default function ChatApp() {
               })
             }
           }}
+          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
+          callStatus={webRTCCallStatus}
+          isLocalAudioMuted={isLocalAudioMuted}
+          isLocalVideoEnabled={isLocalVideoEnabled}
+          peerConnection={peerConnection}
+          setRemoteStream={() => {}}
         />
       )}
 

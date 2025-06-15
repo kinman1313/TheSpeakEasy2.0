@@ -1,5 +1,4 @@
 import { mobileNotifications } from './mobileNotifications'
-import { haptics } from './haptics'
 
 export interface CallNotificationOptions {
   callerName: string

@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from '@/components/auth/AuthProvider';
 import { rtdb } from '@/lib/firebase';
 import { ref, set, onValue, push, off, remove, serverTimestamp } from 'firebase/database';
-import { registerUser, getSocket } from '@/lib/socket';
+import { registerUser } from '@/lib/socket';
 import { callNotifications, type CallNotificationOptions } from '@/lib/callNotifications';
 
 export type CallStatus =
@@ -100,7 +100,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [microphonePermission, setMicrophonePermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [signalingError, setSignalingError] = useState<Error | null>(null);
 
-  const activeRTDBListeners = useRef<Array<{ path: string, listener: (snapshot: any) => void }>>([]);
+  const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
   const offerTimeoutRef = useRef<number | null>(null);
   const disconnectedTimeoutRef = useRef<number | null>(null);
   const callStatusRef = useRef<CallStatus>('idle');
@@ -381,7 +381,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
           setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
           const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId  
-          remove(ref(rtdb, offerPath)).catch(e => console.warn("Could not remove timed out offer", e));
+          remove(ref(rtdb, offerPath)).catch((e: Error) => console.warn("Could not remove timed out offer", e));
           
           // Play call ended sound for timeout
           callNotifications.playCallEndedSound();
@@ -642,7 +642,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (pc.localDescription) {
         await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
 
-        offerTimeoutRef.current = setTimeout(async () => {
+        offerTimeoutRef.current = window.setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
           setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
           const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId  
@@ -670,7 +670,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // Detach any existing listeners before attaching new ones.
-    activeRTDBListeners.current.forEach((listenerInfo: { path: string, listener: (snapshot: any) => void }) => 
+    activeRTDBListeners.current.forEach((listenerInfo: any) => 
       off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
     );
     activeRTDBListeners.current = [];
@@ -685,7 +685,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     paths.forEach(pInfo => {
       const dbRef = ref(rtdb, pInfo.path);
-      const listener = onValue(dbRef, (snapshot) => {
+      const listener = onValue(dbRef, (snapshot: any) => {
         if (!snapshot.exists()) return;
         const data = snapshot.val();
 
@@ -725,7 +725,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 onOfferReceivedCb({ type: 'offer', sdp: offerPayload.sdp }, offerPayload.senderId, offerPayload.senderName);
 
                 // Remove the offer from database after processing
-                remove(dbRef).catch(e => console.warn("Could not remove processed offer", e));
+                remove(dbRef).catch((e: Error) => console.warn("Could not remove processed offer", e));
               } else {
                 console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${currentCallStatus}`);
               }
@@ -740,15 +740,15 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               if (currentCallStatus === 'calling' || currentCallStatus === 'connected') {
                 clearOfferTimeout();
                 onAnswerReceivedCb({ type: 'answer', sdp: answerPayload.sdp }, answerPayload.senderId);
-                remove(dbRef).catch(e => console.warn("Could not remove answer signal", e));
+                remove(dbRef).catch((e: Error) => console.warn("Could not remove answer signal", e));
               } else {
                 console.warn(`Provider: Ignoring answer in unexpected call status: ${currentCallStatus}`);
-                remove(dbRef).catch(e => console.warn("Could not remove stale answer signal", e));
+                remove(dbRef).catch((e: Error) => console.warn("Could not remove stale answer signal", e));
               }
             }
             break;
           case 'iceCandidates':
-            snapshot.forEach((senderSnapshot) => {
+            snapshot.forEach((senderSnapshot: any) => {
               if (senderSnapshot.key === activeCallTargetUserId || senderSnapshot.key === callerUserId) {
                 const candidates = senderSnapshot.val();
                 if (candidates) {
@@ -766,13 +766,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                       console.warn("Provider: Skipping invalid ICE candidate:", candidate);
                     }
                   });
-                  remove(senderSnapshot.ref).catch(e => console.warn("Could not remove ICE candidates for sender", e));
+                  remove(senderSnapshot.ref).catch((e: Error) => console.warn("Could not remove ICE candidates for sender", e));
                 }
               }
             });
             break;
           case 'callDeclined':
-            snapshot.forEach((declinerSnapshot) => {
+            snapshot.forEach((declinerSnapshot: any) => {
               const declineData = declinerSnapshot.val() as CallDeclinedPayload;
               console.log("Provider: Received call declined from:", declineData.declinedByUserId);
               clearOfferTimeout();
@@ -782,11 +782,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 currentNotificationId.current = null;
               }
               onCallDeclinedReceivedCb(declineData.declinedByUserId, declineData.declinedByUserName);
-              remove(declinerSnapshot.ref).catch(e => console.warn("Could not remove decline signal", e));
+              remove(declinerSnapshot.ref).catch((e: Error) => console.warn("Could not remove decline signal", e));
             });
             break;
           case 'callEnd':
-            snapshot.forEach((enderSnapshot) => {
+            snapshot.forEach((enderSnapshot: any) => {
               console.log("Provider: Received call ended signal from:", enderSnapshot.key);
               // Stop incoming call notification
               if (currentNotificationId.current) {
@@ -797,17 +797,17 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
               callNotifications.playCallEndedSound();
               closePeerConnection(false, 'idle');
               onCallEndedSignalCb();
-              remove(enderSnapshot.ref).catch(e => console.warn("Could not remove callEnd signal", e));
+              remove(enderSnapshot.ref).catch((e: Error) => console.warn("Could not remove callEnd signal", e));
             });
             break;
         }
-      }, (error) => { console.error(`Listener error for ${pInfo.path}:`, error); setSignalingError(error); });
+      }, (error: Error) => { console.error(`Listener error for ${pInfo.path}:`, error); setSignalingError(error); });
       activeRTDBListeners.current.push({ path: pInfo.path, listener });
     });
 
     return () => {
       console.log("Cleaning up ALL signaling listeners for user:", currentUserId);
-      activeRTDBListeners.current.forEach((listenerInfo: { path: string, listener: (snapshot: any) => void }) => 
+      activeRTDBListeners.current.forEach((listenerInfo: any) => 
         off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
       );
       activeRTDBListeners.current = [];
