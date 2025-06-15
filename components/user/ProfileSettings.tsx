@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { updateProfile } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -31,7 +31,8 @@ export function ProfileSettings() {
     const [displayName, setDisplayName] = useState('');
     const [selectedFile, setSelectedFile] = useState<File | null>(null);
     const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-    const [chatColor, setChatColor] = useState<string>((user as any)?.chatColor || '#00f3ff');
+    const [chatColor, setChatColor] = useState<string>('#00f3ff');
+    const [originalChatColor, setOriginalChatColor] = useState<string>('#00f3ff');
 
     // UI states
     const [isUploading, setIsUploading] = useState(false);
@@ -49,7 +50,31 @@ export function ProfileSettings() {
             setSelectedFile(null);
             setError(null);
             setHasChanges(false);
-            setChatColor((user as any)?.chatColor || '#00f3ff');
+
+            // Load user's Firestore data including chatColor
+            const loadUserData = async () => {
+                if (db) {
+                    try {
+                        const userDocRef = doc(db, "users", user.uid);
+                        const userDoc = await getDoc(userDocRef);
+
+                        if (userDoc.exists()) {
+                            const userData = userDoc.data();
+                            setChatColor(userData.chatColor || '#00f3ff');
+                            setOriginalChatColor(userData.chatColor || '#00f3ff');
+                        } else {
+                            setChatColor('#00f3ff'); // Default color
+                            setOriginalChatColor('#00f3ff');
+                        }
+                    } catch (error) {
+                        console.error("Error loading user data:", error);
+                        setChatColor('#00f3ff'); // Default color on error
+                        setOriginalChatColor('#00f3ff');
+                    }
+                }
+            };
+
+            loadUserData();
         }
     }, [user]);
 
@@ -58,9 +83,10 @@ export function ProfileSettings() {
         if (user) {
             const nameChanged = displayName !== (user.displayName || '');
             const avatarChanged = selectedFile !== null;
-            setHasChanges(nameChanged || avatarChanged);
+            const colorChanged = chatColor !== originalChatColor;
+            setHasChanges(nameChanged || avatarChanged || colorChanged);
         }
-    }, [displayName, selectedFile, user]);
+    }, [displayName, selectedFile, chatColor, originalChatColor, user]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
@@ -108,42 +134,39 @@ export function ProfileSettings() {
             }
 
             // Update Firebase Auth profile
-            const updateData: { displayName?: string; photoURL?: string; chatColor?: string } = {};
+            const authUpdateData: { displayName?: string; photoURL?: string } = {};
 
             if (displayName.trim() !== (user.displayName || '')) {
-                updateData.displayName = displayName.trim();
+                authUpdateData.displayName = displayName.trim();
             }
 
             if (photoURL !== user.photoURL) {
-                updateData.photoURL = photoURL || undefined;
+                authUpdateData.photoURL = photoURL || undefined;
             }
 
-            if (chatColor !== (user as any)?.chatColor) {
-                updateData.chatColor = chatColor;
+            if (Object.keys(authUpdateData).length > 0) {
+                await updateProfile(auth.currentUser, authUpdateData);
             }
 
-            if (Object.keys(updateData).length > 0) {
-                await updateProfile(auth.currentUser, updateData);
-            }
-
-            // Update Firestore user document
+            // Update Firestore user document (always update if there are any changes)
             if (db) {
                 const userDocRef = doc(db, "users", user.uid);
                 const userDocData: any = {
                     lastUpdated: new Date(),
                 };
 
-                if (updateData.displayName !== undefined) {
-                    userDocData.displayName = updateData.displayName;
-                    userDocData.userName = updateData.displayName; // For compatibility
+                if (authUpdateData.displayName !== undefined) {
+                    userDocData.displayName = authUpdateData.displayName;
+                    userDocData.userName = authUpdateData.displayName; // For compatibility
                 }
 
-                if (updateData.photoURL !== undefined) {
-                    userDocData.photoURL = updateData.photoURL;
+                if (authUpdateData.photoURL !== undefined) {
+                    userDocData.photoURL = authUpdateData.photoURL;
                 }
 
-                if (updateData.chatColor !== undefined) {
-                    userDocData.chatColor = updateData.chatColor;
+                // Always update chatColor in Firestore if it changed
+                if (chatColor !== originalChatColor) {
+                    userDocData.chatColor = chatColor;
                 }
 
                 await setDoc(userDocRef, userDocData, { merge: true });

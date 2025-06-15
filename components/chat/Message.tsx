@@ -167,13 +167,7 @@ export function Message({
 
     const handleReaction = (messageId: string, emoji: string) => {
         if (!user) return;
-        if (message.reactions && message.reactions[emoji]?.includes(user.uid)) {
-            // Remove reaction
-            onReaction && onReaction(messageId, emoji);
-        } else {
-            // Add reaction
-            onReaction && onReaction(messageId, emoji);
-        }
+        onReaction && onReaction(messageId, emoji);
     };
 
     const renderFileAttachment = () => {
@@ -347,7 +341,7 @@ export function Message({
                     message.text && (
                         <p
                             className={cn(
-                                "text-sm break-words",
+                                "text-base break-words",
                                 isCurrentUser && "text-right"
                             )}
                             style={{ color: message.chatColor || '#fff' }}

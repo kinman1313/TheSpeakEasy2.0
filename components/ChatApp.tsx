@@ -672,6 +672,15 @@ export default function ChatApp() {
     if (!user) return;
 
     try {
+      // Find the message to check current reactions
+      const message = messages.find(m => m.id === messageId);
+      if (!message) return;
+
+      // Determine if user has already reacted with this emoji
+      const userReactions = message.reactions?.[emoji] || [];
+      const hasReacted = userReactions.includes(user.uid);
+      const action = hasReacted ? 'remove' : 'add';
+
       const token = await user.getIdToken()
       let apiUrl: string
 
@@ -693,24 +702,24 @@ export default function ChatApp() {
         body: JSON.stringify({
           messageId,
           emoji,
-          action: 'add'
+          action
         })
       });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to add reaction')
+        throw new Error(errorData.error || `Failed to ${action} reaction`)
       }
 
       toast({
-        title: "Reaction Added",
-        description: `Added ${emoji} reaction to message`,
+        title: action === 'add' ? "Reaction Added" : "Reaction Removed",
+        description: `${action === 'add' ? 'Added' : 'Removed'} ${emoji} reaction ${action === 'add' ? 'to' : 'from'} message`,
       });
     } catch (error) {
-      console.error('Error adding reaction:', error);
+      console.error('Error handling reaction:', error);
       toast({
         title: "Error",
-        description: "Failed to add reaction. Please try again.",
+        description: "Failed to update reaction. Please try again.",
         variant: "destructive",
       });
     }
