@@ -146,11 +146,13 @@ class MobileNotificationManager {
         // Handle notification click
         notification.onclick = (event) => {
             event.preventDefault()
-            window.focus()
+            if (typeof window !== 'undefined') {
+                window.focus()
 
-            // Handle custom data
-            if (options.data?.url) {
-                window.location.href = options.data.url
+                // Handle custom data
+                if (options.data?.url) {
+                    window.location.href = options.data.url
+                }
             }
 
             notification.close()
@@ -171,6 +173,11 @@ class MobileNotificationManager {
     }
 
     private showInAppNotification(options: MobileNotificationOptions): void {
+        // Check if we're in browser environment
+        if (typeof document === 'undefined' || typeof window === 'undefined') {
+            return
+        }
+
         // Create in-app notification element
         const notification = document.createElement('div')
         notification.className = `
@@ -211,7 +218,7 @@ class MobileNotificationManager {
         // Handle notification click
         notification.addEventListener('click', (e) => {
             if (e.target !== closeBtn) {
-                if (options.data?.url) {
+                if (options.data?.url && typeof window !== 'undefined') {
                     window.location.href = options.data.url
                 }
                 this.closeInAppNotification(notification)
@@ -253,13 +260,15 @@ class MobileNotificationManager {
         })
         this.activeNotifications.clear()
 
-        // Clear in-app notifications
-        const inAppNotifications = document.querySelectorAll('[class*="fixed top-4 right-4"]')
-        inAppNotifications.forEach(notification => {
-            if (notification instanceof HTMLElement) {
-                this.closeInAppNotification(notification)
-            }
-        })
+        // Clear in-app notifications - only in browser environment
+        if (typeof document !== 'undefined') {
+            const inAppNotifications = document.querySelectorAll('[class*="fixed top-4 right-4"]')
+            inAppNotifications.forEach(notification => {
+                if (notification instanceof HTMLElement) {
+                    this.closeInAppNotification(notification)
+                }
+            })
+        }
     }
 
     public clearNotification(tag: string): void {
