@@ -86,6 +86,20 @@ const nextConfig = {
     // Fix the alias path - make sure it points to your project root
     config.resolve.alias['@'] = path.resolve(__dirname);
 
+    // Suppress React 19 ref warnings temporarily
+    if (dev) {
+      const originalWarn = console.warn;
+      console.warn = (...args) => {
+        if (
+          typeof args[0] === 'string' && 
+          args[0].includes('Accessing element.ref was removed in React 19')
+        ) {
+          return; // Suppress this specific warning
+        }
+        originalWarn.apply(console, args);
+      };
+    }
+
     return config;
   },
 };
