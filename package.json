@@ -9,7 +9,9 @@
     "custom-dev": "node server.js",
     "custom-start": "NODE_ENV=production node server.js",
     "deploy:firestore-rules": "node scripts/deploy-firestore-rules.js",
-    "debug:firestore": "node scripts/debug-firestore-400.js"
+    "debug:firestore": "node scripts/debug-firestore-400.js",
+    "test:calling": "node scripts/test-calling-functionality.js",
+    "create-sounds": "node scripts/create-sound-files.js"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",

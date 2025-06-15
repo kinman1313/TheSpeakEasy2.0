@@ -4,6 +4,8 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from '@/components/auth/AuthProvider';
 import { rtdb } from '@/lib/firebase';
 import { ref, set, onValue, push, off, remove, serverTimestamp } from 'firebase/database';
+import { registerUser, getSocket } from '@/lib/socket';
+import { callNotifications, type CallNotificationOptions } from '@/lib/callNotifications';
 
 export type CallStatus =
   | 'idle'
@@ -98,15 +100,23 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [microphonePermission, setMicrophonePermission] = useState<'prompt' | 'granted' | 'denied'>('prompt');
   const [signalingError, setSignalingError] = useState<Error | null>(null);
 
-  const activeRTDBListeners = useRef<Array<{ path: string, listener: any }>>([]);
-  const offerTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const disconnectedTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const activeRTDBListeners = useRef<Array<{ path: string, listener: (snapshot: any) => void }>>([]);
+  const offerTimeoutRef = useRef<number | null>(null);
+  const disconnectedTimeoutRef = useRef<number | null>(null);
   const callStatusRef = useRef<CallStatus>('idle');
+  const currentNotificationId = useRef<string | null>(null);
 
   // Update ref when state changes
   useEffect(() => {
     callStatusRef.current = callStatus;
   }, [callStatus]);
+
+  // Register user with socket server when user changes
+  useEffect(() => {
+    if (user?.uid) {
+      registerUser(user.uid);
+    }
+  }, [user?.uid]);
 
   // Clean up any stale offers when component initializes
   useEffect(() => {
@@ -120,14 +130,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const clearOfferTimeout = () => {
     if (offerTimeoutRef.current) {
-      clearTimeout(offerTimeoutRef.current);
+      window.clearTimeout(offerTimeoutRef.current);
       offerTimeoutRef.current = null;
     }
   };
 
   const clearDisconnectedTimeout = () => {
     if (disconnectedTimeoutRef.current) {
-      clearTimeout(disconnectedTimeoutRef.current);
+      window.clearTimeout(disconnectedTimeoutRef.current);
       disconnectedTimeoutRef.current = null;
     }
   };
@@ -207,6 +217,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
 
           setRemoteStream(stream);
+          
+          // Play call connected sound
+          if (callStatus === 'calling' || callStatus === 'ringing') {
+            callNotifications.playCallConnectedSound();
+          }
         }
       };
 
@@ -214,6 +229,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         console.log(`Connection state changed: ${pc.connectionState}`);
         if (pc.connectionState === 'connected') {
           setCallStatus('connected');
+          // Stop any incoming call notifications
+          if (currentNotificationId.current) {
+            callNotifications.stopIncomingCall(currentNotificationId.current);
+            currentNotificationId.current = null;
+          }
         } else if (pc.connectionState === 'failed') {
           console.error('Connection failed, attempting to restart ICE');
           pc.restartIce();
@@ -235,11 +255,18 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setPeerConnection(pc);
       return pc;
     },
-    [peerConnection, rtdb]
+    [peerConnection, rtdb, callStatus]
   );
 
   const resetCallState = useCallback(() => {
     console.log("Resetting call state");
+    
+    // Stop any active call notifications
+    if (currentNotificationId.current) {
+      callNotifications.stopIncomingCall(currentNotificationId.current);
+      currentNotificationId.current = null;
+    }
+    
     setCallStatus('idle');
     setActiveCallTargetUserId(null);
     setActiveCallTargetUserName(null);
@@ -254,6 +281,12 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const closePeerConnection = useCallback((_isInitiatorCleanUp = false, reason?: CallStatus) => {
     console.log(`Closing peer connection and related state. Reason: ${reason || 'general cleanup'}`);
 
+    // Stop any active call notifications
+    if (currentNotificationId.current) {
+      callNotifications.stopIncomingCall(currentNotificationId.current);
+      currentNotificationId.current = null;
+    }
+
     if (peerConnection) {
       peerConnection.onicecandidate = null;
       peerConnection.ontrack = null;
@@ -263,12 +296,22 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
     setPeerConnection(null);
+    
+    // Clean up local stream
+    if (localStream) {
+      localStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
+      setLocalStream(null);
+    }
+    
+    // Clear remote stream
+    setRemoteStream(null);
+    
     resetCallState();
 
     if (reason) {
       setCallStatus(reason);
     }
-  }, [peerConnection, resetCallState]);
+  }, [peerConnection, localStream, resetCallState]);
 
 
   const sendOffer = async (targetUserId: string, currentUserId: string, currentUserName: string | null | undefined, offer: RTCSessionDescriptionInit) => {
@@ -314,6 +357,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
     clearOfferTimeout();
 
+    // Play dialing sound
+    callNotifications.playDialingSound();
+
     const stream = await requestMediaPermissionsHandleErrors();
     if (!stream) { return; }
 
@@ -331,17 +377,23 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       if (pc.localDescription) {
         await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
 
-        offerTimeoutRef.current = setTimeout(async () => {
+        offerTimeoutRef.current = window.setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
           setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
           const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId  
           remove(ref(rtdb, offerPath)).catch(e => console.warn("Could not remove timed out offer", e));
+          
+          // Play call ended sound for timeout
+          callNotifications.playCallEndedSound();
+          
           closePeerConnection(true, 'error');
         }, 30000);
       } else throw new Error("Local description failed.");
     } catch (err: any) {
       console.error("Error initiating call (after media grant):", err);
-      setSignalingError(err); setCallStatus('error'); closePeerConnection(false, 'error');
+      setSignalingError(err); setCallStatus('error'); 
+      callNotifications.playCallEndedSound(); // Play error sound
+      closePeerConnection(false, 'error');
     }
   };
 
@@ -349,6 +401,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!user || !incomingOffer || !callerUserId) {
       setSignalingError(new Error("Cannot accept: missing info.")); setCallStatus('error'); return;
     }
+    
+    // Stop incoming call notification
+    if (currentNotificationId.current) {
+      callNotifications.stopIncomingCall(currentNotificationId.current);
+      currentNotificationId.current = null;
+    }
+
     clearOfferTimeout(); // Clear any outgoing offer timeout from this client
 
     const stream = await requestMediaPermissionsHandleErrors();
@@ -377,11 +436,19 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIncomingOffer(null); setCallerUserId(null); setCallerUserName(null);
     } catch (err: any) {
       console.error("Error accepting call (after media grant):", err);
-      setSignalingError(err); setCallStatus('error'); closePeerConnection(false, 'error');
+      setSignalingError(err); setCallStatus('error'); 
+      callNotifications.playCallEndedSound();
+      closePeerConnection(false, 'error');
     }
   };
 
   const declineCall = async () => {
+    // Stop incoming call notification
+    if (currentNotificationId.current) {
+      callNotifications.stopIncomingCall(currentNotificationId.current);
+      currentNotificationId.current = null;
+    }
+
     const currentCallerId = callerUserId; // Capture before reset
     setIncomingOffer(null);
     setCallerUserId(null);
@@ -408,6 +475,16 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const hangUpCall = async () => {
     console.log("Hang Up Call invoked.");
+    
+    // Stop any notifications
+    if (currentNotificationId.current) {
+      callNotifications.stopIncomingCall(currentNotificationId.current);
+      currentNotificationId.current = null;
+    }
+
+    // Play call ended sound
+    callNotifications.playCallEndedSound();
+
     const peerToSignalHangUp = activeCallTargetUserId || callerUserId;
 
     // Send hangup signal to the other party
@@ -593,7 +670,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // Detach any existing listeners before attaching new ones.
-    activeRTDBListeners.current.forEach(l => off(ref(rtdb, l.path), l.listener));
+    activeRTDBListeners.current.forEach((listenerInfo: { path: string, listener: (snapshot: any) => void }) => 
+      off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
+    );
     activeRTDBListeners.current = [];
 
     const paths = [
@@ -614,10 +693,8 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           case 'offer':
             const offerPayload = data as SignalingPayload;
             if (offerPayload.sdp && offerPayload.senderId && offerPayload.receiverId === currentUserId) {
-              // Call Collision Handling: Option A (Ignore if not idle)
               const currentCallStatus = callStatusRef.current;
               console.log(`Provider: Received offer from ${offerPayload.senderId}, current call status: ${currentCallStatus}`);
-              console.log('Provider: Full offer payload:', offerPayload);
 
               if (currentCallStatus === 'idle' || currentCallStatus === 'ended' || currentCallStatus === 'callDeclined') {
                 console.log("Provider: Processing incoming offer:", offerPayload);
@@ -628,17 +705,29 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
                 setCallerUserName(offerPayload.senderName || 'Unknown User');
                 setCallStatus('ringing');
 
-                // Also call the callback for additional handling (like sound/toast)
-                console.log('Provider: Calling onOfferReceivedCb for UI notification');
+                // Start call notification
+                const notificationOptions: CallNotificationOptions = {
+                  callerName: offerPayload.senderName || 'Unknown User',
+                  isVideo: true, // We'll improve this detection later
+                  onAnswer: () => {
+                    // This will be handled by the accept call function
+                  },
+                  onDecline: () => {
+                    // This will be handled by the decline call function
+                  }
+                };
+
+                callNotifications.startIncomingCall(notificationOptions).then(notificationId => {
+                  currentNotificationId.current = notificationId;
+                });
+
+                // Also call the callback for additional handling
                 onOfferReceivedCb({ type: 'offer', sdp: offerPayload.sdp }, offerPayload.senderId, offerPayload.senderName);
 
                 // Remove the offer from database after processing
                 remove(dbRef).catch(e => console.warn("Could not remove processed offer", e));
               } else {
                 console.warn(`Provider: Ignoring incoming offer from ${offerPayload.senderId}, call status is: ${currentCallStatus}`);
-                // TODO: Optionally send a 'busy' signal back to offerPayload.senderId
-                // For now, sender's offer timeout should handle this.
-                // The offer will remain in RTDB until sender times out and removes it, or callee becomes idle and processes it (if not removed by sender).
               }
             }
             break;
@@ -646,19 +735,14 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             const answerPayload = data as SignalingPayload;
             if (answerPayload.sdp && answerPayload.senderId && answerPayload.receiverId === currentUserId) {
               console.log("Provider: Received answer:", answerPayload);
-              console.log(`Provider: Current call status: ${callStatusRef.current}`);
-              console.log(`Provider: Peer connection state: ${peerConnection?.signalingState}`);
 
-              // Only process answer if we're in the right state
               const currentCallStatus = callStatusRef.current;
               if (currentCallStatus === 'calling' || currentCallStatus === 'connected') {
-                clearOfferTimeout(); // Clear offer timeout on receiving an answer
+                clearOfferTimeout();
                 onAnswerReceivedCb({ type: 'answer', sdp: answerPayload.sdp }, answerPayload.senderId);
-                // Remove the answer from database after processing
                 remove(dbRef).catch(e => console.warn("Could not remove answer signal", e));
               } else {
                 console.warn(`Provider: Ignoring answer in unexpected call status: ${currentCallStatus}`);
-                // Still remove the answer to prevent repeated processing
                 remove(dbRef).catch(e => console.warn("Could not remove stale answer signal", e));
               }
             }
@@ -691,7 +775,12 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             snapshot.forEach((declinerSnapshot) => {
               const declineData = declinerSnapshot.val() as CallDeclinedPayload;
               console.log("Provider: Received call declined from:", declineData.declinedByUserId);
-              clearOfferTimeout(); // Clear offer timeout if our call was declined
+              clearOfferTimeout();
+              // Stop incoming call notification
+              if (currentNotificationId.current) {
+                callNotifications.stopIncomingCall(currentNotificationId.current);
+                currentNotificationId.current = null;
+              }
               onCallDeclinedReceivedCb(declineData.declinedByUserId, declineData.declinedByUserName);
               remove(declinerSnapshot.ref).catch(e => console.warn("Could not remove decline signal", e));
             });
@@ -699,7 +788,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           case 'callEnd':
             snapshot.forEach((enderSnapshot) => {
               console.log("Provider: Received call ended signal from:", enderSnapshot.key);
-              // Properly reset call state when receiving call end signal
+              // Stop incoming call notification
+              if (currentNotificationId.current) {
+                callNotifications.stopIncomingCall(currentNotificationId.current);
+                currentNotificationId.current = null;
+              }
+              // Play call ended sound
+              callNotifications.playCallEndedSound();
               closePeerConnection(false, 'idle');
               onCallEndedSignalCb();
               remove(enderSnapshot.ref).catch(e => console.warn("Could not remove callEnd signal", e));
@@ -712,10 +807,12 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return () => {
       console.log("Cleaning up ALL signaling listeners for user:", currentUserId);
-      activeRTDBListeners.current.forEach(l => off(ref(rtdb, l.path), l.listener));
+      activeRTDBListeners.current.forEach((listenerInfo: { path: string, listener: (snapshot: any) => void }) => 
+        off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
+      );
       activeRTDBListeners.current = [];
     };
-  }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, resetCallState, peerConnection]); // Added peerConnection to deps
+  }, [rtdb, initializePeerConnection, activeCallTargetUserId, callerUserId, peerConnection]);
 
   // Update ICE candidate handling
   useEffect(() => {
