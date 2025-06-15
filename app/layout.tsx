@@ -4,6 +4,8 @@ import "./globals.css"
 import { Inter } from "next/font/google"
 import { Providers } from "@/components/providers/providers"
 import { Toaster } from "@/components/ui/toaster"
+import { cn } from "@/lib/utils"
+import "@/lib/react19-compat"
 
 const inter = Inter({ subsets: ["latin"] })
 
@@ -46,8 +48,41 @@ export default function RootLayout({
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="display-mode" content="standalone" />
         <meta name="msapplication-TileColor" content="#22223b" />
+        {process.env.NODE_ENV === 'development' && (
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
+                // Suppress React 19 ref warnings in development
+                if (typeof console !== 'undefined') {
+                  const originalError = console.error;
+                  const originalWarn = console.warn;
+                  
+                  console.error = (...args) => {
+                    if (
+                      typeof args[0] === 'string' && 
+                      args[0].includes('Accessing element.ref was removed in React 19')
+                    ) {
+                      return; // Suppress this specific warning
+                    }
+                    originalError.apply(console, args);
+                  };
+                  
+                  console.warn = (...args) => {
+                    if (
+                      typeof args[0] === 'string' && 
+                      args[0].includes('Accessing element.ref was removed in React 19')
+                    ) {
+                      return; // Suppress this specific warning
+                    }
+                    originalWarn.apply(console, args);
+                  };
+                }
+              `,
+            }}
+          />
+        )}
       </head>
-      <body className={inter.className}>
+      <body className={cn(inter.className, "min-h-screen bg-background font-sans antialiased")}>
         <Providers>{children}</Providers>
         <Toaster />
       </body>
