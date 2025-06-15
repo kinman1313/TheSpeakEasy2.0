@@ -11,8 +11,9 @@ import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import { VideoCallView } from "@/components/chat/VideoCallView"
+import { ImprovedVideoCallView } from "@/components/chat/ImprovedVideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
+import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import UserSettingsModal from "@/components/user/UserSettingsModal"
 import { MessageInput } from "@/components/MessageInput"
@@ -46,6 +47,7 @@ export default function ChatApp() {
   // Mobile features
   const { showMessage, showCall } = useMobileNotifications()
   const { success: hapticSuccess } = useHaptics()
+  const { startIncomingCall } = useCallNotifications()
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
@@ -244,17 +246,26 @@ export default function ChatApp() {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid)
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
-        (_, fromUserId, fromUserName) => {
+        async (_, fromUserId, fromUserName) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
-          console.log(`ChatApp: Current webRTCCallStatus after offer: ${webRTCCallStatus}`)
-          console.log(`ChatApp: Should show IncomingCallDialog: ${webRTCCallStatus === 'ringing'}`)
+          
+          // Start enhanced call notification
+          try {
+            await startIncomingCall({
+              callerName: fromUserName || 'Unknown User',
+              isVideo: true, // We'll detect this properly later
+              onAnswer: () => {
+                // This will be handled by the accept call button
+              },
+              onDecline: () => {
+                // This will be handled by the decline call button
+              }
+            });
+          } catch (error) {
+            console.error('Error starting call notification:', error);
+          }
 
-          // Check status after a short delay to see if it updates
-          setTimeout(() => {
-            console.log(`ChatApp: webRTCCallStatus after timeout: ${webRTCCallStatus}`)
-            console.log(`ChatApp: Should show IncomingCallDialog after timeout: ${webRTCCallStatus === 'ringing'}`)
-          }, 100)
-
+          // Legacy sound for compatibility
           soundManager.playCall()
 
           // Show mobile notification for incoming call
@@ -262,7 +273,7 @@ export default function ChatApp() {
 
           toast({
             title: "Incoming Call",
-            description: `Call from ${fromUserName || "Unknown User"}. Check call UI.`,
+            description: `Call from ${fromUserName || "Unknown User"}`,
           })
         },
         async (answer, fromUserId) => {
@@ -325,7 +336,7 @@ export default function ChatApp() {
       return cleanupListeners
     }
     return undefined
-  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus])
+  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus, startIncomingCall])
 
   // Effect to check Firebase initialization status
   useEffect(() => {
@@ -1222,18 +1233,20 @@ export default function ChatApp() {
 
       {/* Video Call View */}
       {webRTCCallStatus !== 'idle' && (
-        <VideoCallView
-          localStream={localStream}
-          remoteStream={remoteStream}
-          onToggleAudio={toggleLocalAudio}
-          onToggleVideo={toggleLocalVideo}
-          onEndCall={hangUpCall}
-          targetUserName={activeCallTargetUserName || callerUserName}
-          callStatus={webRTCCallStatus === 'ended' ? 'callEnded' : webRTCCallStatus as any}
-          isLocalAudioMuted={isLocalAudioMuted}
-          isLocalVideoEnabled={isLocalVideoEnabled}
-          peerConnection={peerConnection}
-          setRemoteStream={() => { }}
+        <ImprovedVideoCallView
+          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
+          onEndCall={async () => {
+            try {
+              await hangUpCall()
+            } catch (error) {
+              console.error('Error ending call:', error)
+              toast({
+                title: "Call Error",
+                description: "Failed to end call properly.",
+                variant: "destructive",
+              })
+            }
+          }}
         />
       )}
 
@@ -1249,6 +1262,7 @@ export default function ChatApp() {
       <IncomingCallDialog
         open={webRTCCallStatus === 'ringing'}
         callerName={callerUserName || 'Unknown User'}
+        isVideo={true}
         onAcceptVideo={async () => {
           try {
             await acceptCall()
