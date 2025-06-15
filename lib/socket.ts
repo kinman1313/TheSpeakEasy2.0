@@ -1,4 +1,4 @@
-import { io, type Socket } from "socket.io-client"
+import { io, type Socket } from 'socket.io-client';
 
 // Type definitions for socket events
 interface SignalErrorData {
@@ -6,18 +6,34 @@ interface SignalErrorData {
   targetUserId: string
 }
 
-// In development, connect to localhost:3001
-// In production, connect to the same URL as the app
-const isDev = process.env.NODE_ENV !== "production"
-const SOCKET_URL = isDev ? "http://localhost:3001" : ""
+// Determine the socket URL based on environment
+const getSocketUrl = () => {
+  if (typeof window === 'undefined') return '';
+  
+  // For Vercel deployment, you might need to use an external Socket.IO server
+  if (process.env.NODE_ENV === 'production') {
+    // Option 1: External Socket.IO server (recommended for Vercel)
+    return process.env.NEXT_PUBLIC_SOCKET_URL || window.location.origin;
+    
+    // Option 2: If using Vercel with custom server
+    // return window.location.origin;
+  }
+  
+  // Development
+  return process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
+};
 
 let socket: Socket | null = null
 let currentUserId: string | null = null
 
 export const getSocket = (): Socket => {
   if (!socket) {
-    socket = io(SOCKET_URL, {
-      autoConnect: true,
+    socket = io(getSocketUrl(), {
+      transports: ['websocket', 'polling'], // Fallback for serverless
+      upgrade: true,
+      rememberUpgrade: true,
+      timeout: 20000,
+      forceNew: false,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
