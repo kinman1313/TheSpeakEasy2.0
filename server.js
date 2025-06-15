@@ -4,9 +4,10 @@ const next = require("next")
 const { Server } = require("socket.io")
 
 const dev = process.env.NODE_ENV !== "production"
-// Explicitly set port 3001 for development
+// Use Render's PORT environment variable or fallback to 3001 for development
 const port = process.env.PORT || 3001
-const hostname = dev ? "localhost" : "thespeakeasy.app"
+// Only specify hostname in development - let Render handle it in production
+const hostname = dev ? "localhost" : undefined
 const app = next({ dev, hostname, port })
 const handle = app.getRequestHandler() 
 
@@ -19,8 +20,8 @@ app.prepare().then(() => {
   // Set up Socket.IO
   const io = new Server(server, {
     cors: {
-      // Update the origin to match the client port (3001)
-      origin: dev ? "http://localhost:3001" : "https://thespeakeasy.app",
+      // Update the origin to match the deployment environment
+      origin: dev ? "http://localhost:3001" : ["https://thespeakeasy.app", "https://thespeakeasy-2-0.onrender.com"],
       methods: ["GET", "POST"],
       credentials: true,
     },
@@ -136,11 +137,19 @@ app.prepare().then(() => {
     })
   })
 
-  // Explicitly bind to the port
-  server.listen(port, hostname, () => {
-    console.log(`> Ready on http://${hostname}:${port}`)
-    console.log(`> Mode: ${dev ? "development" : "production"}`)
-    console.log(`> Socket.IO server running on port ${port}`)
-  })
+  // Bind to the port - let Render handle hostname in production
+  if (dev) {
+    server.listen(port, hostname, () => {
+      console.log(`> Ready on http://${hostname}:${port}`)
+      console.log(`> Mode: ${dev ? "development" : "production"}`)
+      console.log(`> Socket.IO server running on port ${port}`)
+    })
+  } else {
+    server.listen(port, () => {
+      console.log(`> Ready on port ${port}`)
+      console.log(`> Mode: ${dev ? "development" : "production"}`)
+      console.log(`> Socket.IO server running on port ${port}`)
+    })
+  }
 })
 
