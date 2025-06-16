@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Firestore, collection, query, orderBy, onSnapshot, enableNetwork, disableNetwork, where } from 'firebase/firestore';
-import { getMessages as getCachedMessages, saveMessages as saveCachedMessages } from '../messageCache';
+import { getCachedMessages, cacheMessages } from '../messageCache';
 import { Message as AppMessage } from '../types';
 import { useAuth } from '@/components/auth/AuthProvider';
 
@@ -207,7 +207,7 @@ export const useRoomMessages = (
                         console.log(`useRoomMessages: Loaded ${newMessages.length} messages for ${roomType}`);
                         setMessages(newMessages);
                         if (roomId) {
-                            saveCachedMessages(roomId, newMessages);
+                            cacheMessages(roomId, newMessages);
                         }
                         setError(null);
                         setIsConnected(true);

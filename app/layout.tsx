@@ -37,17 +37,30 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover, interactive-widget=resizes-content" />
+
+        {/* Theme color support for various browsers */}
         <meta name="theme-color" content="#22223b" />
+        <meta name="theme-color" content="#22223b" media="(prefers-color-scheme: dark)" />
+        <meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)" />
+
+        {/* Apple-specific meta tags */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="SpeakEasy" />
         <meta name="apple-touch-fullscreen" content="yes" />
+
+        {/* Android/Chrome meta tags */}
         <meta name="mobile-web-app-capable" content="yes" />
         <meta name="application-name" content="SpeakEasy" />
+
+        {/* Windows/IE meta tags */}
+        <meta name="msapplication-TileColor" content="#22223b" />
+        <meta name="msapplication-navbutton-color" content="#22223b" />
+
+        {/* General meta tags */}
         <meta name="format-detection" content="telephone=no" />
         <meta name="msapplication-tap-highlight" content="no" />
         <meta name="display-mode" content="standalone" />
-        <meta name="msapplication-TileColor" content="#22223b" />
         {process.env.NODE_ENV === 'development' && (
           <script
             dangerouslySetInnerHTML={{

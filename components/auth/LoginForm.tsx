@@ -33,8 +33,6 @@ export function LoginForm() {
       setIsLoading(true)
       console.log("Starting provider sign in...")
 
-
-
       // Try popup first, fallback to redirect if popup fails
       let result;
       try {
@@ -43,8 +41,9 @@ export function LoginForm() {
         // If popup fails due to COOP policy or popup blocked, try redirect
         if (popupError.code === 'auth/popup-blocked' ||
           popupError.code === 'auth/popup-closed-by-user' ||
-          popupError.message.includes('Cross-Origin-Opener-Policy')) {
-          toast.error("Popup blocked. Please allow popups for this site or check your Firebase configuration.")
+          popupError.message.includes('Cross-Origin-Opener-Policy') ||
+          popupError.message.includes('window.close')) {
+          toast.error("Popup authentication failed. This may be due to browser security settings. Please try refreshing the page or contact support.")
           return;
         }
         throw popupError; // Re-throw if it's a different error
@@ -79,8 +78,6 @@ export function LoginForm() {
       toast.error("Please fill in all fields")
       return
     }
-
-
 
     // Add validation for registration
     if (isRegistering) {

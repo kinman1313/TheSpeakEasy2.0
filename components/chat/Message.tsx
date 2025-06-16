@@ -70,17 +70,16 @@ export function Message({
     const editInputRef = useRef<HTMLInputElement>(null)
     const [isSubscribed, setIsSubscribed] = useState(false)
     const [showActions, setShowActions] = useState(false)
-    const [isMobile, setIsMobile] = useState(false)
 
     // Detect mobile device
     useEffect(() => {
         const checkMobile = () => {
-            setIsMobile(window.innerWidth < 768)
+            // Mobile detection logic can be added here if needed
         }
-        
+
         checkMobile()
         window.addEventListener('resize', checkMobile)
-        
+
         return () => window.removeEventListener('resize', checkMobile)
     }, [])
 
@@ -179,9 +178,11 @@ export function Message({
     }
 
     const handleReaction = (messageId: string, emoji: string) => {
-        if (!user) return;
-        onReaction && onReaction(messageId, emoji);
-    };
+        if (!user) return
+        if (onReaction) {
+            onReaction(messageId, emoji)
+        }
+    }
 
     const renderFileAttachment = () => {
         if (!message.fileUrl) return null

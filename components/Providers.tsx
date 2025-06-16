@@ -8,7 +8,7 @@ import { WebRTCProvider } from "./WebRTCProvider"
 
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+    <ThemeProvider defaultTheme="system" enableSystem>
       <AuthProvider>
         <WebRTCProvider>{children}</WebRTCProvider>
       </AuthProvider>

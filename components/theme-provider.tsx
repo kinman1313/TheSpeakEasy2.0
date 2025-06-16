@@ -1,6 +1,6 @@
 "use client"
 
-import type React from "react"
+import React from "react"
 
 import { createContext, useContext, useEffect, useState } from "react"
 
@@ -8,10 +8,10 @@ type Theme = "dark" | "light" | "system"
 
 type ThemeProviderProps = {
   children: React.ReactNode
-  attribute?: string
+  _attribute?: string
   defaultTheme?: Theme
   enableSystem?: boolean
-  disableTransitionOnChange?: boolean
+  _disableTransitionOnChange?: boolean
 }
 
 type ThemeProviderState = {
@@ -28,10 +28,8 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 
 export function ThemeProvider({
   children,
-  attribute: _attribute = "class",
   defaultTheme = "system",
   enableSystem = true,
-  disableTransitionOnChange: _disableTransitionOnChange = false,
   ...props
 }: ThemeProviderProps) {
   const [theme, setTheme] = useState<Theme>(defaultTheme)

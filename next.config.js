@@ -33,7 +33,7 @@ const nextConfig = {
         headers: [
           {
             key: 'Cross-Origin-Opener-Policy',
-            value: 'same-origin-allow-popups'
+            value: 'unsafe-none'
           },
           {
             key: 'X-Frame-Options',
@@ -91,7 +91,7 @@ const nextConfig = {
       const originalWarn = console.warn;
       console.warn = (...args) => {
         if (
-          typeof args[0] === 'string' && 
+          typeof args[0] === 'string' &&
           args[0].includes('Accessing element.ref was removed in React 19')
         ) {
           return; // Suppress this specific warning

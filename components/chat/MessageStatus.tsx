@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useRef } from 'react'
-import { Check, CheckCheck, Clock, AlertCircle, X } from 'lucide-react'
+import { Check, CheckCheck, Clock, X } from 'lucide-react'
 import { type MessageStatus as MessageStatusType } from '@/lib/types'
 import { cn } from '@/lib/utils'
 
@@ -60,7 +60,6 @@ export function MessageStatus({ status, className }: MessageStatusProps) {
             case 'read':
                 return <CheckCheck className="w-3 h-3 text-blue-500" />
             case 'failed':
-                // @ts-expect-error - X icon from lucide-react
                 return <X className="w-3 h-3 text-red-500" />
             default:
                 return null

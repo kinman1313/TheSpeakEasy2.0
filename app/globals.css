@@ -603,8 +603,16 @@
   background: rgba(34, 197, 94, 0.5);
 }
 
-/* Firefox scrollbar styling */
+/* Firefox scrollbar styling with fallback */
 .messages-scrollbar {
-  scrollbar-width: thin;
-  scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
+  /* Fallback for all browsers */
+  overflow: auto;
+}
+
+/* Apply modern scrollbar styles only where supported */
+@supports (scrollbar-width: thin) {
+  .messages-scrollbar {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
+  }
 }

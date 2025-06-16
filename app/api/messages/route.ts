@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
         const decodedToken = await adminAuth.verifyIdToken(token)
         const { roomId, text, attachments = [], replyToId, expirationTimer, imageUrl, gifUrl, voiceMessageUrl, voiceMessageDuration, fileUrl, fileName, fileSize, fileType } = await request.json()
 
-        if (!text?.trim() && attachments.length === 0) {
+        if (!text?.trim() && attachments.length === 0 && !imageUrl && !gifUrl && !voiceMessageUrl && !fileUrl) {
             return NextResponse.json({ error: "Message content is required" }, { status: 400 })
         }
 
