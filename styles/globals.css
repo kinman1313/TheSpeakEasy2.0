@@ -288,3 +288,50 @@
     transform: translate(-50%, -50%) scale(1.2);
   }
 }
+
+/* Theme update fixes - ensure all components inherit theme colors properly */
+.theme-updating {
+  animation: theme-pulse 0.1s ease-in-out;
+}
+
+@keyframes theme-pulse {
+  0% { opacity: 1; }
+  50% { opacity: 0.98; }
+  100% { opacity: 1; }
+}
+
+/* Force theme inheritance for all elements */
+*, *::before, *::after {
+  color: inherit !important;
+}
+
+/* Ensure background gradients use CSS variables */
+.bg-gradient-to-br,
+.bg-gradient-to-r,
+.bg-gradient-to-b,
+.bg-gradient-to-t,
+.bg-gradient-to-l {
+  background: linear-gradient(
+    to bottom right, 
+    rgb(var(--background-start-rgb, 30 41 59)), 
+    rgb(var(--background-end-rgb, 15 23 42))
+  ) !important;
+}
+
+/* Override any hardcoded background colors in components */
+[class*="bg-slate"],
+[class*="bg-gray"] {
+  background: linear-gradient(
+    to bottom right, 
+    rgb(var(--background-start-rgb, 30 41 59)), 
+    rgb(var(--background-end-rgb, 15 23 42))
+  ) !important;
+}
+
+/* Ensure glass effects respect theme colors */
+.glass-panel,
+.glass-card,
+.glass {
+  background: rgba(var(--background-start-rgb, 30 41 59), 0.3) !important;
+  border-color: rgba(var(--foreground-rgb, 255 255 255), 0.1) !important;
+}
