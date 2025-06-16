@@ -554,14 +554,20 @@ export default function ChatApp() {
       return
     }
 
+    if (!gifUrl) {
+      toast({ title: "Error", description: "No GIF URL provided.", variant: "destructive" })
+      return
+    }
+
     try {
+      console.log("Sending GIF with URL:", gifUrl)
       await handleSendMessage("", { gifUrl })
       setShowGiphyPicker(false)
     } catch (error) {
       console.error("Error sending GIF:", error)
       toast({
         title: "Error Sending GIF",
-        description: "Could not send your GIF. Please try again.",
+        description: error instanceof Error ? error.message : "Could not send your GIF. Please try again.",
         variant: "destructive",
       })
     }
