@@ -16,15 +16,18 @@ service cloud.firestore {
       allow delete: if request.auth != null && request.auth.uid == resource.data.ownerId;
     }
     
-    // Messages collection - FIXED for broader access
+    // Messages collection - Enhanced for reactions and better security
     match /messages/{messageId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
       allow update: if request.auth != null && 
         (request.auth.uid == resource.data.senderId || 
          request.auth.uid == resource.data.uid ||
-         // Allow reaction updates
-         request.resource.data.reactions != null);
+         // Allow reaction updates - more specific check
+         (request.resource.data.reactions != null && 
+          onlyReactionsChanged(resource.data, request.resource.data)) ||
+         // Allow read receipt updates
+         request.resource.data.readBy != null);
       allow delete: if request.auth != null && 
         (request.auth.uid == resource.data.senderId || 
          request.auth.uid == resource.data.uid);
@@ -43,10 +46,31 @@ service cloud.firestore {
       allow read, write: if request.auth != null && request.auth.uid == userId;
     }
     
+    // Thread notifications collection
+    match /thread_notifications/{notificationId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
+    // Message expiration collection
+    match /message_expiration/{expirationId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null && request.auth.uid == resource.data.userId;
+      allow delete: if request.auth != null && request.auth.uid == resource.data.userId;
+    }
+    
     // Allow all authenticated users to read/write for development
     // TODO: Tighten these rules for production
     match /{document=**} {
       allow read, write: if request.auth != null;
     }
+  }
+  
+  // Helper function to check if only reactions changed
+  function onlyReactionsChanged(before, after) {
+    return before.diff(after).affectedKeys().hasOnly(['reactions']);
   }
 } 

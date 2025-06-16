@@ -3,10 +3,32 @@ import { ref, set, remove, onValue, off, serverTimestamp } from 'firebase/databa
 import type { TypingIndicator } from '@/lib/types';
 
 const TYPING_TIMEOUT = 3000; // 3 seconds before removing typing indicator
+const MAX_RETRIES = 3;
+const RETRY_DELAY = 1000; // 1 second
 
 export class TypingIndicatorService {
     private static typingTimeouts: Map<string, NodeJS.Timeout> = new Map();
     private static listeners: Map<string, any> = new Map();
+
+    /**
+     * Retry function with exponential backoff
+     */
+    private static async retryOperation<T>(
+        operation: () => Promise<T>,
+        retries: number = MAX_RETRIES,
+        delay: number = RETRY_DELAY
+    ): Promise<T> {
+        try {
+            return await operation();
+        } catch (error: any) {
+            if (retries > 0 && error?.code !== 'PERMISSION_DENIED') {
+                console.warn(`Operation failed, retrying in ${delay}ms. Retries left: ${retries}`);
+                await new Promise(resolve => setTimeout(resolve, delay));
+                return this.retryOperation(operation, retries - 1, delay * 2);
+            }
+            throw error;
+        }
+    }
 
     /**
      * Start typing indicator for a user in a room
@@ -17,11 +39,18 @@ export class TypingIndicatorService {
             return;
         }
 
+        if (!userId || !userName || !roomId) {
+            console.warn('Missing required parameters for typing indicator');
+            return;
+        }
+
         try {
-            const typingRef = ref(rtdb, `typing/${roomId}/${userId}`);
-            await set(typingRef, {
-                userName,
-                timestamp: serverTimestamp()
+            await this.retryOperation(async () => {
+                const typingRef = ref(rtdb, `typing/${roomId}/${userId}`);
+                await set(typingRef, {
+                    userName,
+                    timestamp: serverTimestamp()
+                });
             });
 
             // Clear existing timeout
@@ -38,8 +67,12 @@ export class TypingIndicatorService {
             }, TYPING_TIMEOUT);
 
             this.typingTimeouts.set(timeoutKey, timeout);
-        } catch (error) {
-            console.error('Error setting typing indicator:', error);
+        } catch (error: any) {
+            if (error?.code === 'PERMISSION_DENIED') {
+                console.warn('Permission denied for typing indicator. User may not be authenticated or database rules need updating.');
+            } else {
+                console.error('Error setting typing indicator:', error);
+            }
         }
     }
 
@@ -49,9 +82,16 @@ export class TypingIndicatorService {
     static async stopTyping(userId: string, roomId: string): Promise<void> {
         if (!rtdb) return;
 
+        if (!userId || !roomId) {
+            console.warn('Missing required parameters for stopping typing indicator');
+            return;
+        }
+
         try {
-            const typingRef = ref(rtdb, `typing/${roomId}/${userId}`);
-            await remove(typingRef);
+            await this.retryOperation(async () => {
+                const typingRef = ref(rtdb, `typing/${roomId}/${userId}`);
+                await remove(typingRef);
+            });
 
             // Clear timeout
             const timeoutKey = `${roomId}-${userId}`;
@@ -60,8 +100,12 @@ export class TypingIndicatorService {
                 clearTimeout(existingTimeout);
                 this.typingTimeouts.delete(timeoutKey);
             }
-        } catch (error) {
-            console.error('Error removing typing indicator:', error);
+        } catch (error: any) {
+            if (error?.code === 'PERMISSION_DENIED') {
+                console.warn('Permission denied for removing typing indicator. User may not be authenticated or database rules need updating.');
+            } else {
+                console.error('Error removing typing indicator:', error);
+            }
         }
     }
 
@@ -78,6 +122,11 @@ export class TypingIndicatorService {
             return () => { };
         }
 
+        if (!roomId || !currentUserId) {
+            console.warn('Missing required parameters for typing listener');
+            return () => { };
+        }
+
         const typingRef = ref(rtdb, `typing/${roomId}`);
         const listenerKey = `typing-${roomId}`;
 
@@ -85,24 +134,36 @@ export class TypingIndicatorService {
         this.stopListeningToTyping(roomId);
 
         const listener = onValue(typingRef, (snapshot) => {
-            const typingData = snapshot.val();
-            const typingUsers: TypingIndicator[] = [];
+            try {
+                const typingData = snapshot.val();
+                const typingUsers: TypingIndicator[] = [];
 
-            if (typingData) {
-                Object.entries(typingData).forEach(([userId, data]: [string, any]) => {
-                    // Don't include current user in typing indicators
-                    if (userId !== currentUserId && data.userName) {
-                        typingUsers.push({
-                            userId,
-                            userName: data.userName,
-                            roomId,
-                            timestamp: new Date(data.timestamp || Date.now())
-                        });
-                    }
-                });
+                if (typingData) {
+                    Object.entries(typingData).forEach(([userId, data]: [string, any]) => {
+                        // Don't include current user in typing indicators
+                        if (userId !== currentUserId && data?.userName) {
+                            typingUsers.push({
+                                userId,
+                                userName: data.userName,
+                                roomId,
+                                timestamp: new Date(data.timestamp || Date.now())
+                            });
+                        }
+                    });
+                }
+
+                onTypingChange(typingUsers);
+            } catch (error) {
+                console.error('Error processing typing indicators:', error);
+                onTypingChange([]); // Return empty array on error
             }
-
-            onTypingChange(typingUsers);
+        }, (error) => {
+            if (error?.code === 'PERMISSION_DENIED') {
+                console.warn('Permission denied for listening to typing indicators. User may not be authenticated or database rules need updating.');
+            } else {
+                console.error('Error listening to typing indicators:', error);
+            }
+            onTypingChange([]); // Return empty array on error
         });
 
         this.listeners.set(listenerKey, { ref: typingRef, listener });
@@ -119,7 +180,11 @@ export class TypingIndicatorService {
         const listenerData = this.listeners.get(listenerKey);
 
         if (listenerData) {
-            off(listenerData.ref, listenerData.listener);
+            try {
+                off(listenerData.ref, listenerData.listener);
+            } catch (error) {
+                console.warn('Error removing typing listener:', error);
+            }
             this.listeners.delete(listenerKey);
         }
     }
@@ -128,7 +193,7 @@ export class TypingIndicatorService {
      * Clean up all typing indicators for a user (call on logout/disconnect)
      */
     static async cleanupUserTyping(userId: string): Promise<void> {
-        if (!rtdb) return;
+        if (!rtdb || !userId) return;
 
         // Clear all timeouts for this user
         Array.from(this.typingTimeouts.keys())
@@ -141,8 +206,18 @@ export class TypingIndicatorService {
                 }
             });
 
-        // Note: In a real app, you'd need to track which rooms the user was typing in
-        // For now, this is a basic cleanup that removes timeouts
+        // Try to remove typing indicators from common rooms
+        // In a production app, you'd track which rooms the user was typing in
+        const commonRooms = ['lobby']; // Add other common room IDs as needed
+        
+        for (const roomId of commonRooms) {
+            try {
+                await this.stopTyping(userId, roomId);
+            } catch (error) {
+                // Silently ignore errors during cleanup
+                console.warn(`Failed to cleanup typing indicator for room ${roomId}:`, error);
+            }
+        }
     }
 
     /**
@@ -152,6 +227,11 @@ export class TypingIndicatorService {
         let timeout: NodeJS.Timeout;
 
         return (userId: string, userName: string, roomId: string) => {
+            if (!userId || !userName || !roomId) {
+                console.warn('Missing required parameters for debounced typing');
+                return;
+            }
+
             clearTimeout(timeout);
 
             // Start typing immediately

@@ -1,0 +1,26 @@
+{
+    "rules": {
+        "typing": {
+            "$roomId": {
+                "$userId": {
+                    ".read": "auth != null",
+                    ".write": "auth != null && auth.uid == $userId"
+                }
+            }
+        },
+        "signaling": {
+            "$userId": {
+                ".read": "auth != null",
+                ".write": "auth != null && (auth.uid == $userId || auth.uid == newData.child('senderId').val())"
+            }
+        },
+        "onlineUsers": {
+            "$userId": {
+                ".read": "auth != null",
+                ".write": "auth != null && auth.uid == $userId"
+            }
+        },
+        ".read": "auth != null",
+        ".write": "auth != null"
+    }
+}
