@@ -3,6 +3,7 @@
 import { Button } from "@/components/ui/button"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Smile } from "lucide-react"
+import { useState } from "react"
 
 interface MessageReactionsProps {
   messageId: string
@@ -21,25 +22,63 @@ export function MessageReactions({
   onReact,
   onRemoveReaction
 }: MessageReactionsProps) {
-  const handleEmojiSelect = (emoji: string) => {
-    const userReactions = reactions[emoji] || []
-    const hasReacted = userReactions.includes(currentUserId)
+  const [isProcessing, setIsProcessing] = useState<string | null>(null)
 
-    if (hasReacted) {
-      onRemoveReaction(messageId, emoji)
-    } else {
-      onReact(messageId, emoji)
+  const handleEmojiSelect = async (emoji: string) => {
+    if (isProcessing === emoji) return // Prevent double-clicks
+
+    setIsProcessing(emoji)
+
+    try {
+      const userReactions = reactions[emoji] || []
+      const hasReacted = userReactions.includes(currentUserId)
+
+      console.log('Reaction click:', {
+        messageId,
+        emoji,
+        hasReacted,
+        currentUserId,
+        userReactions
+      })
+
+      if (hasReacted) {
+        await onRemoveReaction(messageId, emoji)
+      } else {
+        await onReact(messageId, emoji)
+      }
+    } catch (error) {
+      console.error('Error handling reaction:', error)
+    } finally {
+      setIsProcessing(null)
     }
   }
 
-  const handleReactionClick = (emoji: string) => {
-    const userReactions = reactions[emoji] || []
-    const hasReacted = userReactions.includes(currentUserId)
+  const handleReactionClick = async (emoji: string) => {
+    if (isProcessing === emoji) return // Prevent double-clicks
 
-    if (hasReacted) {
-      onRemoveReaction(messageId, emoji)
-    } else {
-      onReact(messageId, emoji)
+    setIsProcessing(emoji)
+
+    try {
+      const userReactions = reactions[emoji] || []
+      const hasReacted = userReactions.includes(currentUserId)
+
+      console.log('Existing reaction click:', {
+        messageId,
+        emoji,
+        hasReacted,
+        currentUserId,
+        userReactions
+      })
+
+      if (hasReacted) {
+        await onRemoveReaction(messageId, emoji)
+      } else {
+        await onReact(messageId, emoji)
+      }
+    } catch (error) {
+      console.error('Error handling reaction click:', error)
+    } finally {
+      setIsProcessing(null)
     }
   }
 
@@ -51,11 +90,12 @@ export function MessageReactions({
           key={emoji}
           variant="ghost"
           size="sm"
-          className={`h-6 px-2 text-xs ${userIds.includes(currentUserId)
-            ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50'
-            : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
-            }`}
+          className={`h-6 px-2 text-xs transition-all duration-200 ${userIds.includes(currentUserId)
+              ? 'bg-blue-500/20 text-blue-400 border border-blue-500/50 hover:bg-blue-500/30'
+              : 'bg-slate-700 text-slate-300 hover:bg-slate-600'
+            } ${isProcessing === emoji ? 'opacity-50 cursor-not-allowed' : ''}`}
           onClick={() => handleReactionClick(emoji)}
+          disabled={isProcessing === emoji}
         >
           {emoji} {userIds.length}
         </Button>
@@ -67,7 +107,8 @@ export function MessageReactions({
           <Button
             variant="ghost"
             size="sm"
-            className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200 hover:bg-slate-700"
+            className="h-6 w-6 p-0 text-slate-400 hover:text-slate-200 hover:bg-slate-700 transition-colors duration-200"
+            disabled={isProcessing !== null}
           >
             <Smile className="h-4 w-4" />
           </Button>
@@ -79,8 +120,10 @@ export function MessageReactions({
                 key={emoji}
                 variant="ghost"
                 size="sm"
-                className="h-8 w-8 p-0 hover:bg-slate-700"
+                className={`h-8 w-8 p-0 hover:bg-slate-700 transition-colors duration-200 ${isProcessing === emoji ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 onClick={() => handleEmojiSelect(emoji)}
+                disabled={isProcessing === emoji}
               >
                 {emoji}
               </Button>

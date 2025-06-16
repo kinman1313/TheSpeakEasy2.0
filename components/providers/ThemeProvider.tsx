@@ -72,23 +72,42 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
             const root = document.documentElement;
             const body = document.body;
 
-            // Apply theme colors to both html and body with !important to override component styles
+            console.log('Applying theme:', currentTheme.name, currentTheme.colors);
+
+            // Apply theme colors to CSS custom properties
             Object.entries(currentTheme.colors).forEach(([key, value]) => {
-                const cssValue = `${value} !important`;
-                root.style.setProperty(key, cssValue);
-                body.style.setProperty(key, cssValue);
+                root.style.setProperty(key, value);
+                body.style.setProperty(key, value);
             });
 
-            // Force a reflow to ensure all components update
+            // Force immediate style recalculation
+            root.style.setProperty('--theme-transition', 'all 0.3s ease');
+
+            // Add a theme class to the body for additional styling hooks
+            body.className = body.className.replace(/theme-\w+/g, '');
+            body.classList.add(`theme-${currentTheme.id}`);
+
+            // Force a comprehensive re-render by triggering multiple reflow events
             requestAnimationFrame(() => {
-                // Trigger a repaint by reading offsetHeight
+                // Force layout recalculation
                 void document.body.offsetHeight;
 
-                // Also trigger CSS recalculation by temporarily changing a class
+                // Dispatch a custom event to notify components of theme change
+                window.dispatchEvent(new CustomEvent('themeChanged', {
+                    detail: { theme: currentTheme }
+                }));
+
+                // Add and remove a temporary class to force style recalculation
                 document.body.classList.add('theme-updating');
+
                 setTimeout(() => {
                     document.body.classList.remove('theme-updating');
-                }, 10);
+
+                    // Final reflow to ensure all styles are applied
+                    void document.body.offsetHeight;
+
+                    console.log('Theme application completed:', currentTheme.name);
+                }, 50);
             });
 
             // Clean up any existing problematic pattern classes
@@ -124,6 +143,7 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
         if (user) {
             const newTheme = THEMES.find(t => t.id === themeId);
             if (newTheme) {
+                console.log('Setting new theme:', newTheme.name);
                 setCurrentTheme(newTheme);
                 ThemeService.setUserTheme(user.uid, themeId);
             }

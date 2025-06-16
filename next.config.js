@@ -49,7 +49,7 @@ const nextConfig = {
           },
           {
             key: 'Permissions-Policy',
-            value: 'camera=(), microphone=(), geolocation=()'
+            value: 'camera=(self), microphone=(self), geolocation=()'
           },
           // Note: We intentionally omit X-XSS-Protection as it's deprecated
           // Modern browsers have built-in XSS protection that's more effective
