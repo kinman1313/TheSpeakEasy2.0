@@ -115,15 +115,19 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (user?.uid) {
       registerUser(user.uid);
-      
+
       // Listen for incoming Socket.IO call notifications
       const socket = require('@/lib/socket').getSocket();
       socket.on('incoming-call', (data: any) => {
         const { callerUserId, callerName, isVideo } = data;
-        console.log('Received Socket.IO incoming call from:', callerName);
-        
+        console.log('Received Socket.IO incoming call from:', callerName, 'with ID:', callerUserId);
+
         // Only process if we're idle and not already in a call
         if (callStatus === 'idle') {
+          // Set caller information for immediate access
+          setCallerUserId(callerUserId);
+          setCallerUserName(callerName);
+
           // Start call notification immediately
           const notificationOptions: CallNotificationOptions = {
             callerName: callerName || 'Unknown User',
@@ -146,6 +150,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         socket.off('incoming-call');
       };
     }
+
+    // Return empty cleanup function if user is not available
+    return () => { };
   }, [user?.uid, callStatus]);
 
   // Clean up any stale offers when component initializes
@@ -247,7 +254,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           });
 
           setRemoteStream(stream);
-          
+
           // Play call connected sound
           if (callStatus === 'calling' || callStatus === 'ringing') {
             callNotifications.playCallConnectedSound();
@@ -290,13 +297,13 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const resetCallState = useCallback(() => {
     console.log("Resetting call state");
-    
+
     // Stop any active call notifications
     if (currentNotificationId.current) {
       callNotifications.stopIncomingCall(currentNotificationId.current);
       currentNotificationId.current = null;
     }
-    
+
     setCallStatus('idle');
     setActiveCallTargetUserId(null);
     setActiveCallTargetUserName(null);
@@ -326,16 +333,16 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }
     }
     setPeerConnection(null);
-    
+
     // Clean up local stream
     if (localStream) {
       localStream.getTracks().forEach((track: MediaStreamTrack) => track.stop());
       setLocalStream(null);
     }
-    
+
     // Clear remote stream
     setRemoteStream(null);
-    
+
     resetCallState();
 
     if (reason) {
@@ -415,16 +422,16 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
           setSignalingError(new Error(`No answer from ${targetName || targetId}. Call timed out.`));
           const offerPath = `signaling/${targetId}/offer`; // Offer was for targetId  
           remove(ref(rtdb, offerPath)).catch((e: Error) => console.warn("Could not remove timed out offer", e));
-          
+
           // Play call ended sound for timeout
           callNotifications.playCallEndedSound();
-          
+
           closePeerConnection(true, 'error');
         }, 30000);
       } else throw new Error("Local description failed.");
     } catch (err: any) {
       console.error("Error initiating call (after media grant):", err);
-      setSignalingError(err); setCallStatus('error'); 
+      setSignalingError(err); setCallStatus('error');
       callNotifications.playCallEndedSound(); // Play error sound
       closePeerConnection(false, 'error');
     }
@@ -434,7 +441,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     if (!user || !incomingOffer || !callerUserId) {
       setSignalingError(new Error("Cannot accept: missing info.")); setCallStatus('error'); return;
     }
-    
+
     // Stop incoming call notification
     if (currentNotificationId.current) {
       callNotifications.stopIncomingCall(currentNotificationId.current);
@@ -469,7 +476,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       setIncomingOffer(null); setCallerUserId(null); setCallerUserName(null);
     } catch (err: any) {
       console.error("Error accepting call (after media grant):", err);
-      setSignalingError(err); setCallStatus('error'); 
+      setSignalingError(err); setCallStatus('error');
       callNotifications.playCallEndedSound();
       closePeerConnection(false, 'error');
     }
@@ -508,7 +515,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const hangUpCall = async () => {
     console.log("Hang Up Call invoked.");
-    
+
     // Stop any notifications
     if (currentNotificationId.current) {
       callNotifications.stopIncomingCall(currentNotificationId.current);
@@ -706,7 +713,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     }
 
     // Detach any existing listeners before attaching new ones.
-    activeRTDBListeners.current.forEach((listenerInfo: any) => 
+    activeRTDBListeners.current.forEach((listenerInfo: any) =>
       off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
     );
     activeRTDBListeners.current = [];
@@ -843,7 +850,7 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     return () => {
       console.log("Cleaning up ALL signaling listeners for user:", currentUserId);
-      activeRTDBListeners.current.forEach((listenerInfo: any) => 
+      activeRTDBListeners.current.forEach((listenerInfo: any) =>
         off(ref(rtdb, listenerInfo.path), listenerInfo.listener)
       );
       activeRTDBListeners.current = [];

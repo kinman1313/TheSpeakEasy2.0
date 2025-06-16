@@ -41,11 +41,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
     private activeNotifications: Map<string, Notification> = new Map()
 
     constructor() {
-<<<<<<< HEAD
-        // Only initialize on client side
-=======
         // Only initialize if we're in the browser
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         if (typeof window !== 'undefined') {
             this.checkSupport()
             this.setupVisibilityHandling()
@@ -54,35 +50,19 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private checkSupport(): void {
-<<<<<<< HEAD
-        // Ensure we're on the client side before checking window
-        if (typeof window === 'undefined') {
-            this.isSupported = false
-            return
-        }
-        
-=======
         if (typeof window === 'undefined' || typeof navigator === 'undefined') {
             this.isSupported = false
             return
         }
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
+
         this.isSupported = 'Notification' in window && 'serviceWorker' in navigator
     }
 
     private setupVisibilityHandling(): void {
-<<<<<<< HEAD
-        // Ensure we're on the client side before accessing document and window
-        if (typeof window === 'undefined' || typeof document === 'undefined') {
-            return
-        }
-        
-=======
         if (typeof document === 'undefined' || typeof window === 'undefined') {
             return
         }
 
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         document.addEventListener('visibilitychange', () => {
             this.isVisible = !document.hidden
 
@@ -155,7 +135,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
         if (typeof window === 'undefined' || !this.isSupported) {
             return
         }
-        
+
         const notificationOptions: any = {
             body: options.body,
             icon: options.icon || '/icons/icon-192x192.png',
@@ -212,19 +192,11 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private showInAppNotification(options: MobileNotificationOptions): void {
-<<<<<<< HEAD
-        // Ensure we're on the client side before accessing document
-        if (typeof window === 'undefined' || typeof document === 'undefined') {
-            return
-        }
-        
-=======
         // Check if we're in browser environment
         if (typeof document === 'undefined' || typeof window === 'undefined') {
             return
         }
 
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         // Create in-app notification element
         const notification = document.createElement('div')
         notification.className = `
@@ -307,11 +279,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
         })
         this.activeNotifications.clear()
 
-<<<<<<< HEAD
-        // Clear in-app notifications (only on client side)
-=======
         // Clear in-app notifications - only in browser environment
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         if (typeof document !== 'undefined') {
             const inAppNotifications = document.querySelectorAll('[class*="fixed top-4 right-4"]')
             inAppNotifications.forEach(notification => {
@@ -396,14 +364,14 @@ let _mobileNotifications: MobileNotificationManager | null = null
 
 // SSR-safe mock implementation
 class MockMobileNotificationManager implements IMobileNotificationManager {
-    async show(): Promise<void> {}
-    async showMessage(): Promise<void> {}
-    async showCall(): Promise<void> {}
-    async showError(): Promise<void> {}
-    async showSuccess(): Promise<void> {}
+    async show(): Promise<void> { }
+    async showMessage(): Promise<void> { }
+    async showCall(): Promise<void> { }
+    async showError(): Promise<void> { }
+    async showSuccess(): Promise<void> { }
     async requestPermission(): Promise<NotificationPermission> { return 'denied' }
-    clearAllNotifications(): void {}
-    clearNotification(): void {}
+    clearAllNotifications(): void { }
+    clearNotification(): void { }
     getPermission(): NotificationPermission { return 'default' }
     isNotificationSupported(): boolean { return false }
 }
@@ -414,13 +382,13 @@ export const mobileNotifications = {
             // Return a mock object for SSR
             return new MockMobileNotificationManager()
         }
-        
+
         if (!_mobileNotifications) {
             _mobileNotifications = new MobileNotificationManager()
         }
         return _mobileNotifications
     },
-    
+
     // Convenience methods that delegate to the instance
     show: (options: MobileNotificationOptions) => mobileNotifications.instance.show(options),
     showMessage: (from: string, message: string, data?: any) => mobileNotifications.instance.showMessage(from, message, data),

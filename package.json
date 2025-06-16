@@ -66,10 +66,6 @@
     "next": "^15.3.3",
     "next-pwa": "^5.6.0",
     "next-themes": "^0.4.6",
-<<<<<<< HEAD
-    "node": "^24.2.0",
-=======
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
     "postcss": "^8.4.31",
     "react": "18.3.1",
     "react-color": "^2.19.3",
@@ -115,12 +111,8 @@
     "@types/workbox-routing": "^4.3.1",
     "@types/workbox-strategies": "^4.3.1",
     "babel-loader": "^10.0.0",
-<<<<<<< HEAD
     "eslint": "^9.29.0",
     "eslint-config-next": "^15.3.3",
-=======
-    "date-fns": "^3.6.0",
->>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
     "webpack": "^5.98.0",
     "webpack-cli": "^6.0.1"
   }

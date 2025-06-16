@@ -71,7 +71,7 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
         if (!isLoading && typeof window !== 'undefined') {
             const root = document.documentElement;
             const body = document.body;
-            
+
             // Apply theme colors to both html and body with !important to override component styles
             Object.entries(currentTheme.colors).forEach(([key, value]) => {
                 const cssValue = `${value} !important`;
@@ -82,8 +82,8 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
             // Force a reflow to ensure all components update
             requestAnimationFrame(() => {
                 // Trigger a repaint by reading offsetHeight
-                const _ = document.body.offsetHeight;
-                
+                void document.body.offsetHeight;
+
                 // Also trigger CSS recalculation by temporarily changing a class
                 document.body.classList.add('theme-updating');
                 setTimeout(() => {
