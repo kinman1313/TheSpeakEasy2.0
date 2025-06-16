@@ -70,8 +70,25 @@ export function CustomThemeProvider({ children }: { children: ReactNode }) {
     useEffect(() => {
         if (!isLoading && typeof window !== 'undefined') {
             const root = document.documentElement;
+            const body = document.body;
+            
+            // Apply theme colors to both html and body with !important to override component styles
             Object.entries(currentTheme.colors).forEach(([key, value]) => {
-                root.style.setProperty(key, String(value));
+                const cssValue = `${value} !important`;
+                root.style.setProperty(key, cssValue);
+                body.style.setProperty(key, cssValue);
+            });
+
+            // Force a reflow to ensure all components update
+            requestAnimationFrame(() => {
+                // Trigger a repaint by reading offsetHeight
+                const _ = document.body.offsetHeight;
+                
+                // Also trigger CSS recalculation by temporarily changing a class
+                document.body.classList.add('theme-updating');
+                setTimeout(() => {
+                    document.body.classList.remove('theme-updating');
+                }, 10);
             });
 
             // Clean up any existing problematic pattern classes

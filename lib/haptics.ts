@@ -25,6 +25,12 @@ class HapticManager {
     }
 
     private checkSupport(): void {
+        // Only check support in browser environment
+        if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+            this.isSupported = false
+            return
+        }
+
         // Check for various haptic APIs
         this.isSupported = !!(
             'vibrate' in navigator ||
@@ -37,6 +43,11 @@ class HapticManager {
     }
 
     private loadSettings(): void {
+        // Only access localStorage in browser environment
+        if (typeof window === 'undefined') {
+            return
+        }
+
         try {
             const stored = localStorage.getItem('hapticSettings')
             if (stored) {
@@ -49,6 +60,11 @@ class HapticManager {
     }
 
     public saveSettings(): void {
+        // Only access localStorage in browser environment
+        if (typeof window === 'undefined') {
+            return
+        }
+
         try {
             localStorage.setItem('hapticSettings', JSON.stringify({
                 enabled: this.isEnabled
@@ -72,7 +88,7 @@ class HapticManager {
     }
 
     public async trigger(type: HapticType): Promise<void> {
-        if (!this.isSupported || !this.isEnabled) return
+        if (!this.isSupported || !this.isEnabled || typeof navigator === 'undefined') return
 
         const pattern = HAPTIC_PATTERNS[type]
 
@@ -112,30 +128,39 @@ class HapticManager {
     }
 
     private fallbackHaptic(type: HapticType): void {
-        // Audio feedback as haptic fallback
-        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-        const oscillator = audioContext.createOscillator()
-        const gainNode = audioContext.createGain()
-
-        oscillator.connect(gainNode)
-        gainNode.connect(audioContext.destination)
-
-        // Different frequencies for different haptic types
-        const frequencies: Record<HapticType, number> = {
-            light: 200,
-            medium: 150,
-            heavy: 100,
-            success: 300,
-            warning: 250,
-            error: 80,
-            selection: 400
+        // Only use audio feedback in browser environment
+        if (typeof window === 'undefined') {
+            return
         }
 
-        oscillator.frequency.setValueAtTime(frequencies[type], audioContext.currentTime)
-        gainNode.gain.setValueAtTime(0.01, audioContext.currentTime) // Very quiet
+        try {
+            // Audio feedback as haptic fallback
+            const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+            const oscillator = audioContext.createOscillator()
+            const gainNode = audioContext.createGain()
 
-        oscillator.start()
-        oscillator.stop(audioContext.currentTime + 0.05) // 50ms
+            oscillator.connect(gainNode)
+            gainNode.connect(audioContext.destination)
+
+            // Different frequencies for different haptic types
+            const frequencies: Record<HapticType, number> = {
+                light: 200,
+                medium: 150,
+                heavy: 100,
+                success: 300,
+                warning: 250,
+                error: 80,
+                selection: 400
+            }
+
+            oscillator.frequency.setValueAtTime(frequencies[type], audioContext.currentTime)
+            gainNode.gain.setValueAtTime(0.01, audioContext.currentTime) // Very quiet
+
+            oscillator.start()
+            oscillator.stop(audioContext.currentTime + 0.05) // 50ms
+        } catch (error) {
+            console.warn('Audio fallback failed:', error)
+        }
     }
 
     // Convenience methods for common interactions

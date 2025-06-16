@@ -4,7 +4,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback, use
 import { useAuth } from '@/components/auth/AuthProvider';
 import { rtdb } from '@/lib/firebase';
 import { ref, set, onValue, push, off, remove, serverTimestamp } from 'firebase/database';
-import { registerUser } from '@/lib/socket';
+import { registerUser, initiateSocketCall } from '@/lib/socket';
 import { callNotifications, type CallNotificationOptions } from '@/lib/callNotifications';
 
 export type CallStatus =
@@ -115,8 +115,38 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   useEffect(() => {
     if (user?.uid) {
       registerUser(user.uid);
+      
+      // Listen for incoming Socket.IO call notifications
+      const socket = require('@/lib/socket').getSocket();
+      socket.on('incoming-call', (data: any) => {
+        const { callerUserId, callerName, isVideo } = data;
+        console.log('Received Socket.IO incoming call from:', callerName);
+        
+        // Only process if we're idle and not already in a call
+        if (callStatus === 'idle') {
+          // Start call notification immediately
+          const notificationOptions: CallNotificationOptions = {
+            callerName: callerName || 'Unknown User',
+            isVideo: isVideo || false,
+            onAnswer: () => {
+              // Will be handled by accept call function
+            },
+            onDecline: () => {
+              // Will be handled by decline call function
+            }
+          };
+
+          callNotifications.startIncomingCall(notificationOptions).then(notificationId => {
+            currentNotificationId.current = notificationId;
+          });
+        }
+      });
+
+      return () => {
+        socket.off('incoming-call');
+      };
     }
-  }, [user?.uid]);
+  }, [user?.uid, callStatus]);
 
   // Clean up any stale offers when component initializes
   useEffect(() => {
@@ -376,6 +406,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (pc.localDescription) {
         await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
+
+        // Send immediate Socket.IO notification to recipient
+        initiateSocketCall(targetId, user.uid, user.displayName || 'Unknown User', true);
 
         offerTimeoutRef.current = window.setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);
@@ -641,6 +674,9 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       if (pc.localDescription) {
         await sendOffer(targetId, user.uid, user.displayName, pc.localDescription);
+
+        // Send immediate Socket.IO notification to recipient
+        initiateSocketCall(targetId, user.uid, user.displayName || 'Unknown User', false);
 
         offerTimeoutRef.current = window.setTimeout(async () => {
           console.warn(`No answer from ${targetName || targetId} within timeout.`);

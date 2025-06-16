@@ -69,13 +69,13 @@ class CallNotificationManager {
   }
 
   private startVibration(): void {
-    if (!navigator.vibrate) return
+    if (typeof navigator === 'undefined' || !navigator.vibrate) return
 
     // Create a repeating vibration pattern
     const vibratePattern = [300, 200, 300, 200, 300, 500] // Strong vibration pattern
     
     const vibrate = () => {
-      if (this.isRinging && navigator.vibrate) {
+      if (this.isRinging && typeof navigator !== 'undefined' && navigator.vibrate) {
         navigator.vibrate(vibratePattern)
       }
     }
@@ -179,7 +179,7 @@ class CallNotificationManager {
     }
 
     // Stop system vibration
-    if (navigator.vibrate) {
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
       navigator.vibrate(0)
     }
 

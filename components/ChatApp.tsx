@@ -5,7 +5,7 @@ import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db, rtdb } from "@/lib/firebase"
-import { useToast } from "@/components/ui/toast"
+import { useToast } from "@/hooks/use-toast"
 import { useRoomMessages } from "@/lib/hooks/useRoomMessages"
 import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
@@ -15,7 +15,6 @@ import { VideoCallView } from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
-import UserSettingsModal from "@/components/user/UserSettingsModal"
 import { MessageInput } from "@/components/MessageInput"
 import { Message as MessageComponent } from "@/components/chat/Message"
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
@@ -25,7 +24,7 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Settings, Menu, X, Phone, Video } from "lucide-react"
+import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Menu, X, Phone, Video } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
@@ -37,7 +36,6 @@ import { Timestamp } from 'firebase/firestore'
 import { usePullToRefresh } from "@/hooks/usePullToRefresh"
 import { useMobileNotifications } from "@/lib/mobileNotifications"
 import { useHaptics } from "@/lib/haptics"
-// Removed unused Message type import
 
 export default function ChatApp() {
   const { user } = useAuth()
@@ -49,7 +47,6 @@ export default function ChatApp() {
   const { success: hapticSuccess } = useHaptics()
   const { startIncomingCall } = useCallNotifications()
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false)
-  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const previousMessageCount = useRef<number>(0)
@@ -246,7 +243,7 @@ export default function ChatApp() {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid)
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
-        async (_, fromUserId, fromUserName) => {
+        async (_: any, fromUserId: string, fromUserName?: string) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
           
           // Start enhanced call notification
@@ -276,7 +273,7 @@ export default function ChatApp() {
             description: `Call from ${fromUserName || "Unknown User"}`,
           })
         },
-        async (answer, fromUserId) => {
+        async (answer: any, fromUserId: string) => {
           console.log(`ChatApp: Received answer from ${fromUserId}`)
           console.log(`ChatApp: PeerConnection state: ${peerConnection?.signalingState}`)
           console.log(`ChatApp: WebRTC call status: ${webRTCCallStatus}`)
@@ -304,7 +301,7 @@ export default function ChatApp() {
             console.warn(`Received answer but not in 'have-local-offer' state. Current state: ${peerConnection.signalingState}`)
           }
         },
-        (candidate) => {
+        (candidate: any) => {
           console.log("ChatApp: Received remote ICE candidate")
           if (
             peerConnection &&
@@ -320,7 +317,7 @@ export default function ChatApp() {
             console.warn("Received invalid ICE candidate, skipping:", candidate)
           }
         },
-        (_, fromUserName) => {
+        (_: any, fromUserName?: string) => {
           toast({
             title: "Call Declined",
             description: `${fromUserName || 'The other user'} declined the call.`,
@@ -408,7 +405,7 @@ export default function ChatApp() {
     // Play sound for new messages from others
     if (messages.length > previousMessageCount.current && previousMessageCount.current > 0) {
       const newMessages = messages.slice(previousMessageCount.current)
-      const hasNewMessageFromOthers = newMessages.some(msg => msg.uid !== user?.uid)
+      const hasNewMessageFromOthers = newMessages.some((msg: any) => msg.uid !== user?.uid)
 
       if (hasNewMessageFromOthers) {
         const latestMessage = newMessages[newMessages.length - 1]
@@ -557,14 +554,20 @@ export default function ChatApp() {
       return
     }
 
+    if (!gifUrl) {
+      toast({ title: "Error", description: "No GIF URL provided.", variant: "destructive" })
+      return
+    }
+
     try {
+      console.log("Sending GIF with URL:", gifUrl)
       await handleSendMessage("", { gifUrl })
       setShowGiphyPicker(false)
     } catch (error) {
       console.error("Error sending GIF:", error)
       toast({
         title: "Error Sending GIF",
-        description: "Could not send your GIF. Please try again.",
+        description: error instanceof Error ? error.message : "Could not send your GIF. Please try again.",
         variant: "destructive",
       })
     }
@@ -696,7 +699,7 @@ export default function ChatApp() {
 
     try {
       // Find the message to check current reactions
-      const message = messages.find(m => m.id === messageId);
+      const message = messages.find((m: any) => m.id === messageId);
       if (!message) return;
 
       // Determine if user has already reacted with this emoji
@@ -951,39 +954,18 @@ export default function ChatApp() {
                 {user?.displayName || user?.email || "User"}
               </span>
 
-              <UserSettingsDialog
+              <UserSettingsDialog 
                 trigger={
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                    title="Settings"
+                    className="tap-feedback text-slate-300 hover:text-green-400 hover:bg-green-500/20"
+                    title="User Profile"
                   >
-                    <Settings className="h-4 md:h-5 w-4 md:w-5" />
+                    <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
                   </Button>
                 }
               />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => setIsProfileModalOpen(true)}
-                className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-              >
-                <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
-              </Button>
-              {/* Debug Audio Test Button (development only) */}
-              {process.env.NODE_ENV === 'development' && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  onClick={() => AudioTestUtils.runFullAudioDiagnostic()}
-                  className="text-slate-300 hover:text-blue-400 hover:bg-blue-600/20"
-                  title="Run Audio Diagnostics"
-                >
-                  🔊
-                </Button>
-              )}
-
               <Button
                 variant="ghost"
                 size="icon"
@@ -1166,16 +1148,16 @@ export default function ChatApp() {
 
                 {selectedThread ? (
                   <ThreadView
-                    threadId={selectedThread.threadId!}
+                    threadId={selectedThread.threadId}
                     parentMessage={selectedThread}
-                    messages={messages.filter(m => m.threadId === selectedThread.threadId)}
+                    messages={messages.filter((m: any) => m.threadId === selectedThread.threadId)}
                     currentUser={{
                       uid: user.uid,
                       displayName: user.displayName || user.email || 'Anonymous',
                       photoURL: user.photoURL
                     }}
                     onClose={handleBackToChat}
-                    onSendMessage={(content) => handleSendMessage(content, { threadId: selectedThread.threadId })}
+                    onSendMessage={(content: string) => handleSendMessage(content, { threadId: selectedThread.threadId })}
                     onDeleteMessage={handleDeleteMessage}
                     onReply={handleReplyToMessage}
                     onExpire={handleExpire}
@@ -1297,15 +1279,6 @@ export default function ChatApp() {
           }
         }}
       />
-
-      {/* User Settings Modal */}
-      {isProfileModalOpen && (
-        <UserSettingsModal
-          isOpen={isProfileModalOpen}
-          onClose={() => setIsProfileModalOpen(false)}
-          user={user}
-        />
-      )}
     </div>
   )
 }

@@ -41,7 +41,11 @@ class MobileNotificationManager implements IMobileNotificationManager {
     private activeNotifications: Map<string, Notification> = new Map()
 
     constructor() {
+<<<<<<< HEAD
         // Only initialize on client side
+=======
+        // Only initialize if we're in the browser
+>>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         if (typeof window !== 'undefined') {
             this.checkSupport()
             this.setupVisibilityHandling()
@@ -50,21 +54,35 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private checkSupport(): void {
+<<<<<<< HEAD
         // Ensure we're on the client side before checking window
         if (typeof window === 'undefined') {
             this.isSupported = false
             return
         }
         
+=======
+        if (typeof window === 'undefined' || typeof navigator === 'undefined') {
+            this.isSupported = false
+            return
+        }
+>>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         this.isSupported = 'Notification' in window && 'serviceWorker' in navigator
     }
 
     private setupVisibilityHandling(): void {
+<<<<<<< HEAD
         // Ensure we're on the client side before accessing document and window
         if (typeof window === 'undefined' || typeof document === 'undefined') {
             return
         }
         
+=======
+        if (typeof document === 'undefined' || typeof window === 'undefined') {
+            return
+        }
+
+>>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         document.addEventListener('visibilitychange', () => {
             this.isVisible = !document.hidden
 
@@ -86,7 +104,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private setupPermissionHandling(): void {
-        if (this.isSupported) {
+        if (this.isSupported && typeof window !== 'undefined' && 'Notification' in window) {
             this.permission = Notification.permission
         }
     }
@@ -149,7 +167,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
         }
 
         // Add mobile-specific features if supported
-        if (options.vibrate && 'vibrate' in navigator) {
+        if (options.vibrate && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
             notificationOptions.vibrate = options.vibrate
         }
 
@@ -167,11 +185,13 @@ class MobileNotificationManager implements IMobileNotificationManager {
         // Handle notification click
         notification.onclick = (event) => {
             event.preventDefault()
-            window.focus()
+            if (typeof window !== 'undefined') {
+                window.focus()
 
-            // Handle custom data
-            if (options.data?.url) {
-                window.location.href = options.data.url
+                // Handle custom data
+                if (options.data?.url) {
+                    window.location.href = options.data.url
+                }
             }
 
             notification.close()
@@ -192,11 +212,19 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private showInAppNotification(options: MobileNotificationOptions): void {
+<<<<<<< HEAD
         // Ensure we're on the client side before accessing document
         if (typeof window === 'undefined' || typeof document === 'undefined') {
             return
         }
         
+=======
+        // Check if we're in browser environment
+        if (typeof document === 'undefined' || typeof window === 'undefined') {
+            return
+        }
+
+>>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         // Create in-app notification element
         const notification = document.createElement('div')
         notification.className = `
@@ -237,7 +265,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
         // Handle notification click
         notification.addEventListener('click', (e) => {
             if (e.target !== closeBtn) {
-                if (options.data?.url) {
+                if (options.data?.url && typeof window !== 'undefined') {
                     window.location.href = options.data.url
                 }
                 this.closeInAppNotification(notification)
@@ -279,7 +307,11 @@ class MobileNotificationManager implements IMobileNotificationManager {
         })
         this.activeNotifications.clear()
 
+<<<<<<< HEAD
         // Clear in-app notifications (only on client side)
+=======
+        // Clear in-app notifications - only in browser environment
+>>>>>>> 78b7be254fedc70f54f781092d47fe887f64e518
         if (typeof document !== 'undefined') {
             const inAppNotifications = document.querySelectorAll('[class*="fixed top-4 right-4"]')
             inAppNotifications.forEach(notification => {
