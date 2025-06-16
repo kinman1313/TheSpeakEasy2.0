@@ -192,14 +192,41 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         peerConnection.close();
       }
 
-      // Enhanced ICE server configuration for better connectivity
+      // --- ICE servers --------------------------------------------------
+      // We add public STUN plus *TEMPORARY* demo TURN relays.
+      // If NEXT_PUBLIC_TURN_DISABLE === 'true' we skip demo TURN.
+
+      const baseIceServers: RTCIceServer[] = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun2.l.google.com:19302' },
+        { urls: 'stun:stun.stunprotocol.org' }
+      ];
+
+      // Add demo TURN unless explicitly disabled via env var
+      if (process.env.NEXT_PUBLIC_TURN_DISABLE !== 'true') {
+        baseIceServers.push({
+          urls: [
+            'turn:relay.metered.ca:80',
+            'turn:relay.metered.ca:443?transport=tcp'
+          ],
+          username: 'a_demo',
+          credential: 'demo'
+        });
+      }
+
+      // If custom TURN env vars are provided, they override / extend
+      if (process.env.NEXT_PUBLIC_TURN_URLS) {
+        const urls = process.env.NEXT_PUBLIC_TURN_URLS.split(',');
+        baseIceServers.push({
+          urls,
+          username: process.env.NEXT_PUBLIC_TURN_USER || '',
+          credential: process.env.NEXT_PUBLIC_TURN_PASS || ''
+        });
+      }
+
       const enhancedConfiguration: RTCConfiguration = {
-        iceServers: [
-          { urls: 'stun:stun.l.google.com:19302' },
-          { urls: 'stun:stun1.l.google.com:19302' },
-          { urls: 'stun:stun2.l.google.com:19302' },
-          { urls: 'stun:stun.stunprotocol.org' }
-        ],
+        iceServers: baseIceServers,
         iceCandidatePoolSize: 10,
         iceTransportPolicy: 'all',
         bundlePolicy: 'max-bundle',
