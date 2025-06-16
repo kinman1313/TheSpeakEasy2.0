@@ -366,6 +366,8 @@ body {
       rgb(var(--background-end-rgb)) 100%) !important;
   color: rgb(var(--foreground-rgb)) !important;
   transition: var(--theme-transition) !important;
+  height: 100%;
+  overflow: hidden !important;
 }
 
 /* Theme classes for additional styling hooks */
@@ -465,6 +467,10 @@ body {
   .tap-feedback:active {
     background-color: rgba(var(--primary-rgb), 0.1) !important;
   }
+
+  .message-list {
+    scroll-snap-type: none !important;
+  }
 }
 
 /* Scrollbar styling */
@@ -563,4 +569,9 @@ body {
     border-width: 2px !important;
     border-color: rgb(var(--foreground-rgb)) !important;
   }
+}
+
+/* Ensure message containers can overscroll independently */
+.messages-container {
+  overscroll-behavior-y: contain;
 }

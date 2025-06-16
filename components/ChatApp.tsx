@@ -1081,7 +1081,7 @@ export default function ChatApp() {
               {/* Messages Area */}
               <div
                 ref={messagesContainerRef}
-                className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:mb-6 relative scroll-smooth messages-container messages-scrollbar"
+                className="flex-1 glass-card rounded-none md:rounded-xl overflow-y-auto p-3 md:p-6 md:pb-6 pb-28 md:mb-6 relative scroll-smooth messages-container messages-scrollbar"
                 style={{
                   scrollBehavior: 'smooth',
                   scrollSnapType: 'y proximity',
