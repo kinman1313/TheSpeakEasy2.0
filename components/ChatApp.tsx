@@ -848,33 +848,33 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
   }
 
   /**
+   * Utility to normalize any timestamp to a Firestore-like object with toDate().
+   */
+  function normalizeTimestamp(ts: any) {
+    if (!ts) {
+      const now = new Date();
+      return { toDate: () => now };
+    }
+    if (typeof ts.toDate === 'function') return ts;
+    if (typeof ts === 'string' || typeof ts === 'number') {
+      const date = new Date(ts);
+      return { toDate: () => date };
+    }
+    if (ts instanceof Date) {
+      return { toDate: () => ts };
+    }
+    return { toDate: () => new Date() };
+  }
+
+  /**
    * Renders a single chat message using the OptimizedMessage component.
    * Maps the message data to the OptimizedMessage props interface.
    */
   const renderMessage = React.useCallback((message: any) => {
     const isCurrentUser = message.uid === user?.uid;
-    
-    // Handle different timestamp formats safely
-    let timestamp = message.createdAt;
-    if (timestamp && typeof timestamp.toDate === 'function') {
-      // Firestore Timestamp
-      timestamp = timestamp;
-    } else if (timestamp && typeof timestamp === 'string') {
-      // String timestamp - convert to Firestore-like Timestamp
-      const date = new Date(timestamp);
-      timestamp = { toDate: () => date } as any;
-    } else if (timestamp && typeof timestamp === 'number') {
-      // Unix timestamp - convert to Firestore-like Timestamp
-      const date = new Date(timestamp);
-      timestamp = { toDate: () => date } as any;
-    } else if (timestamp instanceof Date) {
-      // JavaScript Date - convert to Firestore-like Timestamp
-      timestamp = { toDate: () => timestamp } as any;
-    } else {
-      // Fallback to current time
-      const date = new Date();
-      timestamp = { toDate: () => date } as any;
-    }
+
+    // Simplified timestamp normalization
+    const timestamp = normalizeTimestamp(message.createdAt);
 
     return (
       <OptimizedMessage
