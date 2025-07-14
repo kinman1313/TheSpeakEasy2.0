@@ -32,6 +32,7 @@ export interface CallDeclinedPayload {
 }
 
 interface WebRTCContextType {
+  isInCall: boolean;
   peerConnection: RTCPeerConnection | null;
   localStream: MediaStream | null;
   remoteStream: MediaStream | null;
@@ -68,6 +69,7 @@ interface WebRTCContextType {
   closePeerConnection: (isInitiator?: boolean, reason?: CallStatus) => void; // Added reason
   setCallStatus: (status: CallStatus) => void;
   hangUpCall: () => Promise<void>;
+  attachStreamToVideo: (stream: MediaStream, videoElement: HTMLVideoElement) => void;
 }
 
 const WebRTCContext = createContext<WebRTCContextType | undefined>(undefined);
@@ -904,9 +906,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       console.log('Connection state changed:', peerConnection.connectionState);
       if (peerConnection.connectionState === 'connected') {
         setCallStatus('connected');
-      } else if (peerConnection.connectionState === 'failed' ||
+      } else if (
+        peerConnection.connectionState === 'failed' ||
         peerConnection.connectionState === 'disconnected' ||
-        peerConnection.connectionState === 'closed') {
+        peerConnection.connectionState === 'closed'
+      ) {
         setCallStatus('error');
       }
     };
@@ -914,6 +918,11 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleIceConnectionStateChange = () => {
       console.log('ICE connection state:', peerConnection.iceConnectionState);
     };
+
+    // Clean up any existing listeners before adding new ones
+    peerConnection.removeEventListener('icecandidate', handleIceCandidate);
+    peerConnection.removeEventListener('connectionstatechange', handleConnectionStateChange);
+    peerConnection.removeEventListener('iceconnectionstatechange', handleIceConnectionStateChange);
 
     peerConnection.addEventListener('icecandidate', handleIceCandidate);
     peerConnection.addEventListener('connectionstatechange', handleConnectionStateChange);
@@ -944,6 +953,22 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     };
   }, [peerConnection]);
 
+  // Fix for video element attachment
+  const attachStreamToVideo = (stream: MediaStream, videoElement: HTMLVideoElement) => {
+    if ('srcObject' in videoElement) {
+      videoElement.srcObject = stream;
+    } else {
+      // Fallback for older browsers - but MediaStream should use srcObject
+      console.warn('Browser does not support srcObject, using deprecated method');
+      (videoElement as any).src = (window as any).webkitURL?.createObjectURL(stream) || (window as any).URL?.createObjectURL(stream);
+    }
+    
+    // Ensure video plays
+    videoElement.play().catch(error => {
+      console.warn('Video playback failed:', error);
+    });
+  };
+
   const contextValue: WebRTCContextType = {
     peerConnection, localStream, remoteStream, callStatus,
     activeCallTargetUserId, activeCallTargetUserName,
@@ -956,7 +981,30 @@ export const WebRTCProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     requestMediaPermissions: requestMediaPermissionsHandleErrors,
     sendOffer, sendAnswer, listenForSignalingMessages,
     closePeerConnection, setCallStatus,
+    attachStreamToVideo,
+    isInCall: callStatus === 'connected' || callStatus === 'calling' || callStatus === 'ringing'
   };
+  // Enhanced stream management
+  useEffect(() => {
+    return () => {
+      // Cleanup all streams on unmount
+      if (localStream) {
+        localStream.getTracks().forEach(track => track.stop())
+      }
+      if (remoteStream) {
+        remoteStream.getTracks().forEach(track => track.stop())
+      }
+      // Clean up all RTDB listeners
+      activeRTDBListeners.current.forEach(({ path, listener }) => {
+        off(ref(rtdb, path), listener)
+      })
+      activeRTDBListeners.current = []
+    }
+  }, [])
 
-  return <WebRTCContext.Provider value={contextValue}>{children}</WebRTCContext.Provider>;
+  return (
+    <WebRTCContext.Provider value={contextValue}>
+      {children}
+    </WebRTCContext.Provider>
+  );
 };

@@ -1,194 +1,138 @@
-/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind base;
-/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind components;
-/* stylelint-disable-next-line at-rule-no-unknown */
 @tailwind utilities;
 
 @layer base {
+  /* Premium Glassmorphism Variables */
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-
-    --radius: 0.5rem;
+    /* Glass effects */
+    --glass-blur: 24px;
+    --glass-saturation: 1.2;
+    --glass-opacity: 0.08;
+    --glass-border-opacity: 0.2;
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    
+    /* Enhanced colors */
+    --glow-intensity: 0.6;
+    --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --interaction-scale: 0.98;
+    /* Enhanced color system */
+--primary: #22c55e;        /* Vibrant green */
+--primary-glow: #22c55e33;  /* Green glow */
+--secondary: #3b82f6;       /* Bright blue */
+--accent: #f59e0b;          /* Warm amber */
+--danger: #ef4444;          /* Clear red */
+--surface: rgba(255, 255, 255, 0.08);
+--border: rgba(255, 255, 255, 0.2);
+    
+    /* Animations */
+    --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --smooth-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+  /* Premium background with depth */
+  body {
+    background: 
+      radial-gradient(ellipse at top left, rgba(34, 197, 94, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
 
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
+  /* Animated background orbs */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.3;
+    pointer-events: none;
+    animation: float 20s infinite ease-in-out;
+  }
 
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
+  body::before {
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, #22c55e, transparent);
+    top: -200px;
+    left: -200px;
+  }
 
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
+  body::after {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, #3b82f6, transparent);
+    bottom: -300px;
+    right: -300px;
+    animation-delay: -10s;
+  }
 
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(50px, -50px) scale(1.1); }
+    50% { transform: translate(-30px, 30px) scale(0.9); }
+    75% { transform: translate(30px, 50px) scale(1.05); }
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    @apply bg-background text-foreground;
-  }
-
-  /* Enhanced Glass morphism effects */
-  .glass {
-    background: rgba(30, 41, 59, 0.25);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 8px 32px 0 rgba(31, 38, 135, 0.37),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-  }
-
-  .glass-darker {
-    background: rgba(15, 23, 42, 0.4);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow:
-      0 8px 32px 0 rgba(0, 0, 0, 0.5),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
-  }
-
-  .glass-light {
-    background: rgba(255, 255, 255, 0.1);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.15);
-    box-shadow:
-      0 4px 16px 0 rgba(255, 255, 255, 0.1),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-  }
-
+@layer components {
+  /* Premium Glass Panels */
   .glass-panel {
-    background: rgba(30, 41, 59, 0.3);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(24px);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    box-shadow:
-      0 12px 40px 0 rgba(31, 38, 135, 0.4),
-      inset 0 2px 0 0 rgba(255, 255, 255, 0.15),
-      inset 0 -1px 0 0 rgba(0, 0, 0, 0.1);
-  }
-
-  .glass-card {
-    background: rgba(30, 41, 59, 0.2);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(16px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow:
-      0 6px 24px 0 rgba(31, 38, 135, 0.3),
+    background: rgba(255, 255, 255, var(--glass-opacity));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    border: 1px solid rgba(255, 255, 255, var(--glass-border-opacity));
+    box-shadow: 
+      var(--glass-shadow),
       inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-  }
-
-  /* Enhanced Neon glow effects */
-  .neon-glow {
-    box-shadow:
-      0 0 5px rgba(99, 102, 241, 0.3),
-      0 0 10px rgba(99, 102, 241, 0.2),
-      0 0 15px rgba(99, 102, 241, 0.1),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
-  }
-
-  .neon-glow:hover {
-    box-shadow:
-      0 0 10px rgba(99, 102, 241, 0.5),
-      0 0 20px rgba(99, 102, 241, 0.4),
-      0 0 30px rgba(99, 102, 241, 0.3),
-      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
-  }
-
-  .neon-glow-green {
-    box-shadow:
-      0 0 5px rgba(34, 197, 94, 0.3),
-      0 0 10px rgba(34, 197, 94, 0.2),
-      0 0 15px rgba(34, 197, 94, 0.1);
-  }
-
-  .neon-glow-red {
-    box-shadow:
-      0 0 5px rgba(239, 68, 68, 0.3),
-      0 0 10px rgba(239, 68, 68, 0.2),
-      0 0 15px rgba(239, 68, 68, 0.1);
-  }
-
-  /* Floating animation for glass elements */
-  .glass-float {
-    animation: glassFloat 6s ease-in-out infinite;
-  }
-
-  @keyframes glassFloat {
-
-    0%,
-    100% {
-      transform: translateY(0px);
-    }
-
-    50% {
-      transform: translateY(-2px);
-    }
-  }
-
-  /* Improved button glass effects */
-  .btn-glass {
-    background: rgba(30, 41, 59, 0.3);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.3s ease;
     position: relative;
     overflow: hidden;
+  }
+
+  /* Frosted texture overlay */
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255, 255, 255, 0.01) 35px, rgba(255, 255, 255, 0.01) 70px),
+      url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* Glass Cards with depth */
+  .glass-card {
+    @apply glass-panel;
+    background: rgba(255, 255, 255, 0.06);
+    transition: all 0.3s var(--smooth-out);
+  }
+
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  }
+
+  /* Premium Buttons */
+  .btn-glass {
+    @apply relative overflow-hidden;
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    transition: all 0.2s var(--smooth-out);
+    box-shadow: 
+      0 4px 15px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
   }
 
   .btn-glass::before {
@@ -198,380 +142,243 @@
     left: -100%;
     width: 100%;
     height: 100%;
-    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.1), transparent);
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
     transition: left 0.5s;
+  }
+
+  .btn-glass:hover {
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
+    transform: translateY(-1px);
+    box-shadow: 
+      0 6px 20px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
   .btn-glass:hover::before {
     left: 100%;
   }
 
-  .btn-glass:hover {
-    background: rgba(30, 41, 59, 0.5);
-    border-color: rgba(255, 255, 255, 0.2);
-    transform: translateY(-1px);
+  .btn-glass:active {
+    transform: translateY(0) scale(var(--interaction-scale));
+    box-shadow: 
+      0 2px 10px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
-  /* Dark theme input styling */
-  input,
-  textarea,
-  select {
-    background-color: rgba(30, 41, 59, 0.5) !important;
-    border-color: rgba(71, 85, 105, 0.5) !important;
-    color: white !important;
+  /* Primary Action Buttons */
+  .btn-primary {
+    @apply btn-glass;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9));
+    border-color: rgba(34, 197, 94, 0.5);
+    box-shadow: 
+      0 4px 15px rgba(34, 197, 94, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
-  input::placeholder,
-  textarea::placeholder {
-    color: rgba(148, 163, 184, 0.7) !important;
+  .btn-primary:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 1), rgba(22, 163, 74, 1));
+    box-shadow: 
+      0 6px 25px rgba(34, 197, 94, 0.4),
+      0 0 40px rgba(34, 197, 94, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
 
-  /* Fix bright white focus states for dark theme */
-  input:focus,
-  textarea:focus,
-  button:focus,
-  select:focus,
-  [role="button"]:focus {
-    outline: none !important;
-    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.5) !important;
-    background-color: rgba(30, 41, 59, 0.8) !important;
+  /* Enhanced Message Bubbles */
+  .message-bubble {
+    @apply glass-card;
+    padding: 12px 16px;
+    border-radius: 18px;
+    max-width: 70%;
+    word-wrap: break-word;
+    animation: messageSlide 0.3s var(--spring-bounce);
   }
-}
 
-.prevent-screenshot {
-  -webkit-user-select: none !important;
-  -moz-user-select: none !important;
-  -ms-user-select: none !important;
-  user-select: none !important;
-  -webkit-touch-callout: none !important;
-  pointer-events: none;
-  opacity: 1 !important;
-}
+  @keyframes messageSlide {
+    from {
+      opacity: 0;
+      transform: translateY(10px) scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
 
-/* Enhanced tap feedback for mobile */
-.tap-feedback {
-  position: relative;
-  overflow: hidden;
-  transition: transform 0.12s cubic-bezier(.4, 0, .2, 1);
-  -webkit-tap-highlight-color: transparent;
-}
+  .message-bubble.own-message {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.1));
+    border-color: rgba(34, 197, 94, 0.3);
+    margin-left: auto;
+  }
 
-.tap-feedback:active {
-  transform: scale(0.97);
-}
+  /* Input Fields */
+  .input-glass {
+    @apply glass-panel;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    transition: all 0.2s;
+  }
 
-/* Ripple effect for touch devices */
-@media (hover: none) {
-  .tap-feedback:active::after {
-    content: '';
+  .input-glass:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(34, 197, 94, 0.5);
+    box-shadow: 
+      0 0 0 3px rgba(34, 197, 94, 0.1),
+      0 4px 15px rgba(0, 0, 0, 0.2);
+    outline: none;
+  }
+
+  /* Scrollbar Styling */
+  .custom-scrollbar {
+    /* Only apply scrollbar-color if supported (modern Firefox) */
+    /* Remove the problematic line that causes compatibility issues */
+  }
+
+  /* Webkit browsers (Chrome, Safari, Edge) - Primary styling */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px; /* For horizontal scrollbars */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, rgba(34, 197, 94, 0.5), rgba(34, 197, 94, 0.3));
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to bottom, rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.5));
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-corner {
+    background: transparent;
+  }
+
+  /* Feature detection for modern Firefox - enhanced approach */
+  @supports (scrollbar-width: thin) {
+    .custom-scrollbar {
+      scrollbar-width: thin;
+    }
+  }
+
+  /* Only apply scrollbar-color if both scrollbar-width and scrollbar-color are supported */
+  @supports (scrollbar-width: thin) and (scrollbar-color: green transparent) {
+    .custom-scrollbar {
+      scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
+    }
+  }
+
+  /* Mobile-First Enhancements */
+  @media (max-width: 768px) {
+    .glass-panel {
+      --glass-blur: 16px;
+      --glass-opacity: 0.1;
+    }
+
+    /* Touch-friendly tap targets */
+    .tap-target {
+      min-height: 48px;
+      min-width: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Bottom sheet pattern for mobile */
+    .mobile-sheet {
+      @apply glass-panel;
+      border-radius: 24px 24px 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Improved message input */
+    .message-input-container {
+      @apply mobile-sheet;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      padding: 12px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+
+    /* Native-like list items */
+    .list-item {
+      @apply glass-card;
+      margin: 8px;
+      padding: 16px;
+      border-radius: 16px;
+      transition: all 0.2s;
+    }
+
+    .list-item:active {
+      transform: scale(0.98);
+      background: rgba(255, 255, 255, 0.12);
+    }
+  }
+
+  /* Icon Buttons with Labels */
+  .icon-btn {
+    @apply btn-glass tap-target;
+    position: relative;
+    border-radius: 12px;
+    padding: 8px;
+  }
+
+  .icon-btn .tooltip {
     position: absolute;
+    bottom: 100%;
     left: 50%;
-    top: 50%;
-    width: 120%;
-    height: 120%;
-    background: rgba(34, 197, 94, 0.15);
-    border-radius: 50%;
-    transform: translate(-50%, -50%) scale(0.8);
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
     pointer-events: none;
-    animation: tap-ripple 0.4s cubic-bezier(.4, 0, .2, 1);
-  }
-}
-
-@keyframes tap-ripple {
-  0% {
-    opacity: 0.5;
-    transform: translate(-50%, -50%) scale(0.8);
+    transition: opacity 0.2s;
+    margin-bottom: 4px;
   }
 
-  100% {
-    opacity: 0;
-    transform: translate(-50%, -50%) scale(1.2);
-  }
-}
-
-/* Theme update fixes - ensure all components inherit theme colors properly */
-.theme-updating {
-  animation: theme-pulse 0.1s ease-in-out;
-}
-
-@keyframes theme-pulse {
-  0% {
-    opacity: 1;
+  @media (hover: hover) {
+    .icon-btn:hover .tooltip {
+      opacity: 1;
+    }
   }
 
-  50% {
-    opacity: 0.98;
+  /* Enhanced Focus States */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-green-400/50 focus:ring-offset-2 focus:ring-offset-gray-900;
   }
 
-  100% {
-    opacity: 1;
-  }
-}
-
-/* Force theme inheritance for all elements */
-*,
-*::before,
-*::after {
-  color: inherit !important;
-}
-
-/* Ensure background gradients use CSS variables */
-.bg-gradient-to-br,
-.bg-gradient-to-r,
-.bg-gradient-to-b,
-.bg-gradient-to-t,
-.bg-gradient-to-l {
-  background: linear-gradient(to bottom right,
-      rgb(var(--background-start-rgb, 30 41 59)),
-      rgb(var(--background-end-rgb, 15 23 42))) !important;
-}
-
-/* Override any hardcoded background colors in components */
-[class*="bg-slate"],
-[class*="bg-gray"] {
-  background: linear-gradient(to bottom right,
-      rgb(var(--background-start-rgb, 30 41 59)),
-      rgb(var(--background-end-rgb, 15 23 42))) !important;
-}
-
-/* Ensure glass effects respect theme colors */
-.glass-panel,
-.glass-card,
-.glass {
-  background: rgba(var(--background-start-rgb, 30 41 59), 0.3) !important;
-  border-color: rgba(var(--foreground-rgb, 255 255 255), 0.1) !important;
-}
-
-/* CSS Custom Properties for Themes */
-:root {
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 51, 65, 85;
-  --foreground-rgb: 229, 231, 235;
-  --primary-rgb: 34, 197, 94;
-  --primary-foreground-rgb: 255, 255, 255;
-  --secondary-rgb: 30, 41, 59;
-  --secondary-foreground-rgb: 229, 231, 235;
-  --accent-rgb: 59, 130, 246;
-  --accent-foreground-rgb: 255, 255, 255;
-  --glass-color-rgb: 30, 41, 59, 0.4;
-  --neon-glow-color: 34, 197, 94;
-  --theme-transition: all 0.3s ease;
-}
-
-/* Force theme application */
-html,
-body {
-  background: linear-gradient(135deg,
-      rgb(var(--background-start-rgb)) 0%,
-      rgb(var(--background-end-rgb)) 100%) !important;
-  color: rgb(var(--foreground-rgb)) !important;
-  transition: var(--theme-transition) !important;
-  height: 100%;
-  overflow: hidden !important;
-}
-
-/* Theme classes for additional styling hooks */
-.theme-default-dark {
-  --background-start-rgb: 15, 23, 42;
-  --background-end-rgb: 51, 65, 85;
-  --primary-rgb: 34, 197, 94;
-  --neon-glow-color: 34, 197, 94;
-}
-
-.theme-midnight-blue {
-  --background-start-rgb: 28, 25, 52;
-  --background-end-rgb: 17, 24, 39;
-  --primary-rgb: 99, 102, 241;
-  --neon-glow-color: 99, 102, 241;
-}
-
-.theme-forest-green {
-  --background-start-rgb: 20, 33, 27;
-  --background-end-rgb: 26, 46, 53;
-  --primary-rgb: 22, 163, 74;
-  --neon-glow-color: 22, 163, 74;
-}
-
-.theme-rose-gold {
-  --background-start-rgb: 70, 27, 43;
-  --background-end-rgb: 90, 40, 50;
-  --primary-rgb: 244, 114, 182;
-  --neon-glow-color: 244, 114, 182;
-}
-
-/* Force theme updates */
-.theme-updating {
-  transition: var(--theme-transition) !important;
-}
-
-/* Glass effect components */
-.glass-panel {
-  background: rgba(var(--glass-color-rgb)) !important;
-  -webkit-backdrop-filter: blur(20px) !important;
-  backdrop-filter: blur(20px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  transition: var(--theme-transition) !important;
-}
-
-.glass-card {
-  background: rgba(var(--glass-color-rgb)) !important;
-  -webkit-backdrop-filter: blur(16px) !important;
-  backdrop-filter: blur(16px) !important;
-  border: 1px solid rgba(255, 255, 255, 0.1) !important;
-  transition: var(--theme-transition) !important;
-}
-
-.neon-glow {
-  box-shadow: 0 0 20px rgba(var(--neon-glow-color), 0.3) !important;
-  transition: var(--theme-transition) !important;
-}
-
-/* Button and interactive elements */
-.btn-primary {
-  background-color: rgb(var(--primary-rgb)) !important;
-  color: rgb(var(--primary-foreground-rgb)) !important;
-  transition: var(--theme-transition) !important;
-}
-
-.btn-primary:hover {
-  background-color: rgba(var(--primary-rgb), 0.8) !important;
-  box-shadow: 0 0 15px rgba(var(--primary-rgb), 0.4) !important;
-}
-
-/* Message components */
-.message-bubble {
-  transition: var(--theme-transition) !important;
-}
-
-/* Reaction buttons */
-.reaction-button {
-  transition: all 0.2s ease !important;
-}
-
-.reaction-button:hover {
-  transform: scale(1.05) !important;
-}
-
-/* Voice recorder */
-.voice-recorder {
-  transition: var(--theme-transition) !important;
-}
-
-/* Mobile optimizations */
-@media (max-width: 768px) {
-  .tap-feedback {
-    -webkit-tap-highlight-color: rgba(var(--primary-rgb), 0.2);
-    transition: background-color 0.1s ease;
+  /* Loading States */
+  .skeleton-loader {
+    @apply glass-card;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.05) 25%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.5s infinite;
   }
 
-  .tap-feedback:active {
-    background-color: rgba(var(--primary-rgb), 0.1) !important;
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
-
-  .message-list {
-    scroll-snap-type: none !important;
-  }
-}
-
-/* Scrollbar styling */
-.messages-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.messages-scrollbar::-webkit-scrollbar-track {
-  background: rgba(var(--secondary-rgb), 0.3);
-  border-radius: 3px;
-}
-
-.messages-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(var(--primary-rgb), 0.6);
-  border-radius: 3px;
-}
-
-.messages-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(var(--primary-rgb), 0.8);
-}
-
-/* Animation improvements */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-.message-bubble {
-  animation: fadeIn 0.3s ease-out;
-}
-
-/* Ensure all components respect theme changes */
-* {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
-}
-
-/* Override any conflicting styles */
-.bg-slate-900,
-.bg-slate-800,
-.bg-slate-700 {
-  background: linear-gradient(135deg,
-      rgb(var(--background-start-rgb)) 0%,
-      rgb(var(--background-end-rgb)) 100%) !important;
-}
-
-.text-white,
-.text-slate-300,
-.text-slate-200 {
-  color: rgb(var(--foreground-rgb)) !important;
-}
-
-/* Ensure proper contrast for readability */
-.text-muted-foreground {
-  color: rgba(var(--foreground-rgb), 0.7) !important;
-}
-
-/* Fix any layout issues */
-.h-screen {
-  min-height: 100vh;
-  min-height: 100dvh;
-  /* Dynamic viewport height for mobile */
-}
-
-/* Improve touch targets on mobile */
-@media (max-width: 768px) {
-
-  button,
-  .btn,
-  [role="button"] {
-    min-height: 44px;
-    min-width: 44px;
-  }
-}
-
-/* Accessibility improvements */
-@media (prefers-reduced-motion: reduce) {
-  * {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
-  }
-}
-
-/* High contrast mode support */
-@media (prefers-contrast: high) {
-
-  .glass-panel,
-  .glass-card {
-    border-width: 2px !important;
-    border-color: rgb(var(--foreground-rgb)) !important;
-  }
-}
-
-/* Ensure message containers can overscroll independently */
-.messages-container {
-  overscroll-behavior-y: contain;
 }

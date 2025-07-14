@@ -3,616 +3,386 @@
 @tailwind utilities;
 
 @layer base {
+  /* Premium Glassmorphism Variables */
   :root {
-    --background-start-rgb: 240, 242, 245;
-    --background-end-rgb: 255, 255, 255;
-    --foreground-rgb: 15, 23, 42;
-    --primary-rgb: 34, 197, 94;
-    --primary-foreground-rgb: 255, 255, 255;
-    --secondary-rgb: 241, 245, 249;
-    --secondary-foreground-rgb: 15, 23, 42;
-    --accent-rgb: 59, 130, 246;
-    --accent-foreground-rgb: 255, 255, 255;
-    --glass-color-rgb: 255, 255, 255, 0.5;
-    --neon-glow-color: 34, 197, 94;
-
-    --background: 255 255 255;
-    --foreground: 222.2 84% 4.9%;
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.5rem;
+    /* Glass effects */
+    --glass-blur: 24px;
+    --glass-saturation: 1.2;
+    --glass-opacity: 0.08;
+    --glass-border-opacity: 0.2;
+    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+    
+    /* Enhanced colors */
+    --glow-intensity: 0.6;
+    --text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+    --interaction-scale: 0.98;
+    
+    /* Animations */
+    --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+    --smooth-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
   }
 
-  .dark {
-    --background-start-rgb: 15, 23, 42;
-    --background-end-rgb: 51, 65, 85;
-    --foreground-rgb: 229, 231, 235;
-    --primary-rgb: 34, 197, 94;
-    --primary-foreground-rgb: 255, 255, 255;
-    --secondary-rgb: 30, 41, 59;
-    --secondary-foreground-rgb: 229, 231, 235;
-    --accent-rgb: 59, 130, 246;
-    --accent-foreground-rgb: 255, 255, 255;
-    --glass-color-rgb: 30, 41, 59, 0.4;
-    --neon-glow-color: 34, 197, 94;
+  /* Premium background with depth */
+  body {
+    background: 
+      radial-gradient(ellipse at top left, rgba(34, 197, 94, 0.15) 0%, transparent 50%),
+      radial-gradient(ellipse at bottom right, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+      linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    min-height: 100vh;
+    position: relative;
+    overflow-x: hidden;
+  }
 
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+  /* Animated background orbs */
+  body::before,
+  body::after {
+    content: '';
+    position: fixed;
+    border-radius: 50%;
+    filter: blur(100px);
+    opacity: 0.3;
+    pointer-events: none;
+    animation: float 20s infinite ease-in-out;
+  }
+
+  body::before {
+    width: 400px;
+    height: 400px;
+    background: radial-gradient(circle, #22c55e, transparent);
+    top: -200px;
+    left: -200px;
+  }
+
+  body::after {
+    width: 600px;
+    height: 600px;
+    background: radial-gradient(circle, #3b82f6, transparent);
+    bottom: -300px;
+    right: -300px;
+    animation-delay: -10s;
+  }
+
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0) scale(1); }
+    25% { transform: translate(50px, -50px) scale(1.1); }
+    50% { transform: translate(-30px, 30px) scale(0.9); }
+    75% { transform: translate(30px, 50px) scale(1.05); }
   }
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-
-  body {
-    background: linear-gradient(to bottom right, rgb(var(--background-start-rgb)), rgb(var(--background-end-rgb)));
-    color: rgb(var(--foreground-rgb));
-  }
-
-  /* Focus states for custom themes */
-  input:focus,
-  textarea:focus,
-  button:focus,
-  select:focus,
-  [role="button"]:focus {
-    outline: none !important;
-    box-shadow: 0 0 0 2px rgba(var(--neon-glow-color), 0.5) !important;
-    background-color: rgba(var(--secondary-rgb), 0.8) !important;
-  }
-
-  /* Input styling for custom themes */
-  input,
-  textarea,
-  select {
-    background-color: rgba(var(--secondary-rgb), 0.5) !important;
-    border-color: rgba(var(--foreground-rgb), 0.2) !important;
-    color: rgb(var(--foreground-rgb)) !important;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: rgba(var(--foreground-rgb), 0.5) !important;
-  }
-
-  /* Glass morphism effects */
-  .glass,
-  .glass-panel,
-  .glass-card,
-  .btn-glass {
-    background: rgba(var(--glass-color-rgb));
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(var(--foreground-rgb), 0.1);
-  }
-
-  /* Neon glow effect */
-  .neon-glow {
-    box-shadow: 0 0 5px rgba(var(--neon-glow-color), 0.3), 0 0 10px rgba(var(--neon-glow-color), 0.2), 0 0 15px rgba(var(--neon-glow-color), 0.1);
-  }
-
-  .neon-glow:hover {
-    box-shadow: 0 0 10px rgba(var(--neon-glow-color), 0.4), 0 0 20px rgba(var(--neon-glow-color), 0.3), 0 0 30px rgba(var(--neon-glow-color), 0.2);
-  }
-
-  .btn-glass:hover {
-    background: rgba(var(--primary-rgb), 0.15);
-    color: rgb(var(--primary-rgb));
-    transform: translateY(-1px);
-    box-shadow: 0 0 12px rgba(var(--neon-glow-color), 0.3);
-  }
-
-  /* Fix bright white focus states for dark theme with neon green */
-  input:focus,
-  textarea:focus,
-  button:focus,
-  select:focus,
-  [role="button"]:focus {
-    outline: none !important;
-    box-shadow: 0 0 0 2px rgba(34, 197, 94, 0.5) !important;
-    background-color: rgba(30, 41, 59, 0.8) !important;
-  }
-
-  /* Dark theme input styling */
-  input,
-  textarea,
-  select {
-    background-color: rgba(30, 41, 59, 0.5) !important;
-    border-color: rgba(71, 85, 105, 0.5) !important;
-    color: white !important;
-  }
-
-  input::placeholder,
-  textarea::placeholder {
-    color: rgba(148, 163, 184, 0.7) !important;
-  }
-
-  /* Glass morphism effects */
-  .glass {
-    background: rgba(30, 41, 59, 0.4);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  .glass-darker {
-    background: rgba(15, 23, 42, 0.6);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-  }
-
-  /* Neon glow effect - updated to green */
-  .neon-glow {
-    box-shadow: 0 0 5px rgba(34, 197, 94, 0.3), 0 0 10px rgba(34, 197, 94, 0.2), 0 0 15px rgba(34, 197, 94, 0.1);
-  }
-
-  .neon-glow:hover {
-    box-shadow: 0 0 10px rgba(34, 197, 94, 0.4), 0 0 20px rgba(34, 197, 94, 0.3), 0 0 30px rgba(34, 197, 94, 0.2);
-  }
-
-  /* Mobile-specific improvements */
+@layer components {
+  /* Premium Glass Panels */
   .glass-panel {
-    background: rgba(30, 41, 59, 0.4);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, var(--glass-opacity));
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    border: 1px solid rgba(255, 255, 255, var(--glass-border-opacity));
+    box-shadow: 
+      var(--glass-shadow),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.1);
+    position: relative;
+    overflow: hidden;
   }
 
+  /* Frosted texture overlay */
+  .glass-panel::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background-image: 
+      repeating-linear-gradient(45deg, transparent, transparent 35px, rgba(255, 255, 255, 0.01) 35px, rgba(255, 255, 255, 0.01) 70px),
+      url("data:image/svg+xml,%3Csvg width='100' height='100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4'/%3E%3C/filter%3E%3Crect width='100' height='100' filter='url(%23noise)' opacity='0.02'/%3E%3C/svg%3E");
+    pointer-events: none;
+    opacity: 0.5;
+  }
+
+  /* Glass Cards with depth */
   .glass-card {
-    background: rgba(30, 41, 59, 0.3);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    @apply glass-panel;
+    background: rgba(255, 255, 255, 0.06);
+    transition: all 0.3s var(--smooth-out);
   }
 
-  .glass-float {
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  .glass-card:hover {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+    box-shadow: 
+      0 12px 40px rgba(0, 0, 0, 0.5),
+      inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
   }
 
+  /* Premium Buttons */
   .btn-glass {
-    background: rgba(30, 41, 59, 0.3);
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    transition: all 0.2s ease;
+    @apply relative overflow-hidden;
+    background: rgba(255, 255, 255, 0.1);
+    -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturation));
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: white;
+    font-weight: 500;
+    letter-spacing: 0.025em;
+    transition: all 0.2s var(--smooth-out);
+    box-shadow: 
+      0 4px 15px rgba(0, 0, 0, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  }
+
+  .btn-glass::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      rgba(255, 255, 255, 0.2),
+      transparent
+    );
+    transition: left 0.5s;
   }
 
   .btn-glass:hover {
-    background: rgba(34, 197, 94, 0.15);
-    color: rgba(34, 197, 94, 1);
+    background: rgba(255, 255, 255, 0.15);
+    border-color: rgba(255, 255, 255, 0.3);
     transform: translateY(-1px);
-    box-shadow: 0 0 12px rgba(34, 197, 94, 0.3);
+    box-shadow: 
+      0 6px 20px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
-  /* Touch-friendly improvements */
-  .touch-manipulation {
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
+  .btn-glass:hover::before {
+    left: 100%;
   }
 
-  /* Safe area support for mobile devices */
-  @supports (padding: max(0px)) {
-    .safe-area-inset {
-      padding-left: max(1rem, env(safe-area-inset-left));
-      padding-right: max(1rem, env(safe-area-inset-right));
-    }
+  .btn-glass:active {
+    transform: translateY(0) scale(var(--interaction-scale));
+    box-shadow: 
+      0 2px 10px rgba(0, 0, 0, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.1);
   }
 
-  /* Improve scrolling on mobile */
-  .mobile-scroll {
-    /* Enhanced scrolling for supported browsers */
-    scroll-behavior: smooth;
+  /* Primary Action Buttons */
+  .btn-primary {
+    @apply btn-glass;
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.9), rgba(22, 163, 74, 0.9));
+    border-color: rgba(34, 197, 94, 0.5);
+    box-shadow: 
+      0 4px 15px rgba(34, 197, 94, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.3);
   }
 
-  /* Better message bubbles on mobile */
-  @media (max-width: 768px) {
-    .message-bubble {
-      max-width: 90vw;
-    }
+  .btn-primary:hover {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 1), rgba(22, 163, 74, 1));
+    box-shadow: 
+      0 6px 25px rgba(34, 197, 94, 0.4),
+      0 0 40px rgba(34, 197, 94, 0.2),
+      inset 0 1px 0 rgba(255, 255, 255, 0.4);
   }
 
-  /* Prevent zoom on input focus on iOS */
-  @media screen and (max-width: 768px) {
-
-    input[type="text"],
-    input[type="email"],
-    input[type="password"],
-    textarea {
-      font-size: 16px !important;
-    }
+  /* Enhanced Message Bubbles */
+  .message-bubble {
+    @apply glass-card;
+    padding: 12px 16px;
+    border-radius: 18px;
+    max-width: 70%;
+    word-wrap: break-word;
+    animation: messageSlide 0.3s var(--spring-bounce);
   }
 
-  /* Enhanced desktop spacing */
-  @media (min-width: 768px) {
-    .desktop-spacing {
-      padding: 1.5rem;
-      gap: 1.5rem;
-    }
-
-    .desktop-panel-spacing {
-      margin: 1rem;
-    }
-  }
-
-  /* Premium Mobile Enhancements */
-
-  /* Haptic-like feedback simulation */
-  .haptic-light {
-    transition: transform 0.1s ease;
-  }
-
-  .haptic-light:active {
-    transform: scale(0.98);
-  }
-
-  .haptic-medium {
-    transition: transform 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-  }
-
-  .haptic-medium:active {
-    transform: scale(0.95);
-  }
-
-  /* Native-like button interactions */
-  .btn-native {
-    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-    transform: translateZ(0);
-    backface-visibility: hidden;
-  }
-
-  .btn-native:active {
-    transform: translateY(1px) scale(0.99);
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
-  }
-
-  /* Smooth message animations */
-  @keyframes messageSlideIn {
+  @keyframes messageSlide {
     from {
       opacity: 0;
-      transform: translateY(10px) scale(0.98);
+      transform: translateY(10px) scale(0.95);
     }
-
     to {
       opacity: 1;
       transform: translateY(0) scale(1);
     }
   }
 
-  .message-enter {
-    animation: messageSlideIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  .message-bubble.own-message {
+    background: linear-gradient(135deg, rgba(34, 197, 94, 0.15), rgba(34, 197, 94, 0.1));
+    border-color: rgba(34, 197, 94, 0.3);
+    margin-left: auto;
   }
 
-  /* Enhanced scroll indicators with fallbacks */
-  .scroll-indicator {
-    /* Fallback for older browsers */
+  /* Input Fields */
+  .input-glass {
+    @apply glass-panel;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: white;
+    transition: all 0.2s;
+  }
+
+  .input-glass:focus {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(34, 197, 94, 0.5);
+    box-shadow: 
+      0 0 0 3px rgba(34, 197, 94, 0.1),
+      0 4px 15px rgba(0, 0, 0, 0.2);
+    outline: none;
+  }
+
+  /* Scrollbar Styling - Cross-browser compatible */
+  .custom-scrollbar {
+    /* Enhanced scrolling experience with modern properties */
+    scroll-behavior: smooth; /* Smooth scrolling for anchor links */
     overflow: auto;
+    
+    /* Modern browsers with overscroll-behavior support */
+    @supports (overscroll-behavior: contain) {
+      overscroll-behavior: contain; /* Prevent scroll chaining */
+    }
+    
+    /* Fallback for older browsers */
+    @supports not (overscroll-behavior: contain) {
+      /* Use touch-action to prevent unwanted scrolling behaviors */
+      touch-action: pan-y pan-x;
+    }
   }
 
-  /* Modern browsers with scrollbar styling support */
+  /* WebKit browsers (Chrome, Safari, Edge) - Primary implementation */
+  .custom-scrollbar::-webkit-scrollbar {
+    width: 6px;
+    height: 6px; /* For horizontal scrollbars */
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb {
+    background: linear-gradient(to bottom, rgba(34, 197, 94, 0.5), rgba(34, 197, 94, 0.3));
+    border-radius: 3px;
+  }
+
+  .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+    background: linear-gradient(to bottom, rgba(34, 197, 94, 0.7), rgba(34, 197, 94, 0.5));
+  }
+
+  /* Firefox - Only apply if supported */
   @supports (scrollbar-width: thin) {
-    .scroll-indicator {
+    .custom-scrollbar {
       scrollbar-width: thin;
       scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
     }
   }
 
-  .scroll-indicator::-webkit-scrollbar {
-    width: 4px;
+  /* Fallback for browsers without custom scrollbar support */
+  @supports not (scrollbar-width: thin) and not (-webkit-appearance: none) {
+    .custom-scrollbar {
+      /* Ensure scrolling still works with default appearance */
+      overflow: auto;
+      /* Add subtle visual indicator for scroll areas */
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
   }
 
-  .scroll-indicator::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .scroll-indicator::-webkit-scrollbar-thumb {
-    background: rgba(34, 197, 94, 0.3);
-    border-radius: 2px;
-  }
-
-  .scroll-indicator::-webkit-scrollbar-thumb:hover {
-    background: rgba(34, 197, 94, 0.5);
-  }
-
-  /* Native-like list item interactions */
-  .list-item-interactive {
-    transition: background-color 0.2s ease, transform 0.1s ease;
-    cursor: pointer;
-    -webkit-user-select: none;
-    user-select: none;
-
-  }
-
-  .list-item-interactive:hover {
-    background-color: rgba(34, 197, 94, 0.05);
-  }
-
-  .list-item-interactive:active {
-    background-color: rgba(34, 197, 94, 0.1);
-    transform: scale(0.998);
-  }
-
-  /* Refined focus states for mobile */
+  /* Mobile-First Enhancements */
   @media (max-width: 768px) {
+    .glass-panel {
+      --glass-blur: 16px;
+      --glass-opacity: 0.1;
+    }
 
-    input:focus,
-    textarea:focus,
-    button:focus,
-    [role="button"]:focus {
-      outline: 2px solid rgba(34, 197, 94, 0.6);
-      outline-offset: -2px;
+    /* Touch-friendly tap targets */
+    .tap-target {
+      min-height: 48px;
+      min-width: 48px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Bottom sheet pattern for mobile */
+    .mobile-sheet {
+      @apply glass-panel;
+      border-radius: 24px 24px 0 0;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    /* Improved message input */
+    .message-input-container {
+      @apply mobile-sheet;
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      z-index: 40;
+      padding: 12px;
+      padding-bottom: calc(12px + env(safe-area-inset-bottom));
+    }
+
+    /* Native-like list items */
+    .list-item {
+      @apply glass-card;
+      margin: 8px;
+      padding: 16px;
+      border-radius: 16px;
+      transition: all 0.2s;
+    }
+
+    .list-item:active {
+      transform: scale(0.98);
+      background: rgba(255, 255, 255, 0.12);
     }
   }
 
-  /* Enhanced keyboard handling on mobile */
-  @supports (env(keyboard-inset-height)) {
-    .keyboard-aware {
-      padding-bottom: env(keyboard-inset-height);
-    }
-  }
-
-  /* Smooth pull-to-refresh effect with fallbacks */
-  .pull-to-refresh {
-    /* Fallback for older browsers */
-    overflow: auto;
-  }
-
-  /* Modern browsers with overscroll-behavior support */
-  @supports (overscroll-behavior-y: contain) {
-    .pull-to-refresh {
-      overscroll-behavior-y: contain;
-    }
-  }
-
-  @supports (overscroll-behavior: none) {
-    .pull-to-refresh {
-      overscroll-behavior-y: none;
-    }
-  }
-
-  /* Native-like selection styling */
-  ::selection {
-    background-color: rgba(34, 197, 94, 0.3);
-    color: white;
-  }
-
-  ::-moz-selection {
-    background-color: rgba(34, 197, 94, 0.3);
-    color: white;
-  }
-
-  /* Enhanced mobile typography */
-  @media (max-width: 768px) {
-    .text-mobile-optimized {
-      font-size: 16px;
-      line-height: 1.4;
-      letter-spacing: -0.01em;
-    }
-
-    .text-mobile-large {
-      font-size: 18px;
-      line-height: 1.3;
-      font-weight: 500;
-    }
-  }
-
-  /* Premium loading states */
-  @keyframes shimmer {
-    0% {
-      transform: translateX(-100%);
-    }
-
-    100% {
-      transform: translateX(100%);
-    }
-  }
-
-  .loading-shimmer {
+  /* Icon Buttons with Labels */
+  .icon-btn {
+    @apply btn-glass tap-target;
     position: relative;
-    overflow: hidden;
-    background: rgba(30, 41, 59, 0.3);
+    border-radius: 12px;
+    padding: 8px;
   }
 
-  .loading-shimmer::after {
-    content: '';
+  .icon-btn .tooltip {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(90deg,
-        transparent,
-        rgba(34, 197, 94, 0.1),
-        transparent);
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(0, 0, 0, 0.9);
+    color: white;
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s;
+    margin-bottom: 4px;
+  }
+
+  @media (hover: hover) {
+    .icon-btn:hover .tooltip {
+      opacity: 1;
+    }
+  }
+
+  /* Enhanced Focus States */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-green-400/50 focus:ring-offset-2 focus:ring-offset-transparent;
+  }
+
+  /* Loading States */
+  .skeleton-loader {
+    @apply glass-card;
+    background: linear-gradient(
+      90deg,
+      rgba(255, 255, 255, 0.05) 25%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(255, 255, 255, 0.05) 75%
+    );
+    background-size: 200% 100%;
     animation: shimmer 1.5s infinite;
   }
 
-  .message-bubble {
-    max-width: 60%;
-    min-width: -webkit-fill-available;
-    transition: width 0.2s, max-width 0.2s;
-    background: rgba(30, 41, 59, 0.7);
-    /* dark mode default */
-  }
-
-  @media (prefers-color-scheme: light) {
-    .message-bubble {
-      background: rgba(255, 255, 255, 0.8);
-      /* light mode default */
-    }
-  }
-
-  @media (max-width: 768px) {
-    .message-bubble {
-      max-width: 90vw;
-    }
-  }
-}
-
-/* Scrollbar styles with fallbacks */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.2);
-  border-radius: 4px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.3);
-}
-
-/* Modern scrollbar properties with fallbacks */
-.scrollbar-modern {
-  /* Fallback for all browsers */
-  overflow: auto;
-  touch-action: pan-y;
-}
-
-/* Apply modern scrollbar styles only where supported */
-@supports (scrollbar-width: thin) {
-  .scrollbar-modern {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
-  }
-}
-
-/* Legacy iOS smooth scrolling (deprecated but harmless) */
-@supports (-webkit-overflow-scrolling: touch) {
-  .scrollbar-modern {
-    -webkit-overflow-scrolling: touch;
-  }
-}
-
-/* Overscroll behavior with fallbacks */
-.overscroll-contain {
-  /* Fallback for all browsers */
-  overflow: auto;
-  touch-action: pan-y;
-}
-
-/* Apply overscroll-behavior only where supported */
-@supports (overscroll-behavior-y: contain) {
-  .overscroll-contain {
-    overscroll-behavior-y: contain;
-  }
-}
-
-/* Refresh indicator styling */
-.refresh-indicator {
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
-
-/* Enhanced Message Scrolling and Snap Behavior */
-.messages-container {
-  scroll-behavior: smooth;
-  scroll-snap-type: y proximity;
-  scroll-padding-top: 1rem;
-  scroll-padding-bottom: 1rem;
-}
-
-.message-snap {
-  scroll-snap-align: start;
-  scroll-margin: 0.5rem 0;
-}
-
-/* Smooth scrolling for all containers */
-.scroll-smooth {
-  scroll-behavior: smooth;
-}
-
-/* Enhanced scroll snap for message lists */
-.message-list {
-  scroll-snap-type: y proximity;
-  scroll-padding: 1rem;
-}
-
-.message-list>* {
-  scroll-snap-align: start;
-  scroll-margin: 0.5rem 0;
-}
-
-/* Consistent message spacing */
-.message-spacing {
-  margin-bottom: 1rem;
-}
-
-.message-spacing:last-child {
-  margin-bottom: 0;
-}
-
-/* Smooth transitions for message appearance */
-.message-transition {
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-/* Enhanced scrollbar for message containers */
-.messages-scrollbar::-webkit-scrollbar {
-  width: 6px;
-}
-
-.messages-scrollbar::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.messages-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(34, 197, 94, 0.3);
-  border-radius: 3px;
-}
-
-.messages-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(34, 197, 94, 0.5);
-}
-
-/* Firefox scrollbar styling with fallback */
-.messages-scrollbar {
-  /* Fallback for all browsers */
-  overflow: auto;
-}
-
-/* Apply modern scrollbar styles only where supported */
-@supports (scrollbar-width: thin) {
-  .messages-scrollbar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(34, 197, 94, 0.3) transparent;
+  @keyframes shimmer {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
   }
 }

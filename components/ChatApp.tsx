@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
+import { ImprovedVideoCallView } from "@/components/chat/ImprovedVideoCallView"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db, rtdb } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
@@ -11,12 +12,11 @@ import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import { VideoCallView } from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
-import { MessageInput } from "@/components/MessageInput"
-import { Message as MessageComponent } from "@/components/chat/Message"
+import MessageInput from "@/components/MessageInput"
+import { OptimizedMessage } from '@/components/chat/OptimizedMessage'
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
 import { ThreadView } from "@/components/chat/ThreadView"
 import { uploadVoiceMessage } from "@/lib/storage"
@@ -24,20 +24,36 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Menu, X, Phone, Video } from "lucide-react"
+import { 
+  WifiOff, 
+  RefreshCw, 
+  Hash, 
+  Users, 
+  MessageCircle, 
+  Menu, 
+  X, 
+  Phone, 
+  Video, 
+  Search, 
+  ChevronDown 
+} from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
-import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
 import { usePullToRefresh } from "@/hooks/usePullToRefresh"
+import { RoomHeader } from '@/components/chat/room-header'
 import { useMobileNotifications } from "@/lib/mobileNotifications"
 import { useHaptics } from "@/lib/haptics"
 
-export default function ChatApp() {
+interface ChatAppProps {
+  enhanced?: boolean
+}
+
+export default function ChatApp({ enhanced = false }: ChatAppProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
@@ -65,6 +81,9 @@ export default function ChatApp() {
 
   // New feature states
   const [replyToMessage, setReplyToMessage] = useState<any | null>(null)
+
+  // Enhanced UI state
+  const [showScrollButton, setShowScrollButton] = useState(false)
 
   // Initialize sound manager on first user interaction
   useEffect(() => {
@@ -197,9 +216,11 @@ export default function ChatApp() {
     currentRoomType
   )
 
+  // Stable ref for messages container
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
+
   // Pull-to-refresh for messages
   const {
-    containerRef: messagesContainerRef,
     isRefreshing,
     refreshIndicatorStyle,
     isThresholdReached
@@ -221,9 +242,9 @@ export default function ChatApp() {
 
   // WebRTC Hooks
   const {
-    peerConnection, localStream, remoteStream, callStatus: webRTCCallStatus,
-    activeCallTargetUserName, callerUserName, isLocalAudioMuted, isLocalVideoEnabled,
-    initiateCall, initiateAudioCall, acceptCall, declineCall, hangUpCall, toggleLocalAudio, toggleLocalVideo,
+    peerConnection, callStatus: webRTCCallStatus,
+    callerUserName, 
+    initiateCall, initiateAudioCall, acceptCall, declineCall, 
     listenForSignalingMessages, closePeerConnection, setCallStatus
   } = useWebRTC()
 
@@ -236,6 +257,28 @@ export default function ChatApp() {
       AudioTestUtils.runFullAudioDiagnostic().catch(console.error);
     }
   }, [user]);
+
+  // Enhanced scroll detection for scroll-to-bottom button
+  const SCROLL_BOTTOM_THRESHOLD = 100; // px, adjust as needed
+
+  useEffect(() => {
+    if (!enhanced) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
+      setShowScrollButton(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [enhanced, messagesContainerRef.current]);
 
   // Effect for WebRTC signaling listeners
   useEffect(() => {
@@ -332,8 +375,10 @@ export default function ChatApp() {
       )
       return cleanupListeners
     }
+
     return undefined
-  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus, startIncomingCall])
+    
+  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus, startIncomingCall, showCall])
 
   // Effect to check Firebase initialization status
   useEffect(() => {
@@ -428,7 +473,7 @@ export default function ChatApp() {
     }
 
     previousMessageCount.current = messages.length
-  }, [messages, user, currentRoomType])
+  }, [messages, user, currentRoomType, currentRoomId, showMessage])
 
   // Room management functions
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
@@ -791,28 +836,50 @@ export default function ChatApp() {
     setSelectedThread(null)
   }
 
-  const renderMessage = (message: any) => {
-    const isCurrentUser = message.uid === user?.uid
+  // Enhanced scroll to bottom function
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest"
+      })
+    }
+  }
 
+  /**
+   * Renders a single chat message using the OptimizedMessage component.
+   * Maps the message data to the OptimizedMessage props interface.
+   */
+  const renderMessage = React.useCallback((message: any) => {
     return (
-      <MessageComponent
+      <OptimizedMessage
         key={message.id}
-        message={message}
-        isCurrentUser={isCurrentUser}
+        id={message.id}
+        text={message.text}
+        uid={message.uid}
+        displayName={message.userName}
+        photoURL={message.photoURL}
+        createdAt={message.createdAt}
         onEdit={handleEditMessage}
         onDelete={handleDeleteMessage}
         onReply={handleReplyToMessage}
-        onReaction={handleReaction}
+        onReact={handleReaction} // <-- changed from onReaction to onReact
         onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
         onThreadClick={handleThreadClick}
+        currentUserId={user?.uid || ''}
+        isOwn={message.uid === user?.uid} // <-- added prop
       />
-    )
-  }
+    );
+  }, [user?.uid, handleEditMessage, handleDeleteMessage, handleReplyToMessage, handleReaction, handleExpire, handleThreadClick]);
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-screen">
-        <p>Please log in to access the chat.</p>
+      <div className="flex flex-col items-center justify-center h-screen gap-4">
+        <p className="text-lg">Please log in to access the chat.</p>
+        <Button onClick={() => router.push("/login")}>
+          Go to Login
+        </Button>
       </div>
     )
   }
@@ -848,6 +915,142 @@ export default function ChatApp() {
     return <Hash className="h-5 w-5" />
   }
 
+  // Enhanced version with glass effects and improved UI
+  if (enhanced) {
+    return (
+      <div className="h-screen flex flex-col bg-transparent chatapp-enhanced-root" data-testid="chatapp-enhanced-root">
+        {/* Header with Glass Effect */}
+        <header className="glass-panel border-b-0 rounded-b-3xl px-4 py-3 z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button 
+                className="icon-btn md:hidden"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open mobile menu"
+                title="Open mobile menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar className="w-10 h-10 ring-2 ring-white/20">
+                    <AvatarImage src={user?.photoURL || ""} />
+                    <AvatarFallback>{user?.displayName?.[0] || user?.email?.[0] || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
+                </div>
+                
+                <div>
+                  <h1 className="font-semibold text-white">SpeakEasy</h1>
+                  <p className="text-xs text-white/60">
+                    {onlineUsers.length} online
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button className="icon-btn" aria-label="Search messages" title="Search messages">
+                <Search className="w-5 h-5" />
+                <span className="tooltip">Search</span>
+              </button>
+              {onlineUsers.length > 0 && (
+                <>
+                  <button 
+                    className="icon-btn"
+                    onClick={() => setShowMobileCallPicker(true)}
+                    aria-label="Start voice call"
+                    title="Start voice call"
+                  >
+                    <Phone className="w-5 h-5" />
+                    <span className="tooltip">Call</span>
+                  </button>
+                  <button 
+                    className="icon-btn"
+                    onClick={() => setShowMobileCallPicker(true)}
+                    aria-label="Start video call"
+                    title="Start video call"
+                  >
+                    <Video className="w-5 h-5" />
+                    <span className="tooltip">Video</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+        
+        {/* Messages Area with Improved Scrolling */}
+        <main className="flex-1 overflow-hidden relative">
+          <div 
+            ref={messagesContainerRef}
+            className="absolute inset-0 overflow-y-auto custom-scrollbar overscroll-contain"
+          >
+            {/* Pull-to-refresh indicator */}
+            <div
+              className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
+              style={refreshIndicatorStyle}
+            >
+              <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
+                {!isRefreshing && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <ChevronDown className="w-4 h-4 text-green-500" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="space-y-4 p-4">
+              {messages.map(renderMessage)}
+            </div>
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Scroll to bottom button */}
+          {showScrollButton && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-20 right-4 glass-panel p-3 rounded-full shadow-lg hover:scale-105 transition-transform z-10"
+            >
+              <ChevronDown className="w-5 h-5 text-white" />
+            </button>
+          )}
+        </main>
+
+        {/* Enhanced Message Input */}
+        <footer className="glass-panel border-t-0 rounded-t-3xl px-4 py-3">
+          <MessageInput
+            onSend={handleSendMessage}
+            onVoiceRecording={handleRecordingComplete}
+            onGifSelect={() => setShowGiphyPicker(true)}
+            replyToMessage={replyToMessage}
+            onCancelReply={handleCancelReply}
+            currentUserId={user?.uid}
+            currentUserName={user?.displayName || user?.email || 'Anonymous'}
+            roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || undefined}
+            enhanced={true}
+          />
+        </footer>
+
+        {/* Typing Indicators */}
+        <TypingIndicator
+          roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || ''}
+          currentUserId={user.uid}
+          className="sticky bottom-0 bg-background/80 backdrop-blur-sm p-2"
+        />
+
+        {/* Enhanced Video Call View for Enhanced Mode */}
+        {webRTCCallStatus !== 'idle' && (
+          <ImprovedVideoCallView />
+        )}
+
+      </div>
+    )
+  }
+
+  // Original UI (unchanged)
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 flex flex-col">
       {/* Mobile Layout */}
@@ -879,205 +1082,130 @@ export default function ChatApp() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0 md:ml-2">
-          {/* Chat Header */}
-          <div className="h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow md:mb-6">
-            <div className="flex items-center gap-2 md:gap-3 min-w-0">
-              {/* Mobile Menu Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20 shrink-0"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
 
-              {getRoomIcon()}
-              <h1 className="text-lg md:text-xl font-semibold text-white truncate">{currentRoomName}</h1>
+          <RoomHeader
+            roomName={currentRoomName}
+            roomType={currentRoomType}
+            isConnected={isConnected}
+            isLoading={isLoading}
+            onMenuToggle={() => setIsMobileMenuOpen(true)}
+            onRetryConnection={retryConnection}
+            user={{
+              displayName: user.displayName || undefined,
+              email: user.email || undefined
+            }}
+            onlineUsers={onlineUsers}
+            onLogout={handleLogout}
+            showUserList={showUserList}
+            onToggleUserList={setShowUserList}
+            showMobileCallPicker={showMobileCallPicker}
+            onToggleMobileCallPicker={setShowMobileCallPicker}
+            initiateAudioCall={initiateAudioCall}
+            initiateCall={initiateCall}
+            webRTCCallStatus={webRTCCallStatus}
+            className="md:mb-6"
+          />
 
-              {/* Connection Status Indicator - Hidden on small screens */}
-              <div className="hidden sm:flex items-center gap-2">
-                {isLoading ? (
-                  <div className="flex items-center gap-2 text-yellow-400">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="text-xs">Connecting...</span>
-                  </div>
-                ) : isConnected ? (
-                  <div className="flex items-center gap-2 text-green-400">
-                    <Wifi className="h-4 w-4" />
-                    <span className="text-xs">Connected</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-red-400">
-                    <WifiOff className="h-4 w-4" />
-                    <span className="text-xs">Disconnected</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={retryConnection}
-                      className="text-red-400 hover:text-red-300 hover:bg-red-600/20 text-xs h-6 px-2"
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 md:gap-2 shrink-0">
-              {/* Mobile Call Button - Show only when there are online users */}
-              {onlineUsers.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden text-green-400 hover:text-green-300 hover:bg-green-500/20"
-                  onClick={() => setShowMobileCallPicker(!showMobileCallPicker)}
-                  title="Make Call"
-                >
-                  <Phone className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* User List Toggle - Mobile Only */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                onClick={() => setShowUserList(!showUserList)}
-                title="Toggle User List"
-              >
-                <Users className="h-4 w-4" />
-              </Button>
-
-              {/* Hide user name on very small screens */}
-              <span className="hidden sm:block text-sm text-slate-300 mr-2 truncate max-w-32">
-                {user?.displayName || user?.email || "User"}
-              </span>
-
-              <UserSettingsDialog 
-                trigger={
+          {/* Mobile User List Overlay */}
+          {showUserList && (
+            <div className="lg:hidden">
+              <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowUserList(false)} />
+              <div className="fixed right-0 top-0 h-full w-80 glass-panel z-50 shadow-2xl">
+                <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                  <h2 className="text-lg font-semibold text-white">Online Users</h2>
                   <Button
                     variant="ghost"
                     size="icon"
-                    className="tap-feedback text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                    title="User Profile"
+                    onClick={() => setShowUserList(false)}
+                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
                   >
-                    <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
+                    <X className="h-5 w-5" />
                   </Button>
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleLogout}
-                className="text-slate-300 hover:text-red-400 hover:bg-red-600/20"
-                title="Sign Out"
-              >
-                <LogOut className="h-4 md:h-5 w-4 md:w-5" />
-              </Button>
+                </div>
+                <UserList />
+              </div>
             </div>
-          </div>
+          )}
 
-          {/* Messages Area with Mobile User List */}
+          {/* Mobile Call Picker Overlay */}
+          {showMobileCallPicker && (
+            <div className="md:hidden">
+              <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileCallPicker(false)} />
+              <div className="fixed bottom-0 left-0 right-0 glass-panel z-50 rounded-t-xl max-h-96">
+                <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                  <h2 className="text-lg font-semibold text-white">Call Someone</h2>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => setShowMobileCallPicker(false)}
+                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </div>
+                <div className="p-4 overflow-y-auto max-h-80">
+                  {onlineUsers.length === 0 ? (
+                    <div className="text-center text-slate-400 py-8">
+                      No users online to call
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {onlineUsers.map((onlineUser) => (
+                        <div key={onlineUser.uid} className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 touch-manipulation">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-10 w-10">
+                              <AvatarImage src={onlineUser.photoURL || ""} alt={onlineUser.userName || 'User'} />
+                              <AvatarFallback>{onlineUser.userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                            </Avatar>
+                            <span className="text-white font-medium">{onlineUser.userName || 'Anonymous User'}</span>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                initiateAudioCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                setShowMobileCallPicker(false)
+                              }}
+                              disabled={webRTCCallStatus !== 'idle'}
+                              className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
+                              title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
+                            >
+                              <Phone size={20} />
+                              <span className="sr-only">
+                                {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
+                              </span>
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => {
+                                initiateCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                setShowMobileCallPicker(false)
+                              }}
+                              disabled={webRTCCallStatus !== 'idle'}
+                              className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
+                              title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
+                            >
+                              <Video size={20} />
+                              <span className="sr-only">
+                                {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
+                              </span>
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Messages Area */}
           <div className="flex-1 flex flex-col md:flex-row md:gap-6 min-h-0">
             {/* Messages Container */}
             <div className="flex-1 flex flex-col min-h-0">
-              {/* Mobile User List Overlay */}
-              {showUserList && (
-                <div className="lg:hidden">
-                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowUserList(false)} />
-                  <div className="fixed right-0 top-0 h-full w-80 glass-panel z-50 shadow-2xl">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
-                      <h2 className="text-lg font-semibold text-white">Online Users</h2>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowUserList(false)}
-                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
-                    <UserList />
-                  </div>
-                </div>
-              )}
-
-              {/* Mobile Call Picker Overlay */}
-              {showMobileCallPicker && (
-                <div className="md:hidden">
-                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileCallPicker(false)} />
-                  <div className="fixed bottom-0 left-0 right-0 glass-panel z-50 rounded-t-xl max-h-96">
-                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
-                      <h2 className="text-lg font-semibold text-white">Call Someone</h2>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => setShowMobileCallPicker(false)}
-                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                      >
-                        <X className="h-5 w-5" />
-                      </Button>
-                    </div>
-                    <div className="p-4 overflow-y-auto max-h-80">
-                      {onlineUsers.length === 0 ? (
-                        <div className="text-center text-slate-400 py-8">
-                          No users online to call
-                        </div>
-                      ) : (
-                        <div className="space-y-3">
-                          {onlineUsers.map((onlineUser) => (
-                            <div key={onlineUser.uid} className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 touch-manipulation">
-                              <div className="flex items-center gap-3">
-                                <Avatar className="h-10 w-10">
-                                  <AvatarImage src={onlineUser.photoURL || ""} alt={onlineUser.userName || 'User'} />
-                                  <AvatarFallback>{onlineUser.userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-                                </Avatar>
-                                <span className="text-white font-medium">{onlineUser.userName || 'Anonymous User'}</span>
-                              </div>
-                              <div className="flex gap-2">
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    initiateAudioCall(onlineUser.uid, onlineUser.userName || "Anonymous")
-                                    setShowMobileCallPicker(false)
-                                  }}
-                                  disabled={webRTCCallStatus !== 'idle'}
-                                  className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
-                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
-                                >
-                                  <Phone size={20} />
-                                  <span className="sr-only">
-                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
-                                  </span>
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => {
-                                    initiateCall(onlineUser.uid, onlineUser.userName || "Anonymous")
-                                    setShowMobileCallPicker(false)
-                                  }}
-                                  disabled={webRTCCallStatus !== 'idle'}
-                                  className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
-                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
-                                >
-                                  <Video size={20} />
-                                  <span className="sr-only">
-                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
-                                  </span>
-                                </Button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              )}
-
               {/* Messages Area */}
               <div
                 ref={messagesContainerRef}
@@ -1095,11 +1223,12 @@ export default function ChatApp() {
                   <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
                     {!isRefreshing && (
                       <div className="w-full h-full flex items-center justify-center">
-                        <div className="w-2 h-2 bg-green-500 rounded-full" />
+                        <ChevronDown className="w-4 h-4 text-green-500" />
                       </div>
                     )}
                   </div>
                 </div>
+                
                 {/* Connection Status Banner */}
                 {!isConnected && !isLoading && firebaseStatus === 'ready' && (
                   <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
@@ -1193,92 +1322,69 @@ export default function ChatApp() {
               </div>
             </div>
 
-            {/* Desktop User List - Hidden on Mobile */}
-            <div className="hidden lg:block w-64 glass-panel rounded-xl glass-float">
+            {/* Desktop User List - Hidden on mobile */}
+            <div className="hidden lg:block w-64">
               <UserList />
             </div>
           </div>
+
+          {/* Enhanced Video Call View for All Modes */}
+          {webRTCCallStatus !== 'idle' && (
+            <ImprovedVideoCallView />
+          )}
+
+          {/* Giphy Picker Modal */}
+          {showGiphyPicker && (
+            <GiphyPicker
+              onSelectGif={handleSelectGif}
+              onClose={handleCloseGiphyPicker}
+            />
+          )}
+
+          {/* Incoming Call Dialog */}
+          <IncomingCallDialog
+            open={webRTCCallStatus === 'ringing'}
+            callerName={callerUserName || 'Unknown User'}
+            isVideo={true}
+            onAcceptVideo={async () => {
+              try {
+                await acceptCall()
+              } catch (error) {
+                console.error('Error accepting video call:', error)
+                toast({
+                  title: "Call Error",
+                  description: "Failed to accept call. Please try again.",
+                  variant: "destructive",
+                })
+              }
+            }}
+            onAcceptAudio={async () => {
+              try {
+                await acceptCall()
+              } catch (error) {
+                console.error('Error accepting audio call:', error)
+                toast({
+                  title: "Call Error",
+                  description: "Failed to accept call. Please try again.",
+                  variant: "destructive",
+                })
+              }
+            }}
+            onDecline={async () => {
+              try {
+                await declineCall()
+              } catch (error) {
+                console.error('Error declining call:', error)
+                toast({
+                  title: "Call Error",
+                  description: "Failed to decline call.",
+                  variant: "destructive",
+                })
+              }
+            }}
+          />
         </div>
       </div>
-
-      {/* Video Call View */}
-      {webRTCCallStatus !== 'idle' && (
-        <VideoCallView
-          localStream={localStream}
-          remoteStream={remoteStream}
-          onToggleAudio={toggleLocalAudio}
-          onToggleVideo={toggleLocalVideo}
-          onEndCall={async () => {
-            try {
-              await hangUpCall()
-            } catch (error) {
-              console.error('Error ending call:', error)
-              toast({
-                title: "Call Error",
-                description: "Failed to end call properly.",
-                variant: "destructive",
-              })
-            }
-          }}
-          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
-          callStatus={webRTCCallStatus}
-          isLocalAudioMuted={isLocalAudioMuted}
-          isLocalVideoEnabled={isLocalVideoEnabled}
-          peerConnection={peerConnection}
-          setRemoteStream={() => {}}
-        />
-      )}
-
-      {/* Giphy Picker Modal */}
-      {showGiphyPicker && (
-        <GiphyPicker
-          onSelectGif={handleSelectGif}
-          onClose={handleCloseGiphyPicker}
-        />
-      )}
-
-      {/* Incoming Call Dialog */}
-      <IncomingCallDialog
-        open={webRTCCallStatus === 'ringing'}
-        callerName={callerUserName || 'Unknown User'}
-        isVideo={true}
-        onAcceptVideo={async () => {
-          try {
-            await acceptCall()
-          } catch (error) {
-            console.error('Error accepting video call:', error)
-            toast({
-              title: "Call Error",
-              description: "Failed to accept call. Please try again.",
-              variant: "destructive",
-            })
-          }
-        }}
-        onAcceptAudio={async () => {
-          try {
-            await acceptCall()
-          } catch (error) {
-            console.error('Error accepting audio call:', error)
-            toast({
-              title: "Call Error",
-              description: "Failed to accept call. Please try again.",
-              variant: "destructive",
-            })
-          }
-        }}
-        onDecline={async () => {
-          try {
-            await declineCall()
-          } catch (error) {
-            console.error('Error declining call:', error)
-            toast({
-              title: "Call Error",
-              description: "Failed to decline call.",
-              variant: "destructive",
-            })
-          }
-        }}
-      />
     </div>
   )
 }
