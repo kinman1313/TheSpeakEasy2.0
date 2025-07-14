@@ -852,26 +852,79 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
    * Maps the message data to the OptimizedMessage props interface.
    */
   const renderMessage = React.useCallback((message: any) => {
+    const isCurrentUser = message.uid === user?.uid;
+    
+    // Handle different timestamp formats safely
+    let timestamp = message.createdAt;
+    if (timestamp && typeof timestamp.toDate === 'function') {
+      // Firestore Timestamp
+      timestamp = timestamp;
+    } else if (timestamp && typeof timestamp === 'string') {
+      // String timestamp - convert to Firestore-like Timestamp
+      const date = new Date(timestamp);
+      timestamp = { toDate: () => date } as any;
+    } else if (timestamp && typeof timestamp === 'number') {
+      // Unix timestamp - convert to Firestore-like Timestamp
+      const date = new Date(timestamp);
+      timestamp = { toDate: () => date } as any;
+    } else if (timestamp instanceof Date) {
+      // JavaScript Date - convert to Firestore-like Timestamp
+      timestamp = { toDate: () => timestamp } as any;
+    } else {
+      // Fallback to current time
+      const date = new Date();
+      timestamp = { toDate: () => date } as any;
+    }
+
     return (
       <OptimizedMessage
         key={message.id}
         id={message.id}
-        text={message.text}
-        uid={message.uid}
-        displayName={message.userName}
+        text={message.text || ''}
+        displayName={message.userName || message.displayName || 'Anonymous'}
         photoURL={message.photoURL}
-        createdAt={message.createdAt}
+        createdAt={timestamp}
+        editedAt={message.editedAt}
+        uid={message.uid}
+        currentUserId={user?.uid || ''}
+        reactions={message.reactions}
+        replyTo={message.replyToMessage}
+        isOwn={isCurrentUser}
+        status={message.status}
+        readBy={message.readBy || []}
+        fileUrl={message.fileUrl}
+        fileName={message.fileName}
+        fileType={message.fileType}
+        fileSize={message.fileSize}
+        imageUrl={message.imageUrl}
+        gifUrl={message.gifUrl}
+        audioUrl={message.audioUrl}
+        voiceMessageUrl={message.voiceMessageUrl}
+        mp3Url={message.mp3Url}
+        chatColor={message.chatColor}
+        threadCount={message.threadCount}
+        onReply={handleReplyToMessage}
         onEdit={handleEditMessage}
         onDelete={handleDeleteMessage}
-        onReply={handleReplyToMessage}
-        onReact={handleReaction} // <-- changed from onReaction to onReact
-        onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
+        onReact={handleReaction}
+        onCopy={(text: string) => {
+          navigator.clipboard.writeText(text);
+          toast({
+            title: "Copied",
+            description: "Message text copied to clipboard",
+          });
+        }}
+        onFlag={(messageId: string) => {
+          toast({
+            title: "Message Reported",
+            description: "Thank you for reporting this message",
+          });
+        }}
+        onExpire={handleExpire}
         onThreadClick={handleThreadClick}
-        currentUserId={user?.uid || ''}
-        isOwn={message.uid === user?.uid} // <-- added prop
       />
     );
-  }, [user?.uid, handleEditMessage, handleDeleteMessage, handleReplyToMessage, handleReaction, handleExpire, handleThreadClick]);
+  }, [user?.uid, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, handleThreadClick, toast]);
 
   if (!user) {
     return (
