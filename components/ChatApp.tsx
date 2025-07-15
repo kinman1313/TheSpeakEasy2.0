@@ -15,7 +15,8 @@ import { useWebRTC } from "@/components/providers/WebRTCProvider"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
-import MessageInput from "@/components/MessageInput"
+import { MessageInput } from "@/components/MessageInput"
+import { Message as MessageComponent } from "@/components/chat/Message"
 import { OptimizedMessage } from '@/components/chat/OptimizedMessage'
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
 import { ThreadView } from "@/components/chat/ThreadView"
@@ -24,7 +25,11 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
+import { VideoCallView } from "@/components/chat/VideoCallView"
 import { 
+  User as UserIcon, 
+  LogOut, 
+  Wifi, 
   WifiOff, 
   RefreshCw, 
   Hash, 
@@ -33,19 +38,20 @@ import {
   Menu, 
   X, 
   Phone, 
-  Video, 
-  Search, 
+  Video,
+  Search,
   ChevronDown 
 } from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
+import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
+import { RoomHeader } from '@/components/chat/room-header'
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
 import { Timestamp } from 'firebase/firestore'
 import { usePullToRefresh } from "@/hooks/usePullToRefresh"
-import { RoomHeader } from '@/components/chat/room-header'
 import { useMobileNotifications } from "@/lib/mobileNotifications"
 import { useHaptics } from "@/lib/haptics"
 
@@ -84,6 +90,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
   // Enhanced UI state
   const [showScrollButton, setShowScrollButton] = useState(false)
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
 
   // Initialize sound manager on first user interaction
   useEffect(() => {
@@ -216,11 +223,9 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     currentRoomType
   )
 
-  // Stable ref for messages container
-  const messagesContainerRef = useRef<HTMLDivElement>(null);
-
   // Pull-to-refresh for messages
   const {
+    containerRef: messagesContainerRef,
     isRefreshing,
     refreshIndicatorStyle,
     isThresholdReached
@@ -242,9 +247,9 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
   // WebRTC Hooks
   const {
-    peerConnection, callStatus: webRTCCallStatus,
-    callerUserName, 
-    initiateCall, initiateAudioCall, acceptCall, declineCall, 
+    peerConnection, localStream, remoteStream, callStatus: webRTCCallStatus,
+    activeCallTargetUserName, callerUserName, isLocalAudioMuted, isLocalVideoEnabled,
+    initiateCall, initiateAudioCall, acceptCall, declineCall, hangUpCall, toggleLocalAudio, toggleLocalVideo,
     listenForSignalingMessages, closePeerConnection, setCallStatus
   } = useWebRTC()
 
@@ -375,10 +380,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       )
       return cleanupListeners
     }
-
     return undefined
-    
-  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus, startIncomingCall, showCall])
+  }, [user, firebaseStatus, listenForSignalingMessages, peerConnection, toast, setCallStatus, closePeerConnection, webRTCCallStatus, startIncomingCall])
 
   // Effect to check Firebase initialization status
   useEffect(() => {
@@ -473,7 +476,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     }
 
     previousMessageCount.current = messages.length
-  }, [messages, user, currentRoomType, currentRoomId, showMessage])
+  }, [messages, user, currentRoomType])
 
   // Room management functions
   const handleRoomSelect = (roomId: string, roomType: 'room' | 'dm') => {
@@ -847,92 +850,123 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     }
   }
 
-  /**
-   * Utility to normalize any timestamp to a Firestore-like object with toDate().
-   */
-  function normalizeTimestamp(ts: any) {
-    if (!ts) {
+  // Utility function to normalize timestamps to Firestore-like format
+  const normalizeTimestamp = (timestamp: any) => {
+    if (!timestamp) {
       const now = new Date();
-      return { toDate: () => now };
+      return {
+        toDate: () => now,
+        seconds: Math.floor(now.getTime() / 1000),
+        nanoseconds: (now.getTime() % 1000) * 1000000
+      };
     }
-    if (typeof ts.toDate === 'function') return ts;
-    if (typeof ts === 'string' || typeof ts === 'number') {
-      const date = new Date(ts);
-      return { toDate: () => date };
+
+    if (typeof timestamp.toDate === 'function') {
+      // Already a Firestore Timestamp
+      return timestamp;
     }
-    if (ts instanceof Date) {
-      return { toDate: () => ts };
+
+    // Convert other formats to a proper Firestore-like Timestamp
+    let date: Date;
+    
+    if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else if (timestamp instanceof Date) {
+      date = timestamp;
+    } else {
+      date = new Date();
     }
-    return { toDate: () => new Date() };
-  }
+    
+    // Create a proper Firestore-like Timestamp object
+    return {
+      toDate: () => date,
+      seconds: Math.floor(date.getTime() / 1000),
+      nanoseconds: (date.getTime() % 1000) * 1000000
+    };
+  };
 
   /**
-   * Renders a single chat message using the OptimizedMessage component.
-   * Maps the message data to the OptimizedMessage props interface.
+   * Renders a single chat message using the appropriate component based on the enhanced prop.
    */
   const renderMessage = React.useCallback((message: any) => {
     const isCurrentUser = message.uid === user?.uid;
 
-    // Simplified timestamp normalization
-    const timestamp = normalizeTimestamp(message.createdAt);
+    if (enhanced) {
+      // Use OptimizedMessage for enhanced mode
+      const timestamp = normalizeTimestamp(message.createdAt);
 
-    return (
-      <OptimizedMessage
-        key={message.id}
-        id={message.id}
-        text={message.text || ''}
-        displayName={message.userName || message.displayName || 'Anonymous'}
-        photoURL={message.photoURL}
-        createdAt={timestamp}
-        editedAt={message.editedAt}
-        uid={message.uid}
-        currentUserId={user?.uid || ''}
-        reactions={message.reactions}
-        replyTo={message.replyToMessage}
-        isOwn={isCurrentUser}
-        status={message.status}
-        readBy={message.readBy || []}
-        fileUrl={message.fileUrl}
-        fileName={message.fileName}
-        fileType={message.fileType}
-        fileSize={message.fileSize}
-        imageUrl={message.imageUrl}
-        gifUrl={message.gifUrl}
-        audioUrl={message.audioUrl}
-        voiceMessageUrl={message.voiceMessageUrl}
-        mp3Url={message.mp3Url}
-        chatColor={message.chatColor}
-        threadCount={message.threadCount}
-        onReply={handleReplyToMessage}
-        onEdit={handleEditMessage}
-        onDelete={handleDeleteMessage}
-        onReact={handleReaction}
-        onCopy={(text: string) => {
-          navigator.clipboard.writeText(text);
-          toast({
-            title: "Copied",
-            description: "Message text copied to clipboard",
-          });
-        }}
-        onFlag={(messageId: string) => {
-          toast({
-            title: "Message Reported",
-            description: "Thank you for reporting this message",
-          });
-        }}
-        onExpire={handleExpire}
-        onThreadClick={handleThreadClick}
-      />
-    );
-  }, [user?.uid, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, handleThreadClick, toast]);
+      return (
+        <OptimizedMessage
+          key={message.id}
+          id={message.id}
+          text={message.text || ''}
+          displayName={message.userName || message.displayName || 'Anonymous'}
+          photoURL={message.photoURL}
+          createdAt={timestamp}
+          editedAt={message.editedAt}
+          uid={message.uid}
+          currentUserId={user?.uid || ''}
+          reactions={message.reactions}
+          replyTo={message.replyToMessage}
+          isOwn={isCurrentUser}
+          status={message.status}
+          readBy={message.readBy || []}
+          fileUrl={message.fileUrl}
+          fileName={message.fileName}
+          fileType={message.fileType}
+          fileSize={message.fileSize}
+          imageUrl={message.imageUrl}
+          gifUrl={message.gifUrl}
+          audioUrl={message.audioUrl}
+          voiceMessageUrl={message.voiceMessageUrl}
+          mp3Url={message.mp3Url}
+          chatColor={message.chatColor}
+          threadCount={message.threadCount}
+          onReply={handleReplyToMessage}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReact={handleReaction}
+          onCopy={(text: string) => {
+            navigator.clipboard.writeText(text);
+            toast({
+              title: "Copied",
+              description: "Message text copied to clipboard",
+            });
+          }}
+          onFlag={() => {
+            toast({
+              title: "Message Reported",
+              description: "Thank you for reporting this message",
+            });
+          }}
+          onExpire={handleExpire}
+          onThreadClick={handleThreadClick}
+        />
+      );
+    } else {
+      // Use regular Message component for non-enhanced mode
+      return (
+        <MessageComponent
+          key={message.id}
+          message={message}
+          isCurrentUser={isCurrentUser}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReply={handleReplyToMessage}
+          onReaction={handleReaction}
+          onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
+          onThreadClick={handleThreadClick}
+        />
+      );
+    }
+  }, [user?.uid, enhanced, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, handleThreadClick, toast]);
 
   if (!user) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen gap-4">
-        <p className="text-lg">Please log in to access the chat.</p>
-        <Button onClick={() => router.push("/login")}>
-          Go to Login
-        </Button>
+      <div className="flex items-center justify-center h-screen">
+        <p>Please log in to access the chat.</p>
       </div>
     )
   }
@@ -1008,6 +1042,16 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
                 <Search className="w-5 h-5" />
                 <span className="tooltip">Search</span>
               </button>
+              {/* Settings Button */}
+              <button
+                className="icon-btn"
+                aria-label="User settings"
+                title="User settings"
+                onClick={() => setShowSettingsDialog(true)}
+              >
+                <UserIcon className="w-5 h-5" />
+                <span className="tooltip">Settings</span>
+              </button>
               {onlineUsers.length > 0 && (
                 <>
                   <button 
@@ -1048,7 +1092,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
               <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
                 {!isRefreshing && (
                   <div className="w-full h-full flex items-center justify-center">
-                    <ChevronDown className="w-4 h-4 text-green-500" />
+                    <div className="w-2 h-2 bg-green-500 rounded-full" />
                   </div>
                 )}
               </div>
@@ -1099,11 +1143,17 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           <ImprovedVideoCallView />
         )}
 
+        {/* User Settings Dialog */}
+        {showSettingsDialog && (
+          <UserSettingsDialog
+          />
+        )}
+
       </div>
     )
   }
 
-  // Original UI (unchanged)
+  // Original UI (unchanged from your version)
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 flex flex-col">
       {/* Mobile Layout */}
@@ -1135,130 +1185,143 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0 md:ml-2">
+          {/* Use RoomHeader component when available, otherwise use the original header */}
+          <div className="flex items-center justify-between md:mb-6">
+            {/* If RoomHeader is used, add settings button to its right */}
+            <RoomHeader
+              roomName={currentRoomName}
+              roomType={currentRoomType}
+              isConnected={isConnected}
+              isLoading={isLoading}
+              onMenuToggle={() => setIsMobileMenuOpen(true)}
+              onRetryConnection={retryConnection}
+              user={{
+                displayName: user.displayName || undefined,
+                email: user.email || undefined
+              }}
+              onlineUsers={onlineUsers}
+              onLogout={handleLogout}
+              showUserList={showUserList}
+              onToggleUserList={setShowUserList}
+              showMobileCallPicker={showMobileCallPicker}
+              onToggleMobileCallPicker={setShowMobileCallPicker}
+              initiateAudioCall={initiateAudioCall}
+              initiateCall={initiateCall}
+              webRTCCallStatus={webRTCCallStatus}
+              className="md:mb-6"
+            />
+            {/* Settings Button for original header */}
+            <button
+              className="icon-btn ml-2"
+              aria-label="User settings"
+              title="User settings"
+              onClick={() => setShowSettingsDialog(true)}
+            >
+              <UserIcon className="w-5 h-5" />
+              <span className="tooltip">Settings</span>
+            </button>
+          </div>
 
-          <RoomHeader
-            roomName={currentRoomName}
-            roomType={currentRoomType}
-            isConnected={isConnected}
-            isLoading={isLoading}
-            onMenuToggle={() => setIsMobileMenuOpen(true)}
-            onRetryConnection={retryConnection}
-            user={{
-              displayName: user.displayName || undefined,
-              email: user.email || undefined
-            }}
-            onlineUsers={onlineUsers}
-            onLogout={handleLogout}
-            showUserList={showUserList}
-            onToggleUserList={setShowUserList}
-            showMobileCallPicker={showMobileCallPicker}
-            onToggleMobileCallPicker={setShowMobileCallPicker}
-            initiateAudioCall={initiateAudioCall}
-            initiateCall={initiateCall}
-            webRTCCallStatus={webRTCCallStatus}
-            className="md:mb-6"
-          />
-
-          {/* Mobile User List Overlay */}
-          {showUserList && (
-            <div className="lg:hidden">
-              <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowUserList(false)} />
-              <div className="fixed right-0 top-0 h-full w-80 glass-panel z-50 shadow-2xl">
-                <div className="flex items-center justify-between p-4 border-b border-slate-600">
-                  <h2 className="text-lg font-semibold text-white">Online Users</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowUserList(false)}
-                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-                <UserList />
-              </div>
-            </div>
-          )}
-
-          {/* Mobile Call Picker Overlay */}
-          {showMobileCallPicker && (
-            <div className="md:hidden">
-              <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileCallPicker(false)} />
-              <div className="fixed bottom-0 left-0 right-0 glass-panel z-50 rounded-t-xl max-h-96">
-                <div className="flex items-center justify-between p-4 border-b border-slate-600">
-                  <h2 className="text-lg font-semibold text-white">Call Someone</h2>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => setShowMobileCallPicker(false)}
-                    className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                  >
-                    <X className="h-5 w-5" />
-                  </Button>
-                </div>
-                <div className="p-4 overflow-y-auto max-h-80">
-                  {onlineUsers.length === 0 ? (
-                    <div className="text-center text-slate-400 py-8">
-                      No users online to call
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {onlineUsers.map((onlineUser) => (
-                        <div key={onlineUser.uid} className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 touch-manipulation">
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-10 w-10">
-                              <AvatarImage src={onlineUser.photoURL || ""} alt={onlineUser.userName || 'User'} />
-                              <AvatarFallback>{onlineUser.userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
-                            </Avatar>
-                            <span className="text-white font-medium">{onlineUser.userName || 'Anonymous User'}</span>
-                          </div>
-                          <div className="flex gap-2">
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                initiateAudioCall(onlineUser.uid, onlineUser.userName || "Anonymous")
-                                setShowMobileCallPicker(false)
-                              }}
-                              disabled={webRTCCallStatus !== 'idle'}
-                              className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
-                              title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
-                            >
-                              <Phone size={20} />
-                              <span className="sr-only">
-                                {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
-                              </span>
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              onClick={() => {
-                                initiateCall(onlineUser.uid, onlineUser.userName || "Anonymous")
-                                setShowMobileCallPicker(false)
-                              }}
-                              disabled={webRTCCallStatus !== 'idle'}
-                              className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
-                              title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
-                            >
-                              <Video size={20} />
-                              <span className="sr-only">
-                                {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
-                              </span>
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Messages Area */}
+          {/* Messages Area with Mobile User List */}
           <div className="flex-1 flex flex-col md:flex-row md:gap-6 min-h-0">
             {/* Messages Container */}
             <div className="flex-1 flex flex-col min-h-0">
+              {/* Mobile User List Overlay */}
+              {showUserList && (
+                <div className="lg:hidden">
+                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowUserList(false)} />
+                  <div className="fixed right-0 top-0 h-full w-80 glass-panel z-50 shadow-2xl">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                      <h2 className="text-lg font-semibold text-white">Online Users</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowUserList(false)}
+                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <UserList />
+                  </div>
+                </div>
+              )}
+
+              {/* Mobile Call Picker Overlay */}
+              {showMobileCallPicker && (
+                <div className="md:hidden">
+                  <div className="fixed inset-0 z-50 bg-black/50" onClick={() => setShowMobileCallPicker(false)} />
+                  <div className="fixed bottom-0 left-0 right-0 glass-panel z-50 rounded-t-xl max-h-96">
+                    <div className="flex items-center justify-between p-4 border-b border-slate-600">
+                      <h2 className="text-lg font-semibold text-white">Call Someone</h2>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => setShowMobileCallPicker(false)}
+                        className="text-slate-300 hover:text-green-400 hover:bg-green-500/20"
+                      >
+                        <X className="h-5 w-5" />
+                      </Button>
+                    </div>
+                    <div className="p-4 overflow-y-auto max-h-80">
+                      {onlineUsers.length === 0 ? (
+                        <div className="text-center text-slate-400 py-8">
+                          No users online to call
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          {onlineUsers.map((onlineUser) => (
+                            <div key={onlineUser.uid} className="flex items-center justify-between p-3 rounded-lg bg-slate-700/50 hover:bg-slate-700 touch-manipulation">
+                              <div className="flex items-center gap-3">
+                                <Avatar className="h-10 w-10">
+                                  <AvatarImage src={onlineUser.photoURL || ""} alt={onlineUser.userName || 'User'} />
+                                  <AvatarFallback>{onlineUser.userName?.[0]?.toUpperCase() || "?"}</AvatarFallback>
+                                </Avatar>
+                                <span className="text-white font-medium">{onlineUser.userName || 'Anonymous User'}</span>
+                              </div>
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    initiateAudioCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                    setShowMobileCallPicker(false)
+                                  }}
+                                  disabled={webRTCCallStatus !== 'idle'}
+                                  className="p-3 min-h-11 min-w-11 text-green-400 hover:text-green-300 hover:bg-green-500/20 touch-manipulation"
+                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
+                                >
+                                  <Phone size={20} />
+                                  <span className="sr-only">
+                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Voice Call'}
+                                  </span>
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    initiateCall(onlineUser.uid, onlineUser.userName || "Anonymous")
+                                    setShowMobileCallPicker(false)
+                                  }}
+                                  disabled={webRTCCallStatus !== 'idle'}
+                                  className="p-3 min-h-11 min-w-11 text-blue-400 hover:text-blue-300 hover:bg-blue-500/20 touch-manipulation"
+                                  title={webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
+                                >
+                                  <Video size={20} />
+                                  <span className="sr-only">
+                                    {webRTCCallStatus !== 'idle' ? 'Call in progress' : 'Video Call'}
+                                  </span>
+                                </Button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Messages Area */}
               <div
                 ref={messagesContainerRef}
@@ -1276,12 +1339,11 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
                   <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
                     {!isRefreshing && (
                       <div className="w-full h-full flex items-center justify-center">
-                        <ChevronDown className="w-4 h-4 text-green-500" />
+                        <div className="w-2 h-2 bg-green-500 rounded-full" />
                       </div>
                     )}
                   </div>
                 </div>
-                
                 {/* Connection Status Banner */}
                 {!isConnected && !isLoading && firebaseStatus === 'ready' && (
                   <div className="mb-4 p-3 bg-red-900/50 border border-red-600/50 rounded-lg glass">
@@ -1375,69 +1437,92 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
               </div>
             </div>
 
-            {/* Desktop User List - Hidden on mobile */}
-            <div className="hidden lg:block w-64">
+            {/* Desktop User List - Hidden on Mobile */}
+            <div className="hidden lg:block w-64 glass-panel rounded-xl glass-float">
               <UserList />
             </div>
           </div>
-
-          {/* Enhanced Video Call View for All Modes */}
-          {webRTCCallStatus !== 'idle' && (
-            <ImprovedVideoCallView />
-          )}
-
-          {/* Giphy Picker Modal */}
-          {showGiphyPicker && (
-            <GiphyPicker
-              onSelectGif={handleSelectGif}
-              onClose={handleCloseGiphyPicker}
-            />
-          )}
-
-          {/* Incoming Call Dialog */}
-          <IncomingCallDialog
-            open={webRTCCallStatus === 'ringing'}
-            callerName={callerUserName || 'Unknown User'}
-            isVideo={true}
-            onAcceptVideo={async () => {
-              try {
-                await acceptCall()
-              } catch (error) {
-                console.error('Error accepting video call:', error)
-                toast({
-                  title: "Call Error",
-                  description: "Failed to accept call. Please try again.",
-                  variant: "destructive",
-                })
-              }
-            }}
-            onAcceptAudio={async () => {
-              try {
-                await acceptCall()
-              } catch (error) {
-                console.error('Error accepting audio call:', error)
-                toast({
-                  title: "Call Error",
-                  description: "Failed to accept call. Please try again.",
-                  variant: "destructive",
-                })
-              }
-            }}
-            onDecline={async () => {
-              try {
-                await declineCall()
-              } catch (error) {
-                console.error('Error declining call:', error)
-                toast({
-                  title: "Call Error",
-                  description: "Failed to decline call.",
-                  variant: "destructive",
-                })
-              }
-            }}
-          />
         </div>
       </div>
+
+      {/* Video Call View */}
+      {webRTCCallStatus !== 'idle' && (
+        <VideoCallView
+          localStream={localStream}
+          remoteStream={remoteStream}
+          onToggleAudio={toggleLocalAudio}
+          onToggleVideo={toggleLocalVideo}
+          onEndCall={async () => {
+            try {
+              await hangUpCall()
+            } catch (error) {
+              console.error('Error ending call:', error)
+              toast({
+                title: "Call Error",
+                description: "Failed to end call properly.",
+                variant: "destructive",
+              })
+            }
+          }}
+          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
+          callStatus={webRTCCallStatus}
+          isLocalAudioMuted={isLocalAudioMuted}
+          isLocalVideoEnabled={isLocalVideoEnabled}
+          peerConnection={peerConnection}
+          setRemoteStream={() => {}}
+        />
+      )}
+
+      {/* Giphy Picker Modal */}
+      {showGiphyPicker && (
+        <GiphyPicker
+          onSelectGif={handleSelectGif}
+          onClose={handleCloseGiphyPicker}
+        />
+      )}
+
+      {/* Incoming Call Dialog */}
+      <IncomingCallDialog
+        open={webRTCCallStatus === 'ringing'}
+        callerName={callerUserName || 'Unknown User'}
+        isVideo={true}
+        onAcceptVideo={async () => {
+          try {
+            await acceptCall()
+          } catch (error) {
+            console.error('Error accepting video call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to accept call. Please try again.",
+              variant: "destructive",
+            })
+          }
+        }}
+        onAcceptAudio={async () => {
+          try {
+            await acceptCall()
+          } catch (error) {
+            console.error('Error accepting audio call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to accept call. Please try again.",
+              variant: "destructive",
+            })
+          }
+        }}
+        onDecline={async () => {
+          try {
+            await declineCall()
+          } catch (error) {
+            console.error('Error declining call:', error)
+            toast({
+              title: "Call Error",
+              description: "Failed to decline call.",
+              variant: "destructive",
+            })
+          }
+        }}
+      />
     </div>
   )
 }
