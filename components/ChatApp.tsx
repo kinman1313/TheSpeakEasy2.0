@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
+import { ImprovedVideoCallView } from "@/components/chat/ImprovedVideoCallView"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { app, db, rtdb } from "@/lib/firebase"
 import { useToast } from "@/hooks/use-toast"
@@ -11,12 +12,12 @@ import { useRoomSendMessage } from "@/lib/hooks/useRoomSendMessage"
 import UserList from "@/components/chat/UserList"
 import { RoomManager } from "@/components/chat/RoomManager"
 import { useWebRTC } from "@/components/providers/WebRTCProvider"
-import { VideoCallView } from "@/components/chat/VideoCallView"
 import { IncomingCallDialog } from "@/components/chat/IncomingCallDialog"
 import { useCallNotifications } from "@/lib/callNotifications"
 import GiphyPicker from "@/components/chat/GiphyPicker"
 import { MessageInput } from "@/components/MessageInput"
 import { Message as MessageComponent } from "@/components/chat/Message"
+import { OptimizedMessage } from '@/components/chat/OptimizedMessage'
 import { TypingIndicator } from "@/components/chat/TypingIndicator"
 import { ThreadView } from "@/components/chat/ThreadView"
 import { uploadVoiceMessage } from "@/lib/storage"
@@ -24,11 +25,28 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
-import { User as UserIcon, LogOut, Wifi, WifiOff, RefreshCw, Hash, Users, MessageCircle, Menu, X, Phone, Video } from "lucide-react"
+import { VideoCallView } from "@/components/chat/VideoCallView"
+import { 
+  User as UserIcon, 
+  LogOut, 
+  Wifi, 
+  WifiOff, 
+  RefreshCw, 
+  Hash, 
+  Users, 
+  MessageCircle, 
+  Menu, 
+  X, 
+  Phone, 
+  Video,
+  Search,
+  ChevronDown 
+} from "lucide-react"
 import { signOut } from "firebase/auth"
 import { getAuthInstance } from "@/lib/firebase"
 import { useRouter } from "next/navigation"
 import { UserSettingsDialog } from "@/components/user/UserSettingsDialog"
+import { RoomHeader } from '@/components/chat/room-header'
 import { soundManager } from "@/lib/soundManager"
 import { AudioTestUtils } from "@/lib/audioTest"
 import { ref, onValue, query, orderByChild, equalTo } from 'firebase/database'
@@ -37,7 +55,11 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh"
 import { useMobileNotifications } from "@/lib/mobileNotifications"
 import { useHaptics } from "@/lib/haptics"
 
-export default function ChatApp() {
+interface ChatAppProps {
+  enhanced?: boolean
+}
+
+export default function ChatApp({ enhanced = false }: ChatAppProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const router = useRouter()
@@ -65,6 +87,10 @@ export default function ChatApp() {
 
   // New feature states
   const [replyToMessage, setReplyToMessage] = useState<any | null>(null)
+
+  // Enhanced UI state
+  const [showScrollButton, setShowScrollButton] = useState(false)
+  const [showSettingsDialog, setShowSettingsDialog] = useState(false)
 
   // Initialize sound manager on first user interaction
   useEffect(() => {
@@ -236,6 +262,28 @@ export default function ChatApp() {
       AudioTestUtils.runFullAudioDiagnostic().catch(console.error);
     }
   }, [user]);
+
+  // Enhanced scroll detection for scroll-to-bottom button
+  const SCROLL_BOTTOM_THRESHOLD = 100; // px, adjust as needed
+
+  useEffect(() => {
+    if (!enhanced) return;
+
+    const container = messagesContainerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => {
+      const { scrollTop, scrollHeight, clientHeight } = container;
+      const isNearBottom = scrollHeight - scrollTop - clientHeight < SCROLL_BOTTOM_THRESHOLD;
+      setShowScrollButton(!isNearBottom);
+    };
+
+    container.addEventListener('scroll', handleScroll);
+
+    return () => {
+      container.removeEventListener('scroll', handleScroll);
+    };
+  }, [enhanced, messagesContainerRef.current]);
 
   // Effect for WebRTC signaling listeners
   useEffect(() => {
@@ -791,23 +839,129 @@ export default function ChatApp() {
     setSelectedThread(null)
   }
 
-  const renderMessage = (message: any) => {
-    const isCurrentUser = message.uid === user?.uid
-
-    return (
-      <MessageComponent
-        key={message.id}
-        message={message}
-        isCurrentUser={isCurrentUser}
-        onEdit={handleEditMessage}
-        onDelete={handleDeleteMessage}
-        onReply={handleReplyToMessage}
-        onReaction={handleReaction}
-        onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
-        onThreadClick={handleThreadClick}
-      />
-    )
+  // Enhanced scroll to bottom function
+  const scrollToBottom = () => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ 
+        behavior: "smooth",
+        block: "end",
+        inline: "nearest"
+      })
+    }
   }
+
+  // Utility function to normalize timestamps to Firestore-like format
+  const normalizeTimestamp = (timestamp: any) => {
+    if (!timestamp) {
+      const now = new Date();
+      return {
+        toDate: () => now,
+        seconds: Math.floor(now.getTime() / 1000),
+        nanoseconds: (now.getTime() % 1000) * 1000000
+      };
+    }
+
+    if (typeof timestamp.toDate === 'function') {
+      // Already a Firestore Timestamp
+      return timestamp;
+    }
+
+    // Convert other formats to a proper Firestore-like Timestamp
+    let date: Date;
+    
+    if (typeof timestamp === 'string') {
+      date = new Date(timestamp);
+    } else if (typeof timestamp === 'number') {
+      date = new Date(timestamp);
+    } else if (timestamp instanceof Date) {
+      date = timestamp;
+    } else {
+      date = new Date();
+    }
+    
+    // Create a proper Firestore-like Timestamp object
+    return {
+      toDate: () => date,
+      seconds: Math.floor(date.getTime() / 1000),
+      nanoseconds: (date.getTime() % 1000) * 1000000
+    };
+  };
+
+  /**
+   * Renders a single chat message using the appropriate component based on the enhanced prop.
+   */
+  const renderMessage = React.useCallback((message: any) => {
+    const isCurrentUser = message.uid === user?.uid;
+
+    if (enhanced) {
+      // Use OptimizedMessage for enhanced mode
+      const timestamp = normalizeTimestamp(message.createdAt);
+
+      return (
+        <OptimizedMessage
+          key={message.id}
+          id={message.id}
+          text={message.text || ''}
+          displayName={message.userName || message.displayName || 'Anonymous'}
+          photoURL={message.photoURL}
+          createdAt={timestamp}
+          editedAt={message.editedAt}
+          uid={message.uid}
+          currentUserId={user?.uid || ''}
+          reactions={message.reactions}
+          replyTo={message.replyToMessage}
+          isOwn={isCurrentUser}
+          status={message.status}
+          readBy={message.readBy || []}
+          fileUrl={message.fileUrl}
+          fileName={message.fileName}
+          fileType={message.fileType}
+          fileSize={message.fileSize}
+          imageUrl={message.imageUrl}
+          gifUrl={message.gifUrl}
+          audioUrl={message.audioUrl}
+          voiceMessageUrl={message.voiceMessageUrl}
+          mp3Url={message.mp3Url}
+          chatColor={message.chatColor}
+          threadCount={message.threadCount}
+          onReply={handleReplyToMessage}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReact={handleReaction}
+          onCopy={(text: string) => {
+            navigator.clipboard.writeText(text);
+            toast({
+              title: "Copied",
+              description: "Message text copied to clipboard",
+            });
+          }}
+          onFlag={() => {
+            toast({
+              title: "Message Reported",
+              description: "Thank you for reporting this message",
+            });
+          }}
+          onExpire={handleExpire}
+          onThreadClick={handleThreadClick}
+        />
+      );
+    } else {
+      // Use regular Message component for non-enhanced mode
+      return (
+        <MessageComponent
+          key={message.id}
+          message={message}
+          isCurrentUser={isCurrentUser}
+          onEdit={handleEditMessage}
+          onDelete={handleDeleteMessage}
+          onReply={handleReplyToMessage}
+          onReaction={handleReaction}
+          onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
+          onThreadClick={handleThreadClick}
+        />
+      );
+    }
+  }, [user?.uid, enhanced, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, handleThreadClick, toast]);
 
   if (!user) {
     return (
@@ -848,6 +1002,158 @@ export default function ChatApp() {
     return <Hash className="h-5 w-5" />
   }
 
+  // Enhanced version with glass effects and improved UI
+  if (enhanced) {
+    return (
+      <div className="h-screen flex flex-col bg-transparent chatapp-enhanced-root" data-testid="chatapp-enhanced-root">
+        {/* Header with Glass Effect */}
+        <header className="glass-panel border-b-0 rounded-b-3xl px-4 py-3 z-10">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <button 
+                className="icon-btn md:hidden"
+                onClick={() => setIsMobileMenuOpen(true)}
+                aria-label="Open mobile menu"
+                title="Open mobile menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+              
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Avatar className="w-10 h-10 ring-2 ring-white/20">
+                    <AvatarImage src={user?.photoURL || ""} />
+                    <AvatarFallback>{user?.displayName?.[0] || user?.email?.[0] || "U"}</AvatarFallback>
+                  </Avatar>
+                  <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-green-500 rounded-full ring-2 ring-background" />
+                </div>
+                
+                <div>
+                  <h1 className="font-semibold text-white">SpeakEasy</h1>
+                  <p className="text-xs text-white/60">
+                    {onlineUsers.length} online
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <button className="icon-btn" aria-label="Search messages" title="Search messages">
+                <Search className="w-5 h-5" />
+                <span className="tooltip">Search</span>
+              </button>
+              {/* Settings Button */}
+              <button
+                className="icon-btn"
+                aria-label="User settings"
+                title="User settings"
+                onClick={() => setShowSettingsDialog(true)}
+              >
+                <UserIcon className="w-5 h-5" />
+                <span className="tooltip">Settings</span>
+              </button>
+              {onlineUsers.length > 0 && (
+                <>
+                  <button 
+                    className="icon-btn"
+                    onClick={() => setShowMobileCallPicker(true)}
+                    aria-label="Start voice call"
+                    title="Start voice call"
+                  >
+                    <Phone className="w-5 h-5" />
+                    <span className="tooltip">Call</span>
+                  </button>
+                  <button 
+                    className="icon-btn"
+                    onClick={() => setShowMobileCallPicker(true)}
+                    aria-label="Start video call"
+                    title="Start video call"
+                  >
+                    <Video className="w-5 h-5" />
+                    <span className="tooltip">Video</span>
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+        </header>
+        
+        {/* Messages Area with Improved Scrolling */}
+        <main className="flex-1 overflow-hidden relative">
+          <div 
+            ref={messagesContainerRef}
+            className="absolute inset-0 overflow-y-auto custom-scrollbar overscroll-contain"
+          >
+            {/* Pull-to-refresh indicator */}
+            <div
+              className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
+              style={refreshIndicatorStyle}
+            >
+              <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
+                {!isRefreshing && (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <div className="w-2 h-2 bg-green-500 rounded-full" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Messages */}
+            <div className="space-y-4 p-4">
+              {messages.map(renderMessage)}
+            </div>
+            <div ref={messagesEndRef} />
+          </div>
+
+          {/* Scroll to bottom button */}
+          {showScrollButton && (
+            <button
+              onClick={scrollToBottom}
+              className="absolute bottom-20 right-4 glass-panel p-3 rounded-full shadow-lg hover:scale-105 transition-transform z-10"
+            >
+              <ChevronDown className="w-5 h-5 text-white" />
+            </button>
+          )}
+        </main>
+
+        {/* Enhanced Message Input */}
+        <footer className="glass-panel border-t-0 rounded-t-3xl px-4 py-3">
+          <MessageInput
+            onSend={handleSendMessage}
+            onVoiceRecording={handleRecordingComplete}
+            onGifSelect={() => setShowGiphyPicker(true)}
+            replyToMessage={replyToMessage}
+            onCancelReply={handleCancelReply}
+            currentUserId={user?.uid}
+            currentUserName={user?.displayName || user?.email || 'Anonymous'}
+            roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || undefined}
+            enhanced={true}
+          />
+        </footer>
+
+        {/* Typing Indicators */}
+        <TypingIndicator
+          roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || ''}
+          currentUserId={user.uid}
+          className="sticky bottom-0 bg-background/80 backdrop-blur-sm p-2"
+        />
+
+        {/* Enhanced Video Call View for Enhanced Mode */}
+        {webRTCCallStatus !== 'idle' && (
+          <ImprovedVideoCallView />
+        )}
+
+        {/* User Settings Dialog */}
+        {showSettingsDialog && (
+          <UserSettingsDialog
+          />
+        )}
+
+      </div>
+    )
+  }
+
+  // Original UI (unchanged from your version)
   return (
     <div className="h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-700 flex flex-col">
       {/* Mobile Layout */}
@@ -879,103 +1185,41 @@ export default function ChatApp() {
 
         {/* Main Chat Area */}
         <div className="flex-1 flex flex-col min-w-0 md:ml-2">
-          {/* Chat Header */}
-          <div className="h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow md:mb-6">
-            <div className="flex items-center gap-2 md:gap-3 min-w-0">
-              {/* Mobile Menu Button */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="md:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20 shrink-0"
-                onClick={() => setIsMobileMenuOpen(true)}
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-
-              {getRoomIcon()}
-              <h1 className="text-lg md:text-xl font-semibold text-white truncate">{currentRoomName}</h1>
-
-              {/* Connection Status Indicator - Hidden on small screens */}
-              <div className="hidden sm:flex items-center gap-2">
-                {isLoading ? (
-                  <div className="flex items-center gap-2 text-yellow-400">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    <span className="text-xs">Connecting...</span>
-                  </div>
-                ) : isConnected ? (
-                  <div className="flex items-center gap-2 text-green-400">
-                    <Wifi className="h-4 w-4" />
-                    <span className="text-xs">Connected</span>
-                  </div>
-                ) : (
-                  <div className="flex items-center gap-2 text-red-400">
-                    <WifiOff className="h-4 w-4" />
-                    <span className="text-xs">Disconnected</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={retryConnection}
-                      className="text-red-400 hover:text-red-300 hover:bg-red-600/20 text-xs h-6 px-2"
-                    >
-                      Retry
-                    </Button>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            <div className="flex items-center gap-1 md:gap-2 shrink-0">
-              {/* Mobile Call Button - Show only when there are online users */}
-              {onlineUsers.length > 0 && (
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="md:hidden text-green-400 hover:text-green-300 hover:bg-green-500/20"
-                  onClick={() => setShowMobileCallPicker(!showMobileCallPicker)}
-                  title="Make Call"
-                >
-                  <Phone className="h-4 w-4" />
-                </Button>
-              )}
-
-              {/* User List Toggle - Mobile Only */}
-              <Button
-                variant="ghost"
-                size="icon"
-                className="lg:hidden text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                onClick={() => setShowUserList(!showUserList)}
-                title="Toggle User List"
-              >
-                <Users className="h-4 w-4" />
-              </Button>
-
-              {/* Hide user name on very small screens */}
-              <span className="hidden sm:block text-sm text-slate-300 mr-2 truncate max-w-32">
-                {user?.displayName || user?.email || "User"}
-              </span>
-
-              <UserSettingsDialog 
-                trigger={
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="tap-feedback text-slate-300 hover:text-green-400 hover:bg-green-500/20"
-                    title="User Profile"
-                  >
-                    <UserIcon className="h-4 md:h-5 w-4 md:w-5" />
-                  </Button>
-                }
-              />
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={handleLogout}
-                className="text-slate-300 hover:text-red-400 hover:bg-red-600/20"
-                title="Sign Out"
-              >
-                <LogOut className="h-4 md:h-5 w-4 md:w-5" />
-              </Button>
-            </div>
+          {/* Use RoomHeader component when available, otherwise use the original header */}
+          <div className="flex items-center justify-between md:mb-6">
+            {/* If RoomHeader is used, add settings button to its right */}
+            <RoomHeader
+              roomName={currentRoomName}
+              roomType={currentRoomType}
+              isConnected={isConnected}
+              isLoading={isLoading}
+              onMenuToggle={() => setIsMobileMenuOpen(true)}
+              onRetryConnection={retryConnection}
+              user={{
+                displayName: user.displayName || undefined,
+                email: user.email || undefined
+              }}
+              onlineUsers={onlineUsers}
+              onLogout={handleLogout}
+              showUserList={showUserList}
+              onToggleUserList={setShowUserList}
+              showMobileCallPicker={showMobileCallPicker}
+              onToggleMobileCallPicker={setShowMobileCallPicker}
+              initiateAudioCall={initiateAudioCall}
+              initiateCall={initiateCall}
+              webRTCCallStatus={webRTCCallStatus}
+              className="md:mb-6"
+            />
+            {/* Settings Button for original header */}
+            <button
+              className="icon-btn ml-2"
+              aria-label="User settings"
+              title="User settings"
+              onClick={() => setShowSettingsDialog(true)}
+            >
+              <UserIcon className="w-5 h-5" />
+              <span className="tooltip">Settings</span>
+            </button>
           </div>
 
           {/* Messages Area with Mobile User List */}

@@ -12,6 +12,7 @@ export interface MobileNotificationOptions {
     vibrate?: number[]
     requireInteraction?: boolean
     persistent?: boolean
+    timeout?: number
 }
 
 export interface NotificationAction {
@@ -136,7 +137,7 @@ class MobileNotificationManager implements IMobileNotificationManager {
             return
         }
 
-        const notificationOptions: any = {
+        const notificationOptions: NotificationOptions = {
             body: options.body,
             icon: options.icon || '/icons/icon-192x192.png',
             badge: options.badge || '/icons/badge-72x72.png',
@@ -148,11 +149,11 @@ class MobileNotificationManager implements IMobileNotificationManager {
 
         // Add mobile-specific features if supported
         if (options.vibrate && typeof navigator !== 'undefined' && 'vibrate' in navigator) {
-            notificationOptions.vibrate = options.vibrate
+            navigator.vibrate(options.vibrate)
         }
 
-        if (options.actions && 'actions' in Notification.prototype) {
-            notificationOptions.actions = options.actions
+        if (options.actions) {
+            (notificationOptions as any).actions = options.actions
         }
 
         const notification = new Notification(options.title, notificationOptions)
@@ -179,11 +180,10 @@ class MobileNotificationManager implements IMobileNotificationManager {
         }
 
         // Auto-close after delay (mobile-friendly)
-        if (!options.requireInteraction) {
-            setTimeout(() => {
-                notification.close()
-            }, 5000)
-        }
+        const timeout = options.timeout || (options.requireInteraction ? 30000 : 5000)
+        setTimeout(() => {
+            notification.close()
+        }, timeout)
 
         // Trigger haptic feedback
         if (!options.silent) {
@@ -192,74 +192,221 @@ class MobileNotificationManager implements IMobileNotificationManager {
     }
 
     private showInAppNotification(options: MobileNotificationOptions): void {
-        // Check if we're in browser environment
-        if (typeof document === 'undefined' || typeof window === 'undefined') {
-            return
-        }
+        if (typeof document === 'undefined') return
 
-        // Create in-app notification element
+        // Create notification element
         const notification = document.createElement('div')
-        notification.className = `
-      fixed top-4 right-4 z-[9999] max-w-sm w-full
-      bg-black/90 backdrop-blur-lg border border-white/20 rounded-lg
-      p-4 text-white shadow-2xl transform transition-all duration-300
-      translate-x-full opacity-0
-    `
+        
+        // Improved className with better organization
+        notification.className = [
+            // Position and layout
+            'fixed top-4 right-4 z-[9999]',
+            'max-w-sm w-full',
+            
+            // Visual styling
+            'bg-black/90 backdrop-blur-lg',
+            'border border-white/20 rounded-lg',
+            'p-4 text-white shadow-2xl',
+            
+            // Animation and transitions
+            'transform transition-all duration-300',
+            'translate-x-full opacity-0',
+            
+            // Mobile optimizations
+            'touch-manipulation select-none'
+        ].join(' ')
 
+        // Improved innerHTML with better structure and accessibility
         notification.innerHTML = `
-      <div class="flex items-start gap-3">
-        ${options.icon ? `<img src="${options.icon}" alt="" class="w-8 h-8 rounded-full flex-shrink-0">` : ''}
-        <div class="flex-1 min-w-0">
-          <h4 class="font-medium text-sm truncate">${options.title}</h4>
-          <p class="text-xs text-gray-300 mt-1 line-clamp-2">${options.body}</p>
-        </div>
-        <button class="text-gray-400 hover:text-white ml-2 flex-shrink-0">
-          <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
-            <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
-          </svg>
-        </button>
-      </div>
-    `
+            <div class="flex items-start gap-3" role="alert" aria-live="polite">
+                ${options.icon ? `
+                    <div class="flex-shrink-0">
+                        <img 
+                            src="${options.icon}" 
+                            alt="Notification icon" 
+                            class="w-8 h-8 rounded-full object-cover"
+                            loading="lazy"
+                            onerror="this.style.display='none'"
+                        >
+                    </div>
+                ` : ''}
+                
+                <div class="flex-1 min-w-0">
+                    <h4 class="font-medium text-sm truncate text-white" id="notification-title">
+                        ${this.escapeHtml(options.title)}
+                    </h4>
+                    <p class="text-xs text-gray-300 mt-1 line-clamp-2" id="notification-body">
+                        ${this.escapeHtml(options.body)}
+                    </p>
+                    
+                    ${options.actions ? this.renderInAppActions(options.actions) : ''}
+                </div>
+                
+                <button 
+                    class="text-gray-400 hover:text-white ml-2 flex-shrink-0 transition-colors duration-200 p-1 rounded hover:bg-white/10"
+                    aria-label="Close notification"
+                    type="button"
+                >
+                    <svg 
+                        class="w-4 h-4" 
+                        fill="currentColor" 
+                        viewBox="0 0 20 20"
+                        aria-hidden="true"
+                    >
+                        <path 
+                            fill-rule="evenodd" 
+                            d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" 
+                            clip-rule="evenodd"
+                        />
+                    </svg>
+                </button>
+            </div>
+        `
 
+        // Add data attributes for easier management
+        if (options.tag) {
+            notification.setAttribute('data-tag', options.tag)
+        }
+        notification.setAttribute('data-notification', 'true')
+
+        // Add to DOM
         document.body.appendChild(notification)
 
-        // Animate in
+        // Animate in (using RAF for better performance)
         requestAnimationFrame(() => {
             notification.classList.remove('translate-x-full', 'opacity-0')
+            notification.classList.add('translate-x-0', 'opacity-100')
         })
 
-        // Handle close button
-        const closeBtn = notification.querySelector('button')
-        closeBtn?.addEventListener('click', () => {
+        // Enhanced event handling
+        this.setupNotificationEvents(notification, options)
+    }
+
+    private renderInAppActions(actions: NotificationAction[]): string {
+        return `
+            <div class="flex gap-2 mt-3 flex-wrap">
+                ${actions.map(action => `
+                    <button 
+                        data-action="${action.action}"
+                        class="px-3 py-1.5 text-xs font-medium 
+                               text-blue-400 hover:text-blue-300
+                               border border-blue-500/30 hover:border-blue-400/50
+                               rounded-md transition-all duration-200 
+                               hover:bg-blue-500/10 active:bg-blue-500/20
+                               touch-manipulation"
+                        type="button"
+                        aria-label="${this.escapeHtml(action.title)}"
+                    >
+                        ${action.icon ? `<img src="${action.icon}" alt="" class="w-3 h-3 inline mr-1">` : ''}
+                        ${this.escapeHtml(action.title)}
+                    </button>
+                `).join('')}
+            </div>
+        `
+    }
+
+    private setupNotificationEvents(notification: HTMLElement, options: MobileNotificationOptions): void {
+        // Close button handler
+        const closeBtn = notification.querySelector('button[aria-label="Close notification"]')
+        closeBtn?.addEventListener('click', (e) => {
+            e.stopPropagation()
             this.closeInAppNotification(notification)
         })
 
-        // Handle notification click
+        // Action button handlers
+        options.actions?.forEach((action) => {
+            const button = notification.querySelector(`[data-action="${action.action}"]`)
+            button?.addEventListener('click', (e) => {
+                e.stopPropagation()
+                this.handleNotificationAction(options.data, action.action)
+                this.closeInAppNotification(notification)
+            })
+        })
+
+        // Notification click handler (excluding buttons)
         notification.addEventListener('click', (e) => {
-            if (e.target !== closeBtn) {
+            const target = e.target as Element
+            if (!target.closest('button')) {
+                this.handleNotificationClick(options.data)
+                
                 if (options.data?.url && typeof window !== 'undefined') {
                     window.location.href = options.data.url
                 }
+                
                 this.closeInAppNotification(notification)
                 haptics.tap()
             }
         })
 
-        // Auto-close
+        // Auto-close with progress indicator (optional enhancement)
+        const timeout = options.timeout || (options.requireInteraction ? 10000 : 5000)
+        
+        // Add progress bar if desired
+        if (!options.requireInteraction) {
+            this.addProgressBar(notification, timeout)
+        }
+        
         setTimeout(() => {
-            this.closeInAppNotification(notification)
-        }, options.requireInteraction ? 10000 : 5000)
+            if (document.body.contains(notification)) {
+                this.closeInAppNotification(notification)
+            }
+        }, timeout)
 
-        // Trigger haptic feedback
+        // Haptic feedback
         if (!options.silent) {
             haptics.tap()
         }
     }
 
+    private addProgressBar(notification: HTMLElement, duration: number): void {
+        const progressBar = document.createElement('div')
+        progressBar.className = 'absolute bottom-0 left-0 h-0.5 bg-blue-400 transition-all ease-linear'
+        progressBar.style.width = '100%'
+        progressBar.style.transitionDuration = `${duration}ms`
+        
+        notification.appendChild(progressBar)
+        notification.style.position = 'relative'
+        
+        // Start animation
+        requestAnimationFrame(() => {
+            progressBar.style.width = '0%'
+        })
+    }
+
+    private handleNotificationAction(data: any, action: string): void {
+        // Emit custom event for the app to handle
+        window.dispatchEvent(new CustomEvent('notification-action', {
+            detail: { type: action, data }
+        }))
+    }
+
+    private handleNotificationClick(data: any): void {
+        // Bring app to foreground
+        if (window.focus) {
+            window.focus()
+        }
+
+        // Emit custom event
+        window.dispatchEvent(new CustomEvent('notification-click', {
+            detail: { data }
+        }))
+    }
+
+    private escapeHtml(text: string): string {
+        const div = document.createElement('div')
+        div.textContent = text
+        return div.innerHTML
+    }
+
     private closeInAppNotification(element: HTMLElement): void {
-        element.classList.add('translate-x-full', 'opacity-0')
+        // Enhanced close animation
+        element.classList.add('translate-x-full', 'opacity-0', 'scale-95')
+        element.classList.remove('translate-x-0', 'opacity-100')
+        
         setTimeout(() => {
-            element.remove()
+            if (element.parentNode) {
+                element.parentNode.removeChild(element)
+            }
         }, 300)
     }
 
@@ -416,4 +563,4 @@ export function useMobileNotifications() {
         permission: mobileNotifications.getPermission(),
         isSupported: mobileNotifications.isNotificationSupported()
     }
-} 
+}

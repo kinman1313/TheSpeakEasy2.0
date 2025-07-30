@@ -20,7 +20,9 @@
     "debug:firestore": "node scripts/debug-firestore-400.js",
     "test:calling": "node scripts/test-calling-functionality.js",
     "create-sounds": "node scripts/create-sound-files.js",
-    "render:env": "node scripts/generate-render-env.js"
+    "render:env": "node scripts/generate-render-env.js",
+    "custom-dev": "node server.js",
+    "custom-start": "NODE_ENV=production node server.js"
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -70,10 +72,10 @@
     "next-pwa": "^5.6.0",
     "next-themes": "^0.4.6",
     "postcss": "^8.4.31",
-    "react": "18.3.1",
+    "react": "^18.3.1",
     "react-color": "^2.19.3",
     "react-day-picker": "^8.9.1",
-    "react-dom": "18.3.1",
+    "react-dom": "^18.3.1",
     "react-hook-form": "^7.47.0",
     "react-hot-toast": "^2.5.2",
     "react-resizable-panels": "^0.0.55",
