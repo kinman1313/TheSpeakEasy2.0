@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "engines": {
-    "node": "18.x",
+    "node": ">=19.x",
     "npm": ">=9.0.0"
   },
   "scripts": {
@@ -20,9 +20,8 @@
     "debug:firestore": "node scripts/debug-firestore-400.js",
     "test:calling": "node scripts/test-calling-functionality.js",
     "create-sounds": "node scripts/create-sound-files.js",
-    "render:env": "node scripts/generate-render-env.js",
-    "custom-dev": "node server.js",
-    "custom-start": "NODE_ENV=production node server.js"
+    "render:env": "node scripts/generate-render-env.js"
+  
   },
   "dependencies": {
     "@ducanh2912/next-pwa": "^10.2.9",
@@ -72,10 +71,9 @@
     "next-pwa": "^5.6.0",
     "next-themes": "^0.4.6",
     "postcss": "^8.4.31",
-    "react": "^18.3.1",
+    "react": "^19.1.1",
     "react-color": "^2.19.3",
-    "react-day-picker": "^8.9.1",
-    "react-dom": "^18.3.1",
+    "react-dom": "^19.1.1",
     "react-hook-form": "^7.47.0",
     "react-hot-toast": "^2.5.2",
     "react-resizable-panels": "^0.0.55",
@@ -94,10 +92,7 @@
     "workbox-routing": "^7.3.0",
     "workbox-strategies": "^7.3.0",
     "zod": "^3.25.53"
-  },
-  "overrides": {
-    "react": "18.3.1",
-    "react-dom": "18.3.1"
+  
   },
   "devDependencies": {
     "@babel/core": "^7.26.9",
@@ -106,9 +101,9 @@
     "@babel/preset-env": "^7.26.9",
     "@types/firebase": "^2.4.32",
     "@types/node": "^24.0.1",
-    "@types/react": "^18.3.23",
+    "@types/react": "^19.1.9",
     "@types/react-color": "^3.0.13",
-    "@types/react-dom": "^18.3.7",
+    "@types/react-dom": "^19.1.7",
     "@types/socket.io-client": "^3.0.0",
     "@types/uuid": "^10.0.0",
     "@types/workbox-background-sync": "^4.3.2",
@@ -122,3 +117,4 @@
     "webpack-cli": "^6.0.1"
   }
 }
+
