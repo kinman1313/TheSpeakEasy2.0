@@ -1,11 +1,11 @@
-// app/room/[id]/room-client.tsx (client component)
-"use client";
+// app/room/[roomId]/room-client.tsx
+'use client';
 
-import { Room } from "@/components/room/room"
-import { RoomProvider } from "@/components/room/room-provider"
+import { Room } from '@/components/room/room';
+import { RoomProvider } from '@/components/room/room-provider';
 
 interface RoomClientProps {
-  roomId: string
+  roomId: string;
 }
 
 export function RoomClient({ roomId }: RoomClientProps) {
@@ -13,5 +13,5 @@ export function RoomClient({ roomId }: RoomClientProps) {
     <RoomProvider roomId={roomId}>
       <Room roomId={roomId} />
     </RoomProvider>
-  )
+  );
 }

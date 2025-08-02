@@ -25,7 +25,6 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
-import { VideoCallView } from "@/components/chat/VideoCallView"
 import { 
   User as UserIcon, 
   LogOut, 
@@ -1447,7 +1446,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
       {/* Video Call View */}
       {webRTCCallStatus !== 'idle' && (
-        <VideoCallView
+        <ImprovedVideoCallView
           localStream={localStream}
           remoteStream={remoteStream}
           onToggleAudio={toggleLocalAudio}
