@@ -1,18 +1,18 @@
-import type { Metadata } from "next"
-import { RoomClient } from "./room-client"
-
-interface RoomPageProps {
-  params: Promise<{
-    id: string
-  }>
-}
+// app/room/[roomId]/page.tsx
+import type { Metadata } from 'next';
+import { RoomClient } from './room-client';
 
 export const metadata: Metadata = {
-  title: "Room",
-  description: "Chat room page",
+  title: 'Room',
+  description: 'Chat room page',
+};
+
+interface RoomPageProps {
+  params: { roomId: string }; // params are synchronous; no Promise wrapper
 }
 
-export default async function RoomPage({ params }: RoomPageProps) {
-  const { id } = await params
-  return <RoomClient roomId={id} />
+export default function RoomPage({ params }: RoomPageProps) {
+  // Destructure roomId from the dynamic route
+  const { roomId } = params;
+  return <RoomClient roomId={roomId} />;
 }

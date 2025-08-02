@@ -4,19 +4,9 @@
 import React from 'react'
 import { Button } from '@/components/ui/button'
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
-import { 
-  Menu, 
-  Hash, 
-  Users, 
-  MessageCircle, 
-  Phone, 
-  Video, 
-  Settings,
-  RefreshCw,
-  Wifi,
-  WifiOff,
-  PhoneCall,
-  LogOut,
+import {
+  Menu, Hash, Users, MessageCircle, Phone, Video, Settings,
+  RefreshCw, Wifi, WifiOff, PhoneCall, LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useWebRTC } from '@/components/providers/WebRTCProvider'
@@ -28,7 +18,6 @@ interface RoomHeaderProps {
   isLoading: boolean
   onMenuToggle?: () => void
   onRetryConnection?: () => void
-  // User and calling props
   user?: {
     displayName?: string
     email?: string
@@ -39,23 +28,17 @@ interface RoomHeaderProps {
     photoURL?: string
   }>
   onLogout?: () => void
-  // Mobile interface controls
   showUserList: boolean
   onToggleUserList: (show: boolean) => void
   showMobileCallPicker: boolean
   onToggleMobileCallPicker: (show: boolean) => void
-  // Calling functions
-  initiateAudioCall?: (userId: string, userName: string) => void
-  initiateCall?: (userId: string, userName: string) => void
-  webRTCCallStatus?: string
-  // For DM headers - calling integration
-  otherUserId?: string
+  webRTCCallStatus?: string // optional if you want to keep it
+  otherUserId?: string        // <-- add this line back
   otherUser?: {
     displayName: string
     photoURL?: string
     isOnline?: boolean
   }
-  // For room headers
   memberCount?: number
   className?: string
 }
@@ -74,38 +57,30 @@ export function RoomHeader({
   onToggleUserList,
   showMobileCallPicker,
   onToggleMobileCallPicker,
-  initiateAudioCall,
-  initiateCall,
-  webRTCCallStatus = 'idle',
   otherUserId,
   otherUser,
   memberCount,
-  className
+  className,
 }: RoomHeaderProps) {
   const webRTCContext = useWebRTC()
 
-  // Handle calling functionality for DMs
   const handleVoiceCall = () => {
     if (otherUserId && webRTCContext) {
       webRTCContext.initiateCall(otherUserId, 'audio')
     }
   }
-
   const handleVideoCall = () => {
     if (otherUserId && webRTCContext) {
       webRTCContext.initiateCall(otherUserId, 'video')
     }
   }
+
   const getRoomIcon = () => {
     switch (roomType) {
-      case 'lobby':
-        return <Hash className="h-5 w-5" />
-      case 'room':
-        return <Users className="h-5 w-5" />
-      case 'dm':
-        return <MessageCircle className="h-5 w-5" />
-      default:
-        return <Hash className="h-5 w-5" />
+      case 'lobby': return <Hash className="h-5 w-5" />
+      case 'room': return <Users className="h-5 w-5" />
+      case 'dm':   return <MessageCircle className="h-5 w-5" />
+      default:     return <Hash className="h-5 w-5" />
     }
   }
 
@@ -118,7 +93,6 @@ export function RoomHeader({
         </div>
       )
     }
-    
     if (isConnected) {
       return (
         <div className="flex items-center gap-2 text-green-400">
@@ -127,7 +101,6 @@ export function RoomHeader({
         </div>
       )
     }
-    
     return (
       <div className="flex items-center gap-2 text-red-400">
         <WifiOff className="h-4 w-4" />
@@ -167,14 +140,11 @@ export function RoomHeader({
         </div>
       )
     }
-
     return (
       <div className="flex items-center gap-3">
         {getRoomIcon()}
         <div className="flex flex-col min-w-0">
-          <h1 className="text-lg font-semibold text-white truncate">
-            {roomName}
-          </h1>
+          <h1 className="text-lg font-semibold text-white truncate">{roomName}</h1>
           {memberCount && (
             <span className="text-xs text-slate-300">
               {memberCount} {memberCount === 1 ? 'member' : 'members'}
@@ -190,9 +160,8 @@ export function RoomHeader({
       "h-14 md:h-16 glass-card rounded-none md:rounded-xl flex items-center justify-between px-3 md:px-6 neon-glow",
       className
     )}>
-      {/* Left Section */}
-      <div className="flex items-center gap-2 md:gap-3 min-w-0 flex-1">
-        {/* Mobile Menu Button */}
+      {/* Left section */}
+      <div className="flex items-center space-x-default min-w-0 flex-1">
         <Button
           variant="ghost"
           size="icon"
@@ -201,19 +170,14 @@ export function RoomHeader({
         >
           <Menu className="h-5 w-5" />
         </Button>
-
-        {/* Room Info */}
         {getRoomInfo()}
-
-        {/* Connection Status */}
-        <div className="hidden sm:flex items-center gap-2 ml-auto">
+        <div className="hidden sm:flex items-center space-x-default ml-auto">
           {getConnectionStatus()}
         </div>
       </div>
 
-      {/* Right Section - Action Buttons */}
-      <div className="flex items-center gap-1 md:gap-2 shrink-0">
-        {/* Mobile Call Button - Show only when there are online users */}
+      {/* Right section */}
+      <div className="flex items-center space-x-default shrink-0">
         {onlineUsers.length > 0 && (
           <Button
             variant="ghost"
@@ -225,8 +189,6 @@ export function RoomHeader({
             <Phone className="h-4 w-4" />
           </Button>
         )}
-
-        {/* User List Toggle - Mobile Only */}
         <Button
           variant="ghost"
           size="icon"
@@ -236,47 +198,40 @@ export function RoomHeader({
         >
           <Users className="h-4 w-4" />
         </Button>
+       {roomType === 'dm' && otherUserId && webRTCContext && (
+  <div className="hidden md:flex items-center space-x-default">
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleVoiceCall}
+      className="text-slate-300 hover:text-green-400 hover:bg-green-500/20 touch-manipulation"
+      title="Voice call"
+      disabled={!otherUser?.isOnline || webRTCContext.callStatus !== 'idle'}
+    >
+      <Phone className="h-4 w-4" />
+    </Button>
+    <Button
+      variant="ghost"
+      size="sm"
+      onClick={handleVideoCall}
+      className="text-slate-300 hover:text-blue-400 hover:bg-blue-500/20 touch-manipulation"
+      title="Video call"
+      disabled={!otherUser?.isOnline || webRTCContext.callStatus !== 'idle'}
+    >
+      <Video className="h-4 w-4" />
+    </Button>
+  </div>
+)}
 
-        {/* Call buttons for DMs - Desktop */}
-        {roomType === 'dm' && otherUserId && webRTCContext && (
-          <div className="hidden md:flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleVoiceCall}
-              className="text-slate-300 hover:text-green-400 hover:bg-green-500/20 touch-manipulation"
-              title="Voice call"
-              disabled={!otherUser?.isOnline || webRTCCallStatus !== 'idle'}
-            >
-              <Phone className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={handleVideoCall}
-              className="text-slate-300 hover:text-blue-400 hover:bg-blue-500/20 touch-manipulation"
-              title="Video call"
-              disabled={!otherUser?.isOnline || webRTCCallStatus !== 'idle'}
-            >
-              <Video className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* User name - Hidden on very small screens */}
         <span className="hidden sm:block text-sm text-slate-300 mr-2 truncate max-w-32">
           {user?.displayName || user?.email || "User"}
         </span>
-
-        {/* Show if currently in a call */}
         {webRTCContext?.isInCall && (
           <div className="flex items-center gap-2 px-2 py-1 bg-red-500/20 rounded-full mr-2">
             <PhoneCall className="h-3 w-3 text-red-400" />
             <span className="text-xs text-red-400 hidden sm:inline">In Call</span>
           </div>
         )}
-
-        {/* User Settings */}
         <Button
           variant="ghost"
           size="icon"
@@ -285,8 +240,6 @@ export function RoomHeader({
         >
           <Settings className="h-4 md:h-5 w-4 md:w-5" />
         </Button>
-
-        {/* Logout Button */}
         <Button
           variant="ghost"
           size="icon"

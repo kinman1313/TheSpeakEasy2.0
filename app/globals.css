@@ -20,7 +20,18 @@
     /* Animations */
     --spring-bounce: cubic-bezier(0.68, -0.55, 0.265, 1.55);
     --smooth-out: cubic-bezier(0.25, 0.46, 0.45, 0.94);
-  }
+
+      --component-spacing: 1rem;
+}
+
+.space-y-default > * + * {
+  margin-top: var(--component-spacing);
+}
+
+.space-x-default > * + * {
+  margin-left: var(--component-spacing);
+  
+}
 
   /* Premium background with depth */
   body {
@@ -190,6 +201,9 @@
     word-wrap: break-word;
     animation: messageSlide 0.3s var(--spring-bounce);
   }
+
+
+}
 
   @keyframes messageSlide {
     from {

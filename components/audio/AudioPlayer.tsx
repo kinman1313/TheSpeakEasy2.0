@@ -89,38 +89,64 @@ export function AudioPlayer({ src, onError }: AudioPlayerProps) {
     return `${minutes}:${seconds.toString().padStart(2, "0")}`
   }
 
-  return (
-    <div className="flex flex-col gap-2 w-full max-w-md">
-      <audio ref={audioRef} src={src} onError={onError} preload="metadata" />
+return (
+  <div className="glass-card p-4 rounded-xl space-y-default w-full max-w-md">
+    {/* Hidden audio element */}
+    <audio ref={audioRef} src={src} onError={onError} preload="metadata" />
 
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={togglePlay} className="h-8 w-8">
-          {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-        </Button>
+    {/* Play/pause + scrubber */}
+    <div className="flex items-center space-x-default">
+      <button
+        type="button"
+        className="icon-btn h-8 w-8"
+        onClick={togglePlay}
+        title={isPlaying ? "Pause" : "Play"}
+      >
+        {isPlaying ? (
+          <Pause className="h-4 w-4" />
+        ) : (
+          <Play className="h-4 w-4" />
+        )}
+      </button>
 
-        <div className="flex-1">
-          <Slider value={[currentTime]} max={duration} step={0.1} onValueChange={handleTimeChange} />
-        </div>
-
-        <span className="text-xs tabular-nums">
-          {formatTime(currentTime)} / {formatTime(duration)}
-        </span>
-      </div>
-
-      <div className="flex items-center gap-2">
-        <Button variant="ghost" size="icon" onClick={toggleMute} className="h-8 w-8">
-          {isMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
-        </Button>
-
+      <div className="flex-1">
         <Slider
-          value={[isMuted ? 0 : volume]}
-          max={1}
-          step={0.01}
-          onValueChange={handleVolumeChange}
-          className="w-24"
+          value={[currentTime]}
+          max={duration}
+          step={0.1}
+          onValueChange={handleTimeChange}
         />
       </div>
+
+      <span className="text-xs tabular-nums">
+        {formatTime(currentTime)} / {formatTime(duration)}
+      </span>
     </div>
-  )
-}
+
+    {/* Volume/mute */}
+    <div className="flex items-center space-x-default">
+      <button
+        type="button"
+        className="icon-btn h-8 w-8"
+        onClick={toggleMute}
+        title={isMuted ? "Unmute" : "Mute"}
+      >
+        {isMuted ? (
+          <VolumeX className="h-4 w-4" />
+        ) : (
+          <Volume2 className="h-4 w-4" />
+        )}
+      </button>
+
+      <Slider
+        value={[isMuted ? 0 : volume]}
+        max={1}
+        step={0.01}
+        onValueChange={handleVolumeChange}
+        className="w-24"
+      />
+    </div>
+  </div>
+);
+
 

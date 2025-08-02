@@ -1,7 +1,7 @@
 import type React from "react"
 
 interface ChatRoomProps {
-  roomId: string
+  roomId: string    
 }
 
 const ChatRoom: React.FC<ChatRoomProps> = ({ roomId }) => {
