@@ -1,40 +1,43 @@
+#!/usr/bin/env node
+
+/**
+ * Sound File Generation Script
+ * Creates placeholder sound files for call notifications
+ */
+
 const fs = require('fs');
 const path = require('path');
 
-const soundFiles = [
-    // Message sounds
-    { name: 'message1.mp3', description: 'Classic message sound' },
-    { name: 'message2.mp3', description: 'Soft chime message sound' },
-    { name: 'message3.mp3', description: 'Bubble pop message sound' },
-    { name: 'message4.mp3', description: 'Digital message sound' },
-
-    // Call sounds
-    { name: 'call1.mp3', description: 'Classic ring call sound' },
-    { name: 'call2.mp3', description: 'Modern call sound' },
-    { name: 'call3.mp3', description: 'Gentle call sound' },
-
-    // DM sounds
-    { name: 'dm1.mp3', description: 'Notification DM sound' },
-    { name: 'dm2.mp3', description: 'Whisper DM sound' },
-    { name: 'dm3.mp3', description: 'Alert DM sound' },
-];
-
-const soundsDir = path.join(__dirname, '..', 'public', 'sounds');
+console.log('🔊 Creating sound files for call notifications...\n');
 
 // Ensure sounds directory exists
+const soundsDir = path.join(process.cwd(), 'public', 'sounds');
 if (!fs.existsSync(soundsDir)) {
-    fs.mkdirSync(soundsDir, { recursive: true });
+  fs.mkdirSync(soundsDir, { recursive: true });
+  console.log('📁 Created public/sounds directory');
 }
 
-console.log('Creating placeholder sound files...\n');
+// Create placeholder MP3 files (empty files that can be replaced with actual sounds)
+const soundFiles = [
+  { name: 'call1.mp3', description: 'Incoming call ringtone' },
+  { name: 'call2.mp3', description: 'Alternative ringtone' },
+  { name: 'call3.mp3', description: 'Third ringtone option' },
+  { name: 'dm1.mp3', description: 'Call connected sound' },
+  { name: 'dm2.mp3', description: 'Call ended sound' }
+];
+
+// Create minimal MP3 headers (placeholder files)
+const minimalMP3 = Buffer.from([
+  0xFF, 0xFB, 0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+]);
 
 soundFiles.forEach(({ name, description }) => {
-    const filePath = path.join(soundsDir, name);
-    const content = `# Placeholder for ${description}\n# Replace with actual sound file`;
-
-    fs.writeFileSync(filePath, content);
-    console.log(`✅ Created: ${name}`);
+  const filePath = path.join(soundsDir, name);
+  fs.writeFileSync(filePath, minimalMP3);
+  console.log(`✅ Created ${name} - ${description}`);
 });
 
-console.log('\n✨ All placeholder sound files created!');
-console.log('Replace these with actual MP3 files for your app.'); 
+console.log('\n🎵 Sound files created successfully!');
+console.log('\n💡 Note: These are placeholder files. Replace them with actual sound files for production.');
+console.log('   Recommended: Use short (2-3 second) MP3 files for call notifications.');
