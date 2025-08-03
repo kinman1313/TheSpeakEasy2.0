@@ -213,4 +213,7 @@ export default function MessageInput({
 )}
     </div>
   );
+
 }
+
+export { MessageInput }; // Named export
