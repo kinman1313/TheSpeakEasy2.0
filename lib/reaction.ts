@@ -5,8 +5,6 @@ export interface Reaction {
   users: string[];
   count: number;
 }
-  count: number;
-}
 /**
  * Adds a reaction to a message in the database.
  * @param db - The Firestore database instance.
@@ -16,9 +14,9 @@ export interface Reaction {
  * @returns A promise that resolves when the reaction is added.
  */
 export const addReaction = async (
-  db: any, 
-  messageId: string, 
-  emoji: string, 
+  db: any,
+  messageId: string,
+  emoji: string,
   userId: string
 ) => {
   // Implementation for adding reactions
