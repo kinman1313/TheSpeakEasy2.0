@@ -19,6 +19,7 @@
     "deploy:rules:database": "node scripts/deploy-rules.js --database",
     "debug:firestore": "node scripts/debug-firestore-400.js",
     "test:calling": "node scripts/test-calling-functionality.js",
+    "test:active-call-rooms": "node scripts/test-active-call-rooms.js",
     "create-sounds": "node scripts/create-sound-files.js",
     "render:env": "node scripts/generate-render-env.js",
     "type-check": "tsc --noEmit",
