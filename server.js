@@ -1,6 +1,5 @@
 const { createServer } = require('http');
 const { parse } = require('url');
-const next = require('next');
 const { Server } = require('socket.io');
 
 const dev = process.env.NODE_ENV !== 'production';
@@ -8,37 +7,53 @@ const hostname = 'localhost';
 const port = process.env.PORT || 3000;
 const socketPort = process.env.SOCKET_PORT || 3001;
 
-const app = next({ dev, hostname, port });
-const handle = app.getRequestHandler();
+let app;
+let handle;
+
+if (process.env.TEST_MODE) {
+  app = {
+    prepare: () => Promise.resolve(),
+    getRequestHandler: () => (req, res) => res.end()
+  };
+  handle = app.getRequestHandler();
+} else {
+  const next = require('next');
+  app = next({ dev, hostname, port });
+  handle = app.getRequestHandler();
+}
 
 // Enhanced user mapping for calling functionality
 const userSockets = new Map(); // userId -> socketId
 const socketUsers = new Map(); // socketId -> userInfo
+const activeCallRooms = new Map(); // roomId -> Set of userIds
 
-app.prepare().then(() => {
-  // Main Next.js server
-  const server = createServer(async (req, res) => {
-    try {
-      const parsedUrl = parse(req.url, true);
-      await handle(req, res, parsedUrl);
-    } catch (err) {
-      console.error('Error occurred handling', req.url, err);
-      res.statusCode = 500;
-      res.end('internal server error');
-    }
-  });
+const getCallRoomId = (id1, id2) => [id1, id2].sort().join('-');
 
-  // Socket.IO server for real-time features
-  const io = new Server(server, {
-    cors: {
-      origin: dev ? "http://localhost:3000" : "*",
-      methods: ["GET", "POST"]
-    },
-    transports: ['websocket', 'polling']
-  });
+const serverReady = app.prepare().then(() => {
+  return new Promise((resolve, reject) => {
+    // Main Next.js server
+    const server = createServer(async (req, res) => {
+      try {
+        const parsedUrl = parse(req.url, true);
+        await handle(req, res, parsedUrl);
+      } catch (err) {
+        console.error('Error occurred handling', req.url, err);
+        res.statusCode = 500;
+        res.end('internal server error');
+      }
+    });
 
-  io.on('connection', (socket) => {
-    console.log('🔌 New socket connection:', socket.id);
+    // Socket.IO server for real-time features
+    const io = new Server(server, {
+      cors: {
+        origin: dev ? "http://localhost:3000" : "*",
+        methods: ["GET", "POST"]
+      },
+      transports: ['websocket', 'polling']
+    });
+
+    io.on('connection', (socket) => {
+      console.log('🔌 New socket connection:', socket.id);
 
     // Enhanced user registration with proper mapping
     socket.on('register-user', (userData) => {
@@ -134,11 +149,19 @@ app.prepare().then(() => {
       try {
         const { callerSocketId, answer } = data;
         const responderInfo = socketUsers.get(socket.id);
-        
+        const callerInfo = socketUsers.get(callerSocketId);
+
+        const roomId = getCallRoomId(responderInfo?.userId, callerInfo?.userId);
+
+        socket.join(roomId);
+        io.sockets.sockets.get(callerSocketId)?.join(roomId);
+        activeCallRooms.set(roomId, new Set([responderInfo?.userId, callerInfo?.userId]));
+
         io.to(callerSocketId).emit('call-answered', {
           answer,
           responderId: responderInfo?.userId,
-          responderName: responderInfo?.userName
+          responderName: responderInfo?.userName,
+          roomId
         });
         console.log(`✅ Call answered by ${responderInfo?.userName}`);
       } catch (error) {
@@ -165,13 +188,31 @@ app.prepare().then(() => {
       try {
         const { targetSocketId } = data;
         const senderInfo = socketUsers.get(socket.id);
-        
+        const targetInfo = socketUsers.get(targetSocketId);
+
         if (targetSocketId) {
           io.to(targetSocketId).emit('call-ended', {
             endedBy: senderInfo?.userId,
             endedByName: senderInfo?.userName
           });
         }
+
+        const roomId = senderInfo && targetInfo
+          ? getCallRoomId(senderInfo.userId, targetInfo.userId)
+          : null;
+
+        if (roomId && activeCallRooms.has(roomId)) {
+          const participants = activeCallRooms.get(roomId);
+          participants.delete(senderInfo.userId);
+          participants.delete(targetInfo.userId);
+          if (participants.size === 0) {
+            activeCallRooms.delete(roomId);
+          } else {
+            activeCallRooms.set(roomId, participants);
+          }
+          socket.leave(roomId);
+        }
+
         console.log(`📵 Call ended by ${senderInfo?.userName}`);
       } catch (error) {
         console.error('❌ Error handling call end:', error);
@@ -229,12 +270,19 @@ app.prepare().then(() => {
         console.error('❌ Error handling ICE candidate:', error);
       }
     });
-  });
+    });
 
-  server.listen(port, (err) => {
-    if (err) throw err;
-    console.log(`🚀 Next.js server ready on http://${hostname}:${port}`);
-    console.log(`🔌 Socket.IO server ready on the same port`);
-    console.log(`📱 Environment: ${dev ? 'development' : 'production'}`);
+    server.listen(port, (err) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      console.log(`🚀 Next.js server ready on http://${hostname}:${port}`);
+      console.log(`🔌 Socket.IO server ready on the same port`);
+      console.log(`📱 Environment: ${dev ? 'development' : 'production'}`);
+      resolve({ server, io });
+    });
   });
 });
+
+module.exports = { activeCallRooms, serverReady };
