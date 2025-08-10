@@ -26,8 +26,7 @@ const requiredFiles = [
   'components/providers/WebRTCProvider.tsx',
   'components/chat/ImprovedVideoCallView.tsx',
   'components/chat/IncomingCallDialog.tsx',
-  'components/chat/VideoCallView.tsx',
-  'components/call-controls.tsx',
+  'components/CallControls.tsx',
   'public/sounds/call1.mp3',
   'public/sounds/call2.mp3',
   'public/sounds/call3.mp3',
@@ -137,8 +136,7 @@ try {
 console.log('\n🎨 Test 5: Checking video call UI...');
 const uiComponents = [
   { file: 'components/chat/ImprovedVideoCallView.tsx', name: 'Improved video call view' },
-  { file: 'components/chat/IncomingCallDialog.tsx', name: 'Incoming call dialog' },
-  { file: 'components/chat/VideoCallView.tsx', name: 'Original video call view' }
+  { file: 'components/chat/IncomingCallDialog.tsx', name: 'Incoming call dialog' }
 ];
 
 uiComponents.forEach(component => {
