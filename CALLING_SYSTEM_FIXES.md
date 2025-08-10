@@ -40,6 +40,7 @@ This document outlines the comprehensive fixes and enhancements made to the voic
 
 **Solution**:
 - Created improved video call view (`ImprovedVideoCallView.tsx`)
+- Removed legacy `VideoCallView.tsx`; all calls now use the enhanced view
 - Enhanced incoming call dialog with better animations
 - Added proper call status indicators
 - Implemented touch-friendly controls for mobile
@@ -96,8 +97,7 @@ This document outlines the comprehensive fixes and enhancements made to the voic
 │   ├── chat/
 │   │   ├── ImprovedVideoCallView.tsx   # New improved video call UI
 │   │   ├── IncomingCallDialog.tsx      # Enhanced incoming call dialog
-│   │   └── VideoCallView.tsx           # Original video call view
-│   └── call-controls.tsx               # Call control components
+│   └── CallControls.tsx               # Call control components
 ├── public/sounds/                      # Call sound files
 │   ├── call1.mp3                      # Primary ringtone
 │   ├── call2.mp3                      # Alternative ringtone
