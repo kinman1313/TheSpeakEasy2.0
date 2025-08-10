@@ -14,6 +14,8 @@
 const fs = require('fs');
 const path = require('path');
 
+let failureCount = 0;
+
 console.log('🎥 CALLING FUNCTIONALITY TEST SUITE');
 console.log('=====================================\n');
 
@@ -47,6 +49,7 @@ if (missingFiles.length === 0) {
 } else {
   console.log('❌ Missing files:');
   missingFiles.forEach(file => console.log(`   - ${file}`));
+  failureCount += missingFiles.length;
 }
 
 // Test 2: Verify server configuration
@@ -56,8 +59,8 @@ try {
   
   const checks = [
     { name: 'Socket.IO user mapping', pattern: /userSockets.*Map/, found: false },
-    { name: 'Enhanced signaling', pattern: /signal.*targetSocketId/, found: false },
-    { name: 'Call events handling', pattern: /call-user.*call-answer/, found: false },
+    { name: 'Enhanced signaling', pattern: /signal[\s\S]*targetSocketId/, found: false },
+    { name: 'Call events handling', pattern: /call-user[\s\S]*call-answer/, found: false },
     { name: 'User registration', pattern: /register-user/, found: false }
   ];
   
@@ -71,9 +74,11 @@ try {
   checks.forEach(check => {
     const status = check.found ? '✅' : '❌';
     console.log(`   ${status} ${check.name}`);
+    if (!check.found) failureCount++;
   });
 } catch (error) {
   console.log('❌ Error reading server.js:', error.message);
+  failureCount++;
 }
 
 // Test 3: Check WebRTC provider implementation
@@ -85,7 +90,7 @@ try {
     { name: 'Call notification integration', pattern: /callNotifications/, found: false },
     { name: 'Socket registration', pattern: /registerUser/, found: false },
     { name: 'Enhanced peer connection', pattern: /enhancedConfiguration/, found: false },
-    { name: 'Proper stream handling', pattern: /remoteStream.*setRemoteStream/, found: false },
+    { name: 'Proper stream handling', pattern: /remoteStream[\s\S]*setRemoteStream/, found: false },
     { name: 'Sound effects', pattern: /playCallConnectedSound|playCallEndedSound/, found: false }
   ];
   
@@ -99,9 +104,11 @@ try {
   webrtcChecks.forEach(check => {
     const status = check.found ? '✅' : '❌';
     console.log(`   ${status} ${check.name}`);
+    if (!check.found) failureCount++;
   });
 } catch (error) {
   console.log('❌ Error reading WebRTC provider:', error.message);
+  failureCount++;
 }
 
 // Test 4: Check call notifications system
@@ -113,7 +120,7 @@ try {
     { name: 'Ringtone management', pattern: /ringtone.*Audio/, found: false },
     { name: 'Vibration patterns', pattern: /vibrate.*Pattern/, found: false },
     { name: 'System notifications', pattern: /Notification.*permission/, found: false },
-    { name: 'Sound effects', pattern: /playCallConnectedSound.*playCallEndedSound/, found: false },
+    { name: 'Sound effects', pattern: /playCallConnectedSound[\s\S]*playCallEndedSound/, found: false },
     { name: 'Notification cleanup', pattern: /stopIncomingCall/, found: false }
   ];
   
@@ -127,37 +134,60 @@ try {
   notificationChecks.forEach(check => {
     const status = check.found ? '✅' : '❌';
     console.log(`   ${status} ${check.name}`);
+    if (!check.found) failureCount++;
   });
 } catch (error) {
   console.log('❌ Error reading call notifications:', error.message);
+  failureCount++;
 }
 
 // Test 5: Check video call UI components
 console.log('\n🎨 Test 5: Checking video call UI...');
 const uiComponents = [
-  { file: 'components/chat/ImprovedVideoCallView.tsx', name: 'Improved video call view' },
-  { file: 'components/chat/IncomingCallDialog.tsx', name: 'Incoming call dialog' }
+  {
+    file: 'components/chat/ImprovedVideoCallView.tsx',
+    name: 'Improved video call view',
+    checks: [
+      { name: 'WebRTC integration', pattern: /useWebRTC/ },
+      { name: 'Video stream handling', pattern: /videoRef|srcObject/ },
+      { name: 'Call controls', pattern: /toggleLocalAudio|toggleLocalVideo/ }
+    ]
+  },
+  {
+    file: 'components/chat/IncomingCallDialog.tsx',
+    name: 'Incoming call dialog',
+    checks: [
+      { name: 'WebRTC integration', pattern: /useWebRTC/ },
+      { name: 'Call accept/decline', pattern: /acceptCall|declineCall/ }
+    ]
+  }
 ];
 
 uiComponents.forEach(component => {
   try {
     if (fs.existsSync(component.file)) {
       const content = fs.readFileSync(component.file, 'utf8');
-      const hasWebRTCIntegration = /useWebRTC/.test(content);
-      const hasVideoRefs = /videoRef|srcObject/.test(content);
-      const hasCallControls = /toggleLocalAudio|toggleLocalVideo/.test(content);
-      
-      const status = hasWebRTCIntegration && hasVideoRefs && hasCallControls ? '✅' : '❌';
-      console.log(`   ${status} ${component.name}`);
-      
-      if (!hasWebRTCIntegration) console.log(`       ⚠️  Missing WebRTC integration`);
-      if (!hasVideoRefs) console.log(`       ⚠️  Missing video stream handling`);
-      if (!hasCallControls) console.log(`       ⚠️  Missing call controls`);
+      const failedSubChecks = [];
+      component.checks.forEach(check => {
+        if (!check.pattern.test(content)) {
+          failedSubChecks.push(check.name);
+        }
+      });
+
+      if (failedSubChecks.length === 0) {
+        console.log(`   ✅ ${component.name}`);
+      } else {
+        console.log(`   ❌ ${component.name}`);
+        failedSubChecks.forEach(msg => console.log(`       ⚠️  Missing ${msg}`));
+        failureCount += failedSubChecks.length;
+      }
     } else {
       console.log(`   ❌ ${component.name} (file not found)`);
+      failureCount++;
     }
   } catch (error) {
     console.log(`   ❌ ${component.name} (read error)`);
+    failureCount++;
   }
 });
 
@@ -184,6 +214,7 @@ if (missingSounds.length === 0) {
   console.log('❌ Missing sound files:');
   missingSounds.forEach(file => console.log(`   - ${file}`));
   console.log('\n💡 To create missing sound files, run: npm run create-sounds');
+  failureCount += missingSounds.length;
 }
 
 // Test 7: Package.json dependencies
@@ -209,9 +240,11 @@ try {
   } else {
     console.log('❌ Missing dependencies:');
     missingDeps.forEach(dep => console.log(`   - ${dep}`));
+    failureCount += missingDeps.length;
   }
 } catch (error) {
   console.log('❌ Error reading package.json:', error.message);
+  failureCount++;
 }
 
 // Summary and next steps
@@ -250,3 +283,11 @@ console.log('');
 
 console.log('✨ The calling system should now be fully functional!');
 console.log('   Report any issues and check browser console for errors.');
+
+if (failureCount > 0) {
+  console.log(`\n❌ ${failureCount} checks failed.`);
+  process.exit(1);
+} else {
+  console.log('\n✅ All checks passed');
+  process.exit(0);
+}
