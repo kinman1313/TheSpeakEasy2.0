@@ -59,7 +59,7 @@ export const useSendMessage = (
       userId: string;
       userName: string;
       userPhotoURL: string | null;
-      timestamp: Object;
+      timestamp: object;
       voiceMessageUrl?: string;
       voiceMessageDuration?: number;
       gifUrl?: string; // Added

@@ -3,9 +3,21 @@
 import React, { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/textarea";
-import EmojiPicker from '@/components/ui/emoji-picker';
+import ChatEmojiPicker from '@/components/chat/EmojiPicker';
 import { GiftIcon, SmileIcon, Mic, MicOff, Send, X } from 'lucide-react';
 import { cn } from "@/lib/utils";
+
+type MessageInputProps = {
+  onSend: (message: string) => void;
+  onVoiceRecording?: (audio: Blob) => void;
+  onGifSelect?: () => void;
+  replyToMessage?: { userName: string; text: string };
+  onCancelReply?: () => void;
+  currentUserId?: string; // kept for future use
+  roomId?: string;
+  disabled?: boolean;
+  enhanced?: boolean;
+};
 
 export default function MessageInput({
   onSend,
@@ -13,21 +25,18 @@ export default function MessageInput({
   onGifSelect,
   replyToMessage,
   onCancelReply,
-  currentUserId,
-  currentUserName,
-  roomId,
   disabled = false,
   enhanced = false
-}) {
+}: MessageInputProps) {
   const [message, setMessage] = useState("");
   const [isRecording, setIsRecording] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const textareaRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const audioChunksRef = useRef<Blob[]>([]);
 
   // Append selected emoji to current message
-  const handleEmojiSelect = (emoji) => {
+  const handleEmojiSelect = (emoji: string) => {
     setMessage((prev) => prev + emoji);
     setShowEmojiPicker(false);
   };
@@ -42,7 +51,7 @@ export default function MessageInput({
     }
   };
 
-  const handleKeyDown = (e) => {
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -196,11 +205,15 @@ export default function MessageInput({
       </div>
 
       {/* Emoji picker overlay */}
-      {showEmojiPicker && (
-        <div className="absolute bottom-full mb-2 z-10">
-          <EmojiPicker onSelect={handleEmojiSelect} />
-        </div>
-      )}
+    {showEmojiPicker && (
+  <ChatEmojiPicker
+    onSelectEmoji={handleEmojiSelect}
+    onClose={() => setShowEmojiPicker(false)}
+  />
+)}
     </div>
   );
+
 }
+
+export { MessageInput }; // Named export

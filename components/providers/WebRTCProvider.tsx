@@ -22,13 +22,13 @@ export interface SignalingPayload {
   senderId: string;
   senderName?: string;
   receiverId: string;
-  timestamp: Object;
+  timestamp: object;
 }
 
 export interface CallDeclinedPayload {
   declinedByUserId: string;
   declinedByUserName?: string;
-  timestamp: Object;
+  timestamp: object;
 }
 
 interface WebRTCContextType {

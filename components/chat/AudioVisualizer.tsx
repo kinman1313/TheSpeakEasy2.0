@@ -1,70 +1,68 @@
-"use client"
+"use client";
 
-import React, { useEffect, useRef } from "react"
-import { cn } from "@/lib/utils"
+import { useEffect, useRef } from "react";
 
 interface AudioVisualizerProps {
-    stream: MediaStream
-    className?: string
+  stream: MediaStream;
+  className?: string;
 }
 
 export function AudioVisualizer({ stream, className }: AudioVisualizerProps) {
-    const canvasRef = useRef<HTMLCanvasElement>(null)
-    const animationFrameRef = useRef<number>()
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animationRef = useRef<number | null>(null);
 
-    useEffect(() => {
-        if (!stream || !canvasRef.current) return
+  useEffect(() => {
+    if (!canvasRef.current) return;
 
-        const audioContext = new AudioContext()
-        const analyser = audioContext.createAnalyser()
-        const source = audioContext.createMediaStreamSource(stream)
-        source.connect(analyser)
+    const audioContext = new AudioContext();
+    const analyser = audioContext.createAnalyser();
+    const source = audioContext.createMediaStreamSource(stream);
 
-        analyser.fftSize = 256
-        const bufferLength = analyser.frequencyBinCount
-        const dataArray = new Uint8Array(bufferLength)
-        const canvas = canvasRef.current
-        const canvasCtx = canvas.getContext("2d")
+    source.connect(analyser);
+    analyser.fftSize = 256;
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
 
-        if (!canvasCtx) return
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext("2d")!;
 
-        const draw = () => {
-            animationFrameRef.current = requestAnimationFrame(draw)
-            analyser.getByteFrequencyData(dataArray)
+    const draw = () => {
+      const WIDTH = canvas.width;
+      const HEIGHT = canvas.height;
 
-            canvasCtx.fillStyle = "rgb(0, 0, 0, 0.2)"
-            canvasCtx.fillRect(0, 0, canvas.width, canvas.height)
+      analyser.getByteFrequencyData(dataArray);
 
-            const barWidth = (canvas.width / bufferLength) * 2.5
-            let barHeight
-            let x = 0
+      ctx.clearRect(0, 0, WIDTH, HEIGHT);
 
-            for (let i = 0; i < bufferLength; i++) {
-                barHeight = dataArray[i] / 2
+      const barWidth = WIDTH / bufferLength;
+      let x = 0;
 
-                canvasCtx.fillStyle = `rgb(50, ${barHeight + 100}, 50)`
-                canvasCtx.fillRect(x, canvas.height - barHeight, barWidth, barHeight)
+      for (let i = 0; i < bufferLength; i++) {
+        const barHeight = (dataArray[i] / 255) * HEIGHT;
 
-                x += barWidth + 1
-            }
-        }
+        const gradient = ctx.createLinearGradient(0, HEIGHT - barHeight, 0, HEIGHT);
+        gradient.addColorStop(0, "#22c55e"); // Bright green
+        gradient.addColorStop(1, "rgba(34,197,94,0.3)");
 
-        draw()
+        ctx.fillStyle = gradient;
+        ctx.shadowBlur = 6;
+        ctx.shadowColor = "#22c55e";
+        ctx.fillRect(x, HEIGHT - barHeight, barWidth - 2, barHeight);
 
-        return () => {
-            if (animationFrameRef.current) {
-                cancelAnimationFrame(animationFrameRef.current)
-            }
-            audioContext.close()
-        }
-    }, [stream])
+        x += barWidth;
+      }
 
-    return (
-        <canvas
-            ref={canvasRef}
-            className={cn("w-full h-full", className)}
-            width={300}
-            height={50}
-        />
-    )
-} 
+      animationRef.current = requestAnimationFrame(draw);
+    };
+
+    draw();
+
+    return () => {
+      cancelAnimationFrame(animationRef.current!);
+      source.disconnect();
+      audioContext.close();
+    };
+  }, [stream]);
+
+  return <canvas ref={canvasRef} className={className} width={300} height={50} />;
+}
