@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useEffect, useRef } from "react"
+import React, { useState, useEffect, useRef, useCallback } from "react"
 import { useAuth } from "@/components/auth/AuthProvider"
 import { Button } from "@/components/ui/button"
 import { ImprovedVideoCallView } from "@/components/chat/ImprovedVideoCallView"
@@ -25,6 +25,7 @@ import { TypingIndicatorService } from "@/lib/typingIndicators"
 import { MessageExpirationService } from "@/lib/messageExpiration"
 import { pushNotificationService } from "@/lib/pushNotifications"
 import { type ExpirationTimer } from "@/lib/types"
+import type { Message as ChatMessage } from "@/lib/types"
 import { 
   User as UserIcon, 
   LogOut, 
@@ -54,6 +55,31 @@ import { usePullToRefresh } from "@/hooks/usePullToRefresh"
 import { useMobileNotifications } from "@/lib/mobileNotifications"
 import { useHaptics } from "@/lib/haptics"
 
+type ThreadParentMessage = ChatMessage & { threadId: string }
+
+interface OutgoingMessageData {
+  text: string
+  userName: string
+  fileUrl?: string
+  fileName?: string
+  fileSize?: number
+  fileType?: string
+  imageUrl?: string
+  voiceMessageUrl?: string
+  gifUrl?: string
+  replyToId?: string
+  expirationTimer: ExpirationTimer
+  threadId?: string
+  status: 'sending' | string
+  expiresAt: Timestamp | null
+  replyToMessage?: {
+    id: string
+    text: string
+    userName?: string
+    timestamp: any
+  }
+}
+
 interface ChatAppProps {
   enhanced?: boolean
 }
@@ -64,9 +90,9 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
   const router = useRouter()
 
   // Mobile features
-  const { showMessage, showCall } = useMobileNotifications()
   const { success: hapticSuccess } = useHaptics()
   const { startIncomingCall } = useCallNotifications()
+  const { showMessage, showCall } = useMobileNotifications()
   const [showGiphyPicker, setShowGiphyPicker] = useState<boolean>(false)
   const [firebaseStatus, setFirebaseStatus] = useState<"initializing" | "ready" | "error">("initializing")
   const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -76,7 +102,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
   const [currentRoomId, setCurrentRoomId] = useState<string | null>(null)
   const [currentRoomType, setCurrentRoomType] = useState<'lobby' | 'room' | 'dm'>('lobby')
   const [currentRoomName, setCurrentRoomName] = useState<string>("Lobby")
-  const [selectedThread, setSelectedThread] = useState<any | null>(null)
+  const [selectedThread, setSelectedThread] = useState<ThreadParentMessage | null>(null)
 
   // Mobile navigation state
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false)
@@ -85,7 +111,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
   const [onlineUsers, setOnlineUsers] = useState<Array<{ uid: string, userName?: string, photoURL?: string }>>([])
 
   // New feature states
-  const [replyToMessage, setReplyToMessage] = useState<any | null>(null)
+  const [replyToMessage, setReplyToMessage] = useState<ChatMessage | null>(null)
 
   // Enhanced UI state
   const [showScrollButton, setShowScrollButton] = useState(false)
@@ -183,7 +209,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
       if (usersData) {
         Object.keys(usersData).forEach((uid) => {
-          if (uid !== user.uid) { // Filter out current user
+          if (uid !== user.uid) {
             loadedUsers.push({
               uid,
               userName: usersData[uid].userName,
@@ -196,7 +222,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     })
 
     return unsubscribe
-  }, [user, rtdb])
+    // rtdb is a stable module singleton; excluding it prevents unnecessary lint warning
+  }, [user])
 
   // Effect to close mobile overlays when screen size changes
   useEffect(() => {
@@ -290,7 +317,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       console.log("ChatApp: Setting up WebRTC signaling listeners for user:", user.uid)
       const cleanupListeners = listenForSignalingMessages(
         user.uid,
-        async (_: any, fromUserId: string, fromUserName?: string) => {
+        async (_offer: RTCSessionDescriptionInit, fromUserId: string, fromUserName?: string) => {
           console.log(`ChatApp: Incoming call offer from ${fromUserName || fromUserId}`)
           
           // Start enhanced call notification
@@ -320,7 +347,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             description: `Call from ${fromUserName || "Unknown User"}`,
           })
         },
-        async (answer: any, fromUserId: string) => {
+        async (answer: RTCSessionDescriptionInit, fromUserId: string) => {
           console.log(`ChatApp: Received answer from ${fromUserId}`)
           console.log(`ChatApp: PeerConnection state: ${peerConnection?.signalingState}`)
           console.log(`ChatApp: WebRTC call status: ${webRTCCallStatus}`)
@@ -348,7 +375,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             console.warn(`Received answer but not in 'have-local-offer' state. Current state: ${peerConnection.signalingState}`)
           }
         },
-        (candidate: any) => {
+        (candidate: RTCIceCandidateInit) => {
           console.log("ChatApp: Received remote ICE candidate")
           if (
             peerConnection &&
@@ -364,7 +391,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             console.warn("Received invalid ICE candidate, skipping:", candidate)
           }
         },
-        (_: any, fromUserName?: string) => {
+        (_declinePayload: unknown, fromUserName?: string) => {
           toast({
             title: "Call Declined",
             description: `${fromUserName || 'The other user'} declined the call.`,
@@ -451,8 +478,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
     // Play sound for new messages from others
     if (messages.length > previousMessageCount.current && previousMessageCount.current > 0) {
-      const newMessages = messages.slice(previousMessageCount.current)
-      const hasNewMessageFromOthers = newMessages.some((msg: any) => msg.uid !== user?.uid)
+      const newMessages = messages.slice(previousMessageCount.current) as ChatMessage[]
+      const hasNewMessageFromOthers = newMessages.some((msg: ChatMessage) => msg.uid !== user?.uid)
 
       if (hasNewMessageFromOthers) {
         const latestMessage = newMessages[newMessages.length - 1]
@@ -528,22 +555,30 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       }
 
       // Prepare message data
-      const messageData: any = {
+      const messageData: OutgoingMessageData = {
         text: messageText,
         userName: user.displayName || user.email || 'Anonymous',
-        ...options,
+        fileUrl: options?.fileUrl,
+        fileName: options?.fileName,
+        fileSize: options?.fileSize,
+        fileType: options?.fileType,
+        imageUrl: options?.imageUrl,
+        voiceMessageUrl: options?.voiceMessageUrl,
+        gifUrl: options?.gifUrl,
+        replyToId: options?.replyToId,
+        threadId: options?.threadId,
         expiresAt: expiresAt ? Timestamp.fromDate(expiresAt) : null,
         expirationTimer: options?.expirationTimer || 'never',
-        status: 'sending' // Initial status
+        status: 'sending'
       }
 
       // Add reply context if replying
       if (options?.replyToId && replyToMessage) {
         messageData.replyToMessage = {
           id: replyToMessage.id,
-          text: replyToMessage.text || '',
-          userName: replyToMessage.userName || replyToMessage.displayName,
-          timestamp: replyToMessage.createdAt
+            text: replyToMessage.text || '',
+            userName: replyToMessage.userName || replyToMessage.displayName,
+            timestamp: replyToMessage.createdAt
         }
       }
 
@@ -711,9 +746,17 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     }
   }
 
-  const handleReplyToMessage = (message: any) => {
+  const handleReplyToMessage = (message: ChatMessage) => {
     setReplyToMessage(message)
   }
+
+  // Add ID-based wrapper for components that emit only messageId (e.g., OptimizedMessage)
+  const handleReplyToMessageById = React.useCallback((messageId: string) => {
+    const msg = messages.find((m: any) => m.id === messageId)
+    if (msg) {
+      handleReplyToMessage(msg as ChatMessage)
+    }
+  }, [messages, handleReplyToMessage])
 
   const handleCancelReply = () => {
     setReplyToMessage(null)
@@ -798,9 +841,9 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     }
   };
 
-  const handleExpire = async (messageId: string, duration: number) => {
+  // Updated: memoized to avoid re-creation each render (fixes dependency churn)
+  const handleExpire = useCallback(async (messageId: string, duration: number) => {
     if (!user) return
-
     try {
       const token = await user.getIdToken()
       const response = await fetch(`/api/messages/${messageId}/expire`, {
@@ -811,11 +854,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
         },
         body: JSON.stringify({ minutes: duration })
       })
-
-      if (!response.ok) {
-        throw new Error('Failed to set message expiration')
-      }
-
+      if (!response.ok) throw new Error('Failed to set message expiration')
       toast({
         title: "Message Expiration Set",
         description: `Message will expire in ${duration} minutes`,
@@ -828,11 +867,19 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
         variant: "destructive",
       })
     }
-  }
+  }, [user, toast])
 
-  const handleThreadClick = (message: any) => {
-    setSelectedThread(message)
-  }
+  // Open a thread given a message ID (adjusted to match onThreadClick signature)
+  const handleOpenThread = React.useCallback((messageId: string) => {
+    if (!messageId) return
+    const message = messages.find((m: any) => m.id === messageId)
+    if (!message) return
+    const threadParent: ThreadParentMessage = {
+      ...(message as ChatMessage),
+      threadId: (message as any).threadId || message.id
+    }
+    setSelectedThread(threadParent)
+  }, [messages])
 
   const handleBackToChat = () => {
     setSelectedThread(null)
@@ -856,18 +903,16 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       return {
         toDate: () => now,
         seconds: Math.floor(now.getTime() / 1000),
-        nanoseconds: (now.getTime() % 1000) * 1000000
+        nanoseconds: (now.getTime() % 1000) * 1_000_000
       };
     }
 
     if (typeof timestamp.toDate === 'function') {
-      // Already a Firestore Timestamp
+      // Already a Firestore Timestamp-like object
       return timestamp;
     }
 
-    // Convert other formats to a proper Firestore-like Timestamp
     let date: Date;
-    
     if (typeof timestamp === 'string') {
       date = new Date(timestamp);
     } else if (typeof timestamp === 'number') {
@@ -878,40 +923,26 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       date = new Date();
     }
     
-    // Create a proper Firestore-like Timestamp object
     return {
       toDate: () => date,
       seconds: Math.floor(date.getTime() / 1000),
-      nanoseconds: (date.getTime() % 1000) * 1000000
+      nanoseconds: (date.getTime() % 1000) * 1_000_000
     };
   };
 
-  /**
-   * Renders a single chat message using the appropriate component based on the enhanced prop.
-   */
+  // Render a single message (fixed: previously corrupted into normalizeTimestamp)
   const renderMessage = React.useCallback((message: any) => {
     const isCurrentUser = message.uid === user?.uid;
 
     if (enhanced) {
-      // Use OptimizedMessage for enhanced mode
-      const timestamp = normalizeTimestamp(message.createdAt);
-
       return (
         <OptimizedMessage
           key={message.id}
           id={message.id}
-          text={message.text || ''}
-          displayName={message.userName || message.displayName || 'Anonymous'}
-          photoURL={message.photoURL}
-          createdAt={timestamp}
-          editedAt={message.editedAt}
-          uid={message.uid}
-          currentUserId={user?.uid || ''}
-          reactions={message.reactions}
-          replyTo={message.replyToMessage}
-          isOwn={isCurrentUser}
-          status={message.status}
-          readBy={message.readBy || []}
+          text={message.text}
+          isCurrentUser={isCurrentUser}
+          timestamp={normalizeTimestamp(message.createdAt)}
+          // Attachments / media
           fileUrl={message.fileUrl}
           fileName={message.fileName}
           fileType={message.fileType}
@@ -922,8 +953,13 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           voiceMessageUrl={message.voiceMessageUrl}
           mp3Url={message.mp3Url}
           chatColor={message.chatColor}
+          // Thread / meta
           threadCount={message.threadCount}
-          onReply={handleReplyToMessage}
+          reactions={message.reactions}
+          replyTo={message.replyToMessage}
+          expiresAt={message.expiresAt}
+          // Actions
+          onReply={handleReplyToMessageById}
           onEdit={handleEditMessage}
           onDelete={handleDeleteMessage}
           onReact={handleReaction}
@@ -941,11 +977,11 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             });
           }}
           onExpire={handleExpire}
-          onThreadClick={handleThreadClick}
+          // FIX: m is a string (messageId), so pass directly
+          onThreadClick={handleOpenThread}
         />
       );
     } else {
-      // Use regular Message component for non-enhanced mode
       return (
         <MessageComponent
           key={message.id}
@@ -955,12 +991,13 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           onDelete={handleDeleteMessage}
           onReply={handleReplyToMessage}
           onReaction={handleReaction}
-          onExpire={(messageId: string, duration: number) => handleExpire(messageId, duration)}
-          onThreadClick={handleThreadClick}
+          onExpire={handleExpire}
+          // FIX: pass handler directly
+          onThreadClick={handleOpenThread}
         />
       );
     }
-  }, [user?.uid, enhanced, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, handleThreadClick, toast]);
+  }, [user?.uid, enhanced, handleReplyToMessageById, handleReplyToMessage, handleEditMessage, handleDeleteMessage, handleReaction, handleExpire, toast, handleOpenThread]);
 
   if (!user) {
     return (
@@ -1000,6 +1037,15 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     if (currentRoomType === 'dm') return <MessageCircle className="h-5 w-5" />
     return <Hash className="h-5 w-5" />
   }
+
+  // Adapt replyToMessage to the shape MessageInput expects
+  const replyPreview = replyToMessage
+    ? {
+        id: replyToMessage.id,
+        text: replyToMessage.text || '',
+        userName: replyToMessage.userName || (replyToMessage as any).displayName || 'Unknown'
+      }
+    : undefined
 
   // Enhanced version with glass effects and improved UI
   if (enhanced) {
@@ -1108,9 +1154,12 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           {showScrollButton && (
             <button
               onClick={scrollToBottom}
+              aria-label="Scroll to latest messages"
+              title="Scroll to latest messages"
               className="absolute bottom-20 right-4 glass-panel p-3 rounded-full shadow-lg hover:scale-105 transition-transform z-10"
             >
               <ChevronDown className="w-5 h-5 text-white" />
+              <span className="sr-only">Scroll to latest messages</span>
             </button>
           )}
         </main>
@@ -1121,7 +1170,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             onSend={handleSendMessage}
             onVoiceRecording={handleRecordingComplete}
             onGifSelect={() => setShowGiphyPicker(true)}
-            replyToMessage={replyToMessage}
+            replyToMessage={replyPreview}
             onCancelReply={handleCancelReply}
             currentUserId={user?.uid}
             currentUserName={user?.displayName || user?.email || 'Anonymous'}
@@ -1204,8 +1253,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
               onToggleUserList={setShowUserList}
               showMobileCallPicker={showMobileCallPicker}
               onToggleMobileCallPicker={setShowMobileCallPicker}
-              initiateAudioCall={initiateAudioCall}
-              initiateCall={initiateCall}
+              // initiateCall prop removed (not in RoomHeaderProps)
               webRTCCallStatus={webRTCCallStatus}
               className="md:mb-6"
             />
@@ -1404,7 +1452,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
                     onDeleteMessage={handleDeleteMessage}
                     onReply={handleReplyToMessage}
                     onExpire={handleExpire}
-                    onThreadClick={handleThreadClick}
+                    // FIX: ThreadView already supplies a string id
+                    onThreadClick={handleOpenThread}
                   />
                 ) : (
                   <div className="space-y-4 message-list" style={{ scrollSnapType: 'y proximity' }}>
@@ -1427,7 +1476,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
                   onSend={handleSendMessage}
                   onVoiceRecording={handleRecordingComplete}
                   onGifSelect={() => setShowGiphyPicker(true)}
-                  replyToMessage={replyToMessage}
+                  replyToMessage={replyPreview}
                   onCancelReply={handleCancelReply}
                   currentUserId={user?.uid}
                   currentUserName={user?.displayName || user?.email || 'Anonymous'}
@@ -1446,30 +1495,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
       {/* Video Call View */}
       {webRTCCallStatus !== 'idle' && (
-        <ImprovedVideoCallView
-          localStream={localStream}
-          remoteStream={remoteStream}
-          onToggleAudio={toggleLocalAudio}
-          onToggleVideo={toggleLocalVideo}
-          onEndCall={async () => {
-            try {
-              await hangUpCall()
-            } catch (error) {
-              console.error('Error ending call:', error)
-              toast({
-                title: "Call Error",
-                description: "Failed to end call properly.",
-                variant: "destructive",
-              })
-            }
-          }}
-          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
-          callStatus={webRTCCallStatus}
-          isLocalAudioMuted={isLocalAudioMuted}
-          isLocalVideoEnabled={isLocalVideoEnabled}
-          peerConnection={peerConnection}
-          setRemoteStream={() => {}}
-        />
+        <ImprovedVideoCallView />
       )}
 
       {/* Giphy Picker Modal */}
