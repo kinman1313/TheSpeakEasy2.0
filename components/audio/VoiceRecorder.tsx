@@ -19,7 +19,8 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
     const [permissionError, setPermissionError] = useState<string | null>(null)
     const mediaRecorder = useRef<MediaRecorder | null>(null)
     const chunks = useRef<Blob[]>([])
-    const progressInterval = useRef<NodeJS.Timeout>()
+    // Use browser-safe interval handle: number in browsers. Initialize with null.
+    const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const checkMicrophonePermission = async (): Promise<boolean> => {
         try {
@@ -144,8 +145,9 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
             mediaRecorder.current.stop()
             setIsRecording(false)
             setProgress(0)
-            if (progressInterval.current) {
+            if (progressInterval.current !== null) {
                 clearInterval(progressInterval.current)
+                progressInterval.current = null
             }
         }
     }, [isRecording])

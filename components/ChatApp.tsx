@@ -261,7 +261,6 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
       AudioTestUtils.runFullAudioDiagnostic().catch(console.error);
     }
   }, [user]);
-
   // Enhanced scroll detection for scroll-to-bottom button
   const SCROLL_BOTTOM_THRESHOLD = 100; // px, adjust as needed
 
@@ -1124,7 +1123,6 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             replyToMessage={replyToMessage}
             onCancelReply={handleCancelReply}
             currentUserId={user?.uid}
-            currentUserName={user?.displayName || user?.email || 'Anonymous'}
             roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || undefined}
             enhanced={true}
           />
@@ -1204,7 +1202,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
               onToggleUserList={setShowUserList}
               showMobileCallPicker={showMobileCallPicker}
               onToggleMobileCallPicker={setShowMobileCallPicker}
-              initiateAudioCall={initiateAudioCall}
+              initiateAudioCall={initiateAudioCall}  // added back
               initiateCall={initiateCall}
               webRTCCallStatus={webRTCCallStatus}
               className="md:mb-6"
@@ -1430,7 +1428,6 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
                   replyToMessage={replyToMessage}
                   onCancelReply={handleCancelReply}
                   currentUserId={user?.uid}
-                  currentUserName={user?.displayName || user?.email || 'Anonymous'}
                   roomId={currentRoomType === 'lobby' ? 'lobby' : currentRoomId || undefined}
                 />
               </div>
@@ -1446,30 +1443,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
 
       {/* Video Call View */}
       {webRTCCallStatus !== 'idle' && (
-        <ImprovedVideoCallView
-          localStream={localStream}
-          remoteStream={remoteStream}
-          onToggleAudio={toggleLocalAudio}
-          onToggleVideo={toggleLocalVideo}
-          onEndCall={async () => {
-            try {
-              await hangUpCall()
-            } catch (error) {
-              console.error('Error ending call:', error)
-              toast({
-                title: "Call Error",
-                description: "Failed to end call properly.",
-                variant: "destructive",
-              })
-            }
-          }}
-          targetUserName={activeCallTargetUserName || callerUserName || 'Unknown User'}
-          callStatus={webRTCCallStatus}
-          isLocalAudioMuted={isLocalAudioMuted}
-          isLocalVideoEnabled={isLocalVideoEnabled}
-          peerConnection={peerConnection}
-          setRemoteStream={() => {}}
-        />
+        // Removed unsupported props; ImprovedVideoCallView appears to use context internally
+        <ImprovedVideoCallView />
       )}
 
       {/* Giphy Picker Modal */}

@@ -41,6 +41,8 @@ interface RoomHeaderProps {
   }
   memberCount?: number
   className?: string
+  initiateCall?: (targetUserId: string, targetUserName?: string) => void | Promise<void>
+  initiateAudioCall?: (targetUserId: string, targetUserName?: string) => void | Promise<void>  // new
 }
 
 export function RoomHeader({
@@ -61,6 +63,9 @@ export function RoomHeader({
   otherUser,
   memberCount,
   className,
+  initiateCall,
+  initiateAudioCall,          // new
+  webRTCCallStatus,
 }: RoomHeaderProps) {
   const webRTCContext = useWebRTC()
 

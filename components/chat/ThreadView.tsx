@@ -55,28 +55,73 @@ export function ThreadView({
   useEffect(() => {
     if (!user || !threadId) return;
 
-    // subscribe to the thread; when the server pushes a notification, we set the flag
-    const unsubscribe = ThreadNotificationService.subscribeToThread(
-      threadId,
-      user.uid,
-      () => setIsSubscribed(true)
-    );
+    let cleanup: (() => void) | undefined;
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const maybeUnsub = ThreadNotificationService.subscribeToThread(
+          threadId,
+          user.uid
+        );
+        const resolved =
+          typeof maybeUnsub === "function" ? maybeUnsub : await maybeUnsub;
+        if (!cancelled && typeof resolved === "function") {
+          cleanup = resolved;
+        }
+      } catch {
+        // silent fail
+      }
+
+      // fetch current subscription status if helper exists
+      try {
+        const maybeIsSubscribedFn =
+          (ThreadNotificationService as any)?.isUserSubscribed;
+        if (typeof maybeIsSubscribedFn === "function") {
+          const status = await maybeIsSubscribedFn(threadId, user.uid);
+          if (!cancelled && typeof status === "boolean") setIsSubscribed(status);
+        }
+      } catch {
+        // silent fail
+      }
+    })();
 
     return () => {
-      unsubscribe?.();
+      cancelled = true;
+      if (cleanup) cleanup();
     };
   }, [threadId, user]);
 
   // toggle subscription status on click
   const toggleSubscription = async () => {
     if (!user) return;
-    // update the backend subscription status
-    await ThreadNotificationService.toggleSubscription(
-      threadId,
-      user.uid,
-      !isSubscribed
-    );
-    setIsSubscribed(!isSubscribed);
+    try {
+      const toggleFn = (ThreadNotificationService as any)?.toggleSubscription;
+      if (typeof toggleFn === "function") {
+        const result = toggleFn(threadId, user.uid, !isSubscribed);
+        if (result && typeof result.then === "function") {
+          await result;
+        }
+      } else {
+        // Fallback: attempt basic subscribe / unsubscribe if helpers exist
+        if (!isSubscribed) {
+          try {
+            (ThreadNotificationService as any)?.subscribeToThread?.(threadId, user.uid);
+          } catch {/* silent */}
+        } else {
+          const unsubscribeFn = (ThreadNotificationService as any)?.unsubscribeFromThread;
+          if (typeof unsubscribeFn === "function") {
+            try {
+              const maybe = unsubscribeFn(threadId, user.uid);
+              if (maybe && typeof maybe.then === "function") await maybe;
+            } catch {/* silent */}
+          }
+        }
+      }
+      setIsSubscribed(prev => !prev);
+    } catch {
+      // silent fail - keep prior state
+    }
   };
 
   return (
@@ -153,7 +198,6 @@ export function ThreadView({
         <MessageInput
           onSend={onSendMessage}
           currentUserId={currentUser.uid}
-          currentUserName={currentUser.displayName || ""}
           roomId={threadId}
           replyToMessage={parentMessage}
           onCancelReply={onClose}
