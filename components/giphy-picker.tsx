@@ -45,6 +45,9 @@ export function GiphyPicker({ onSelect }: { onSelect: (url: string) => void }) {
       const response = await fetch(
         `https://api.giphy.com/v1/gifs/search?api_key=${process.env.NEXT_PUBLIC_GIPHY_API_KEY}&q=${query}&limit=20&rating=g`,
       )
+      if (!response.ok) {
+        throw new Error(`Error fetching GIFs: ${response.statusText}`)
+      }
       const data = await response.json()
       setGifs(data.data)
     } catch (error) {
@@ -107,4 +110,3 @@ export function GiphyPicker({ onSelect }: { onSelect: (url: string) => void }) {
     </Dialog>
   )
 }
-

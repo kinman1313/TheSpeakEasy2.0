@@ -211,20 +211,20 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
     }
 
     const copyInviteLink = async () => {
-    try {
-        const inviteLink = `${window.location.origin}/invite/${roomId}`;
-        await navigator.clipboard.writeText(inviteLink);
-        setCopied(true);
-        toast.success("Invite link copied to clipboard");
+        try {
+            const inviteLink = `${window.location.origin}/invite/${roomId}`;
+            await navigator.clipboard.writeText(inviteLink);
+            setCopied(true);
+            toast.success("Invite link copied to clipboard");
 
-        setTimeout(() => {
-            setCopied(false);
-        }, 2000);
-    } catch (error) {
-        console.error("Failed to copy to clipboard:", error);
-        toast.error("Failed to copy invite link to clipboard");
-    }
-};
+            setTimeout(() => {
+                setCopied(false);
+            }, 2000);
+        } catch (error) {
+            console.error("Failed to copy to clipboard:", error);
+            toast.error("Failed to copy invite link to clipboard");
+        }
+    };
 
     // Early return if not in browser
     if (typeof window === 'undefined') {
@@ -259,127 +259,118 @@ export function RoomSettings({ roomId, redirectUrl = "/rooms" }: RoomSettingsPro
                         </div>
 
                         {isAdmin && (
-                            <div className="flex items-center justify-between">
-                                <Label htmlFor="is-private" className="text-neon-white">
-                                    Private Room
-                                </Label>
-                                <Switch
-                                    id="is-private"
-                                    checked={isPrivate}
-                                    onCheckedChange={setIsPrivate}
-                                    disabled={!isFirebaseReady}
-                                />
+                            <div className="space-y-2">
+                                <Label className="text-neon-white">Room Privacy</Label>
+                                <div className="flex items-center">
+                                    <Switch
+                                        checked={isPrivate}
+                                        onCheckedChange={setIsPrivate}
+                                        className="mr-2"
+                                        disabled={!isFirebaseReady}
+                                    />
+                                    <span className="text-neon-white">{isPrivate ? "Private" : "Public"}</span>
+                                </div>
                             </div>
                         )}
 
-                        <div className="space-y-2">
-                            <Label className="text-neon-white">Invite Link</Label>
-                            <div className="flex space-x-2">
-                                <Input
-                                    value={`${window.location.origin}/invite/${roomId}`}
-                                    readOnly
-                                    className="bg-opacity-30 border-neon-white text-neon-white"
-                                />
-                                <Button
-                                    variant="outline"
-                                    className="border-neon-green text-neon-green"
-                                    onClick={copyInviteLink}
-                                    disabled={!isFirebaseReady}
-                                >
-                                    {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-                                </Button>
-                            </div>
-                        </div>
-
-                        <div className="space-y-2">
-                            <Label className="text-neon-white">Members ({members.length})</Label>
-                            <div className="space-y-2 max-h-40 overflow-y-auto p-2 bg-gray-800 bg-opacity-50 rounded-md">
-                                {members.map((member) => (
-                                    <div
-                                        key={member.id}
-                                        className="flex items-center justify-between bg-gray-700 bg-opacity-50 p-2 rounded"
-                                    >
-                                        <div className="flex items-center space-x-2">
-                                            <Avatar className="h-8 w-8">
-                                                <AvatarImage src={member.photoURL || `/placeholder.svg?height=32&width=32`} />
-                                                <AvatarFallback>{member.displayName?.[0] || "?"}</AvatarFallback>
-                                            </Avatar>
-                                            <div>
-                                                <div className="text-sm font-medium text-neon-white">
-                                                    {member.displayName || "Unknown User"}
-                                                </div>
-                                                <div className="text-xs text-neon-green">
-                                                    {member.id === user?.uid ? "You" : ""}
-                                                    {member.id === user?.uid && isAdmin ? " (Admin)" : ""}
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {isAdmin && member.id !== user?.uid && (
-                                            <Button
-                                                variant="ghost"
-                                                size="icon"
-                                                onClick={() => removeMember(member.id)}
-                                                className="text-neon-red h-8 w-8"
-                                                disabled={!isFirebaseReady}
-                                            >
-                                                <UserMinus className="h-4 w-4" />
-                                            </Button>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-
                         {isAdmin && (
                             <div className="space-y-2">
-                                <Label htmlFor="new-member" className="text-neon-white">
+                                <Label htmlFor="add-member" className="text-neon-white">
                                     Add Member
                                 </Label>
-                                <div className="flex space-x-2">
+                                <div className="flex items-center">
                                     <Input
-                                        id="new-member"
+                                        id="add-member"
                                         value={newMemberEmail}
                                         onChange={(e) => setNewMemberEmail(e.target.value)}
-                                        placeholder="Enter email address"
-                                        className="bg-opacity-30 border-neon-blue text-neon-white"
+                                        placeholder="Enter member's email"
+                                        className="flex-grow bg-opacity-30 border-neon-blue text-neon-white"
                                         disabled={!isFirebaseReady}
                                     />
                                     <Button
+                                        className="ml-2 px-4 py-2 text-sm text-neon-blue bg-opacity-30 hover:bg-opacity-50"
                                         onClick={addMember}
-                                        className="bg-neon-green text-black"
-                                        disabled={!isFirebaseReady}
+                                        disabled={!newMemberEmail.trim() || !isFirebaseReady}
                                     >
-                                        <UserPlus className="h-4 w-4 mr-2" />
+                                        <UserPlus className="mr-1" />
                                         Add
                                     </Button>
                                 </div>
                             </div>
                         )}
+
+                        {members.length > 0 && (
+                            <div className="space-y-2">
+                                <Label className="text-neon-white">Room Members</Label>
+                                <ul className="space-y-2">
+                                    {members.map((member) => (
+                                        <li key={member.id} className="flex items-center">
+                                            {/* Fixed Avatar usage: use AvatarImage + AvatarFallback instead of passing src to Avatar */}
+                                            <Avatar className="w-8 h-8 mr-2">
+                                                <AvatarImage
+                                                    src={member.photoURL ?? undefined}
+                                                    alt={member.displayName}
+                                                />
+                                                <AvatarFallback>
+                                                    {(member.displayName || "?").slice(0,2).toUpperCase()}
+                                                </AvatarFallback>
+                                            </Avatar>
+                                            <span className="text-neon-white">{member.displayName}</span>
+                                            {isAdmin && (
+                                                <Button
+                                                    className="ml-2 px-2 py-1 text-xs text-neon-blue bg-opacity-30 hover:bg-opacity-50"
+                                                    onClick={() => removeMember(member.id)}
+                                                    disabled={!isFirebaseReady}
+                                                >
+                                                    <UserMinus className="mr-1" />
+                                                    Remove
+                                                </Button>
+                                            )}
+                                        </li>
+                                    ))}
+                                </ul>
+                            </div>
+                        )}
+
+                        <div className="flex justify-end">
+                            <Button
+                                className="px-4 py-2 text-sm text-neon-blue bg-opacity-30 hover:bg-opacity-50"
+                                onClick={updateRoomSettings}
+                                disabled={!roomName.trim() || (isAdmin && !isFirebaseReady)}
+                            >
+                                Save
+                            </Button>
+                            <Button
+                                className="ml-2 px-4 py-2 text-sm text-neon-blue bg-opacity-30 hover:bg-opacity-50"
+                                onClick={handleClose}
+                            >
+                                Close
+                            </Button>
+                        </div>
+
+                        {isAdmin && (
+                            <div className="flex justify-center mt-4">
+                                <Button
+                                    className="px-4 py-2 text-sm text-neon-blue bg-opacity-30 hover:bg-opacity-50"
+                                    onClick={copyInviteLink}
+                                >
+                                    {copied ? (
+                                        <span>
+                                            <Check className="mr-1" />
+                                            Copied
+                                        </span>
+                                    ) : (
+                                        <span>
+                                            <Copy className="mr-1" />
+                                            Copy Invite Link
+                                        </span>
+                                    )}
+                                </Button>
+                            </div>
+                        )}
                     </>
                 )}
             </div>
-
-            <div className="flex justify-end space-x-2 mt-4">
-                <Button
-                    variant="outline"
-                    onClick={handleClose}
-                    className="border-neon-red text-neon-red"
-                >
-                    Cancel
-                </Button>
-                {isAdmin && (
-                    <Button
-                        onClick={updateRoomSettings}
-                        className="bg-neon-green text-black"
-                        disabled={isLoading || !isFirebaseReady}
-                    >
-                        Save Changes
-                    </Button>
-                )}
-            </div>
         </>
-    )
+    );
 }
-
-export default RoomSettings
