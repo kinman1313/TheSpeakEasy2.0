@@ -869,11 +869,20 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     }
   }, [user, toast])
 
-  // Open a thread given a message ID (adjusted to match onThreadClick signature)
-  const handleOpenThread = React.useCallback((messageId: string) => {
-    if (!messageId) return
-    const message = messages.find((m: any) => m.id === messageId)
+  // Open a thread from either a Message object or a messageId (flexible to satisfy differing component prop types)
+  const handleOpenThread = React.useCallback((messageOrMessageId: any) => {
+    // Normalize to message object
+    let message: any
+    if (typeof messageOrMessageId === 'string') {
+      const id = messageOrMessageId
+      if (!id) return
+      message = messages.find((m: any) => m.id === id)
+    } else if (messageOrMessageId && typeof messageOrMessageId === 'object') {
+      message = messageOrMessageId
+    }
+
     if (!message) return
+
     const threadParent: ThreadParentMessage = {
       ...(message as ChatMessage),
       threadId: (message as any).threadId || message.id
@@ -922,7 +931,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
     } else {
       date = new Date();
     }
-    
+
     return {
       toDate: () => date,
       seconds: Math.floor(date.getTime() / 1000),
@@ -940,7 +949,8 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           key={message.id}
           id={message.id}
           text={message.text}
-          isCurrentUser={isCurrentUser}
+          // FIX: currentUserId must be a string, not boolean
+          currentUserId={user?.uid || ''}
           timestamp={normalizeTimestamp(message.createdAt)}
           // Attachments / media
           fileUrl={message.fileUrl}
@@ -954,7 +964,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           mp3Url={message.mp3Url}
           chatColor={message.chatColor}
           // Thread / meta
-          threadCount={message.threadCount}
+            threadCount={message.threadCount}
           reactions={message.reactions}
           replyTo={message.replyToMessage}
           expiresAt={message.expiresAt}
@@ -977,7 +987,6 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             });
           }}
           onExpire={handleExpire}
-          // FIX: m is a string (messageId), so pass directly
           onThreadClick={handleOpenThread}
         />
       );
@@ -992,7 +1001,6 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
           onReply={handleReplyToMessage}
           onReaction={handleReaction}
           onExpire={handleExpire}
-          // FIX: pass handler directly
           onThreadClick={handleOpenThread}
         />
       );
@@ -1133,7 +1141,7 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             <div
               className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
               style={refreshIndicatorStyle}
-            >
+            ></div>
               <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
                 {!isRefreshing && (
                   <div className="w-full h-full flex items-center justify-center">

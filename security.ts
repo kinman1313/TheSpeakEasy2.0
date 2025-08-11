@@ -1,19 +1,17 @@
-// For Node.js, use require and .default for dompurify
-// Make sure to install dompurify and jsdom: npm install dompurify jsdom
-// For TypeScript types: npm install --save-dev @types/dompurify @types/jsdom
-const createDOMPurify = require('dompurify').default;
+// Setup DOMPurify for Node.js with jsdom (ESM style imports)
+import createDOMPurify from 'dompurify';
 import { JSDOM } from 'jsdom';
 
 // Setup DOMPurify for Node.js
-const window = new JSDOM('').window;
-const DOMPurify = createDOMPurify(window);
+const windowInstance = new JSDOM('').window;
+// Create a WindowLike object (jsdom window already has needed constructors, casting to globalThis shape satisfies types)
+const DOMPurify = createDOMPurify(windowInstance as unknown as typeof globalThis);
 
 export const sanitizeInput = (input: string): string => {
   return DOMPurify.sanitize(input, {
     ALLOWED_TAGS: ['b', 'i', 'em', 'strong', 'a'],
     ALLOWED_ATTR: ['href']
   });
-  
 };
 
 export const validateMessage = (message: string): boolean => {

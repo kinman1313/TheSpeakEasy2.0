@@ -1,14 +1,30 @@
 import { rtdb } from '@/lib/firebase';
-import { ref, set, remove, onValue, off, serverTimestamp } from 'firebase/database';
+import { ref, set, remove, onValue, serverTimestamp } from 'firebase/database';
 import type { TypingIndicator } from '@/lib/types';
 
 const TYPING_TIMEOUT = 3000; // 3 seconds before removing typing indicator
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+// Added: safe type guard for Firebase-style errors that may include a code property
+function hasErrorCode(err: unknown, code?: string): err is { code: string } {
+    if (typeof err === 'object' && err !== null && 'code' in err) {
+        const c = (err as { code?: unknown }).code;
+        return typeof c === 'string' && (code ? c === code : true);
+    }
+    return false;
+}
+
+// Added: strongly typed representation of typing data from RTDB
+interface RawTypingDataEntry {
+    userName?: string;
+    timestamp?: number | string | null;
+}
+type RawTypingData = Record<string, RawTypingDataEntry>;
+
 export class TypingIndicatorService {
     private static typingTimeouts: Map<string, NodeJS.Timeout> = new Map();
-    private static listeners: Map<string, any> = new Map();
+    private static listeners: Map<string, () => void> = new Map();
 
     /**
      * Retry function with exponential backoff
@@ -20,8 +36,8 @@ export class TypingIndicatorService {
     ): Promise<T> {
         try {
             return await operation();
-        } catch (error: any) {
-            if (retries > 0 && error?.code !== 'PERMISSION_DENIED') {
+        } catch (error) {
+            if (retries > 0 && !hasErrorCode(error, 'PERMISSION_DENIED')) {
                 console.warn(`Operation failed, retrying in ${delay}ms. Retries left: ${retries}`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return this.retryOperation(operation, retries - 1, delay * 2);
@@ -67,8 +83,8 @@ export class TypingIndicatorService {
             }, TYPING_TIMEOUT);
 
             this.typingTimeouts.set(timeoutKey, timeout);
-        } catch (error: any) {
-            if (error?.code === 'PERMISSION_DENIED') {
+        } catch (error) {
+            if (hasErrorCode(error, 'PERMISSION_DENIED')) {
                 console.warn('Permission denied for typing indicator. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error setting typing indicator:', error);
@@ -100,8 +116,8 @@ export class TypingIndicatorService {
                 clearTimeout(existingTimeout);
                 this.typingTimeouts.delete(timeoutKey);
             }
-        } catch (error: any) {
-            if (error?.code === 'PERMISSION_DENIED') {
+        } catch (error) {
+            if (hasErrorCode(error, 'PERMISSION_DENIED')) {
                 console.warn('Permission denied for removing typing indicator. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error removing typing indicator:', error);
@@ -133,20 +149,29 @@ export class TypingIndicatorService {
         // Remove existing listener if any
         this.stopListeningToTyping(roomId);
 
-        const listener = onValue(typingRef, (snapshot) => {
+        const unsubscribe = onValue(typingRef, (snapshot) => {
             try {
-                const typingData = snapshot.val();
+                const typingData = snapshot.val() as RawTypingData | null;
                 const typingUsers: TypingIndicator[] = [];
 
-                if (typingData) {
-                    Object.entries(typingData).forEach(([userId, data]: [string, any]) => {
-                        // Don't include current user in typing indicators
+                if (typingData && typeof typingData === 'object') {
+                    Object.entries(typingData).forEach(([userId, data]) => {
                         if (userId !== currentUserId && data?.userName) {
+                            const rawTs = data.timestamp;
+                            let tsDate: Date;
+                            if (typeof rawTs === 'number') {
+                                tsDate = new Date(rawTs);
+                            } else if (typeof rawTs === 'string') {
+                                const parsed = Date.parse(rawTs);
+                                tsDate = isNaN(parsed) ? new Date() : new Date(parsed);
+                            } else {
+                                tsDate = new Date();
+                            }
                             typingUsers.push({
                                 userId,
                                 userName: data.userName,
                                 roomId,
-                                timestamp: new Date(data.timestamp || Date.now())
+                                timestamp: tsDate
                             });
                         }
                     });
@@ -158,7 +183,7 @@ export class TypingIndicatorService {
                 onTypingChange([]); // Return empty array on error
             }
         }, (error) => {
-            if (error?.code === 'PERMISSION_DENIED') {
+            if (hasErrorCode(error, 'PERMISSION_DENIED')) {
                 console.warn('Permission denied for listening to typing indicators. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error listening to typing indicators:', error);
@@ -166,7 +191,7 @@ export class TypingIndicatorService {
             onTypingChange([]); // Return empty array on error
         });
 
-        this.listeners.set(listenerKey, { ref: typingRef, listener });
+        this.listeners.set(listenerKey, unsubscribe);
 
         // Return cleanup function
         return () => this.stopListeningToTyping(roomId);
@@ -177,11 +202,11 @@ export class TypingIndicatorService {
      */
     static stopListeningToTyping(roomId: string): void {
         const listenerKey = `typing-${roomId}`;
-        const listenerData = this.listeners.get(listenerKey);
+        const unsubscribe = this.listeners.get(listenerKey);
 
-        if (listenerData) {
+        if (unsubscribe) {
             try {
-                off(listenerData.ref, listenerData.listener);
+                unsubscribe();
             } catch (error) {
                 console.warn('Error removing typing listener:', error);
             }
@@ -243,4 +268,4 @@ export class TypingIndicatorService {
             }, TYPING_TIMEOUT);
         };
     })();
-} 
+}

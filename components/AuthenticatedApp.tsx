@@ -2,9 +2,9 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import ChatApp from "@/components/ChatApp"
 import { ErrorBoundary } from "@/components/providers/ErrorBoundary"
 import { useAuth } from "@/components/auth/AuthProvider"
+import ChatAppWrapper from "@/components/ChatAppWrapper"
 
 export function AuthenticatedApp() {
     const { user, loading } = useAuth()
@@ -39,7 +39,8 @@ export function AuthenticatedApp() {
     // User is authenticated, show the chat app
     return (
         <ErrorBoundary>
-            <ChatApp />
+            <ChatAppWrapper />
+            <div id="chat-app-root" />
         </ErrorBoundary>
     )
-} 
+}

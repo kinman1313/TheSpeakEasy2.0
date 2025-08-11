@@ -32,8 +32,8 @@ interface RoomHeaderProps {
   onToggleUserList: (show: boolean) => void
   showMobileCallPicker: boolean
   onToggleMobileCallPicker: (show: boolean) => void
-  webRTCCallStatus?: string // optional if you want to keep it
-  otherUserId?: string        // <-- add this line back
+  webRTCCallStatus?: string
+  otherUserId?: string
   otherUser?: {
     displayName: string
     photoURL?: string

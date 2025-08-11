@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef, useContext } from 'react'
+import { useState, useEffect, useRef, useContext, type ReactElement } from 'react'
 import { Message } from './Message'
 import { ThreadView } from './ThreadView'
 import { TypingIndicator } from './TypingIndicator'
@@ -29,7 +29,7 @@ export function MessageList({
     roomId,
     onEdit,
     onReaction
-}: MessageListProps): JSX.Element | null {
+}: MessageListProps): ReactElement | null {
     const [selectedThread, setSelectedThread] = useState<MessageType | null>(null)
     const { user } = useContext(AuthContext)
     const messagesEndRef = useRef<HTMLDivElement>(null)
@@ -128,4 +128,4 @@ export function MessageList({
             <div ref={messagesEndRef} />
         </div>
     )
-} 
+}

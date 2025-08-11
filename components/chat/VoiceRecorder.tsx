@@ -19,6 +19,18 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
   const chunks = useRef<Blob[]>([])
   const progressInterval = useRef<NodeJS.Timeout | null>(null)
 
+  const stopRecording = useCallback(() => {
+    if (mediaRecorder.current && isRecording) {
+      mediaRecorder.current.stop()
+      setIsRecording(false)
+      setProgress(0)
+      if (progressInterval.current) {
+        clearInterval(progressInterval.current)
+        progressInterval.current = null
+      }
+    }
+  }, [isRecording])
+
   const startRecording = useCallback(async () => {
     try {
       const audioStream = await navigator.mediaDevices.getUserMedia({ audio: true })
@@ -58,18 +70,7 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
     } catch (error) {
       console.error("Error accessing microphone:", error)
     }
-  }, [maxDuration, onRecordingComplete])
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorder.current && isRecording) {
-      mediaRecorder.current.stop()
-      setIsRecording(false)
-      setProgress(0)
-      if (progressInterval.current) {
-        clearInterval(progressInterval.current)
-      }
-    }
-  }, [isRecording])
+  }, [maxDuration, onRecordingComplete, stopRecording])
 
   return (
     <div className="flex flex-col gap-2">

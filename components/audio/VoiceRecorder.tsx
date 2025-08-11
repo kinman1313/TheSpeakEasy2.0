@@ -19,7 +19,7 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
     const [permissionError, setPermissionError] = useState<string | null>(null)
     const mediaRecorder = useRef<MediaRecorder | null>(null)
     const chunks = useRef<Blob[]>([])
-    const progressInterval = useRef<NodeJS.Timeout>()
+    const progressInterval = useRef<ReturnType<typeof setInterval> | null>(null)
 
     const checkMicrophonePermission = async (): Promise<boolean> => {
         try {
@@ -37,6 +37,18 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
             return true // Proceed anyway if permission check fails
         }
     }
+
+    const stopRecording = useCallback(() => {
+        if (mediaRecorder.current && isRecording) {
+            mediaRecorder.current.stop()
+            setIsRecording(false)
+            setProgress(0)
+            if (progressInterval.current) {
+                clearInterval(progressInterval.current)
+                progressInterval.current = null
+            }
+        }
+    }, [isRecording])
 
     const startRecording = useCallback(async () => {
         setPermissionError(null)
@@ -116,39 +128,46 @@ export function VoiceRecorder({ onRecordingComplete, maxDuration = 60 }: VoiceRe
 
             toast.success('Recording started!')
 
-        } catch (error: any) {
-            console.error("Error accessing microphone:", error)
+        } catch (err: unknown) {
+            console.error("Error accessing microphone:", err)
+
+            const getErrName = (e: unknown): string => {
+                if (typeof e === 'object' && e !== null) {
+                    const nameVal = (e as Record<string, unknown>).name
+                    if (typeof nameVal === 'string') return nameVal
+                }
+                return ''
+            }
+            const getErrMessage = (e: unknown): string => {
+                if (typeof e === 'object' && e !== null) {
+                    const msgVal = (e as Record<string, unknown>).message
+                    if (typeof msgVal === 'string') return msgVal
+                }
+                return ''
+            }
+
+            const name = getErrName(err)
+            const message = getErrMessage(err)
 
             let errorMessage = "Could not access microphone. "
 
-            if (error.name === 'NotAllowedError') {
+            if (name === 'NotAllowedError') {
                 errorMessage += "Please allow microphone access and try again."
                 setPermissionError('Microphone access was denied. Please click the microphone icon in your browser\'s address bar and allow access.')
-            } else if (error.name === 'NotFoundError') {
+            } else if (name === 'NotFoundError') {
                 errorMessage += "No microphone found. Please connect a microphone and try again."
                 setPermissionError('No microphone detected. Please connect a microphone and try again.')
-            } else if (error.name === 'NotReadableError') {
+            } else if (name === 'NotReadableError') {
                 errorMessage += "Microphone is being used by another application."
                 setPermissionError('Microphone is busy. Please close other applications using the microphone and try again.')
             } else {
                 errorMessage += "Please check your microphone settings and try again."
-                setPermissionError(`Microphone error: ${error.message}`)
+                setPermissionError(`Microphone error: ${message || 'Unknown error'}`)
             }
 
             toast.error(errorMessage)
         }
-    }, [maxDuration, onRecordingComplete])
-
-    const stopRecording = useCallback(() => {
-        if (mediaRecorder.current && isRecording) {
-            mediaRecorder.current.stop()
-            setIsRecording(false)
-            setProgress(0)
-            if (progressInterval.current) {
-                clearInterval(progressInterval.current)
-            }
-        }
-    }, [isRecording])
+    }, [maxDuration, onRecordingComplete, stopRecording])
 
     if (permissionError) {
         return (

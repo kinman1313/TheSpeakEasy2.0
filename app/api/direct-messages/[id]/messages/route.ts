@@ -25,6 +25,49 @@ function calculateExpirationDate(timer: string): Date | null {
     }
 }
 
+interface DecodedToken {
+    uid: string;
+    email?: string;
+    name?: string;
+    picture?: string;
+    // add other properties as needed
+}
+
+interface Attachment {
+    type: 'image' | 'gif' | 'voice' | 'file' | 'other';
+    url: string;
+    name?: string;
+    size?: number;
+    mimeType?: string;
+    durationMs?: number; // for voice messages
+}
+
+interface MessageData {
+    text: string;
+    attachments: Attachment[]; // typed instead of any[]
+    senderId: string;
+    dmId: string;
+    userName: string;
+    displayName: string;
+    photoURL: string | null;
+    chatColor: string;
+    createdAt: FirebaseFirestore.Timestamp | FirebaseFirestore.FieldValue;
+    status: string;
+    readBy: string[];
+    reactions: Record<string, string[]>;
+    imageUrl?: string;
+    gifUrl?: string;
+    voiceMessageUrl?: string;
+    voiceMessageDuration?: number;
+    fileUrl?: string;
+    fileName?: string;
+    fileSize?: number;
+    fileType?: string;
+    replyToId?: string;
+    expiresAt?: Date;
+    expirationTimer?: string;
+}
+
 export async function POST(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -38,7 +81,7 @@ export async function POST(
         }
 
         const { id: dmId } = await params
-        const decodedToken = await adminAuth.verifyIdToken(token)
+        const decodedToken = await adminAuth.verifyIdToken(token) as DecodedToken
         const { text, attachments = [], replyToId, expirationTimer, imageUrl, gifUrl, voiceMessageUrl, voiceMessageDuration, fileUrl, fileName, fileSize, fileType } = await request.json()
 
         if (!text?.trim() && attachments.length === 0 && !imageUrl && !gifUrl && !voiceMessageUrl && !fileUrl) {
@@ -62,11 +105,11 @@ export async function POST(
         // Get user information for the message
         const userDoc = await adminDb.collection("users").doc(decodedToken.uid).get()
         const userData = userDoc.exists ? userDoc.data() : {}
-        const userName = userData?.displayName || (decodedToken as any).name || decodedToken.email || 'Anonymous'
-        const userPhotoURL = userData?.photoURL || (decodedToken as any).picture || null
+        const userName = userData?.displayName || decodedToken.name || decodedToken.email || 'Anonymous'
+        const userPhotoURL = userData?.photoURL || decodedToken.picture || null
         const userChatColor = (userData && 'chatColor' in userData && userData.chatColor) ? userData.chatColor : '#00f3ff';
 
-        const messageData: any = {
+        const messageData: MessageData = {
             text: text?.trim() || "",
             attachments,
             senderId: decodedToken.uid,
@@ -287,4 +330,4 @@ export async function PATCH(
         console.error("DM message reaction update error:", error)
         return NextResponse.json({ error: "Failed to update reaction" }, { status: 500 })
     }
-} 
+}

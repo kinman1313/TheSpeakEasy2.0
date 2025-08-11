@@ -11,9 +11,10 @@ type MessageInputProps = {
   onSend: (message: string) => void;
   onVoiceRecording?: (audio: Blob) => void;
   onGifSelect?: () => void;
-  replyToMessage?: { userName: string; text: string };
+  replyToMessage?: { userName: string; text: string; id?: string };
   onCancelReply?: () => void;
-  currentUserId?: string; // kept for future use
+  currentUserId?: string;
+  currentUserName?: string; // added
   roomId?: string;
   disabled?: boolean;
   enhanced?: boolean;
@@ -35,7 +36,6 @@ export default function MessageInput({
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
 
-  // Append selected emoji to current message
   const handleEmojiSelect = (emoji: string) => {
     setMessage((prev) => prev + emoji);
     setShowEmojiPicker(false);
@@ -45,9 +45,7 @@ export default function MessageInput({
     if (message.trim() && !disabled) {
       onSend(message.trim());
       setMessage("");
-      if (textareaRef.current) {
-        textareaRef.current.style.height = "auto";
-      }
+      if (textareaRef.current) textareaRef.current.style.height = "auto";
     }
   };
 
@@ -72,7 +70,7 @@ export default function MessageInput({
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: "audio/wav" });
         onVoiceRecording?.(audioBlob);
-        stream.getTracks().forEach((track) => track.stop());
+        stream.getTracks().forEach((t) => t.stop());
       };
 
       mediaRecorder.start();
@@ -132,7 +130,6 @@ export default function MessageInput({
         </div>
 
         <div className="flex items-center space-x-default">
-          {/* Emoji button */}
           <button
             type="button"
             className={cn(
@@ -146,74 +143,69 @@ export default function MessageInput({
             <SmileIcon className="h-4 w-4" />
           </button>
 
-          {/* Giphy button */}
-          {onGifSelect && (
-            <button
-              type="button"
-              className={cn(
-                "icon-btn",
-                enhanced && "text-white/60 hover:text-white hover:bg-white/10"
-              )}
-              onClick={onGifSelect}
-              disabled={disabled}
-              title="Send a GIF"
-            >
-              <GiftIcon className="h-4 w-4" />
-            </button>
-          )}
-
-          {/* Voice recording button with touch support */}
-          {onVoiceRecording && (
-            <button
-              type="button"
-              className={cn(
-                "icon-btn",
-                isRecording && "text-red-400",
-                enhanced && "text-white/60 hover:text-white hover:bg-white/10"
-              )}
-              onMouseDown={startRecording}
-              onMouseUp={stopRecording}
-              onMouseLeave={stopRecording}
-              onTouchStart={startRecording}
-              onTouchEnd={stopRecording}
-              onTouchCancel={stopRecording}
-              disabled={disabled}
-              title="Record voice message"
-            >
-              {isRecording ? (
-                <MicOff className="h-4 w-4" />
-              ) : (
-                <Mic className="h-4 w-4" />
-              )}
-            </button>
-          )}
-
-          {/* Send button */}
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!message.trim() || disabled}
-            className={cn(
-              "btn-glass bg-green-600 hover:bg-green-500 text-white",
-              enhanced && "bg-green-500/80 hover:bg-green-500"
+            {onGifSelect && (
+              <button
+                type="button"
+                className={cn(
+                  "icon-btn",
+                  enhanced && "text-white/60 hover:text-white hover:bg-white/10"
+                )}
+                onClick={onGifSelect}
+                disabled={disabled}
+                title="Send a GIF"
+              >
+                <GiftIcon className="h-4 w-4" />
+              </button>
             )}
-            title="Send"
-          >
-            <Send className="h-4 w-4" />
-          </button>
+
+            {onVoiceRecording && (
+              <button
+                type="button"
+                className={cn(
+                  "icon-btn",
+                  isRecording && "text-red-400",
+                  enhanced && "text-white/60 hover:text-white hover:bg-white/10"
+                )}
+                onMouseDown={startRecording}
+                onMouseUp={stopRecording}
+                onMouseLeave={stopRecording}
+                onTouchStart={startRecording}
+                onTouchEnd={stopRecording}
+                onTouchCancel={stopRecording}
+                disabled={disabled}
+                title="Record voice message"
+              >
+                {isRecording ? (
+                  <MicOff className="h-4 w-4" />
+                ) : (
+                  <Mic className="h-4 w-4" />
+                )}
+              </button>
+            )}
+
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!message.trim() || disabled}
+              className={cn(
+                "btn-glass bg-green-600 hover:bg-green-500 text-white",
+                enhanced && "bg-green-500/80 hover:bg-green-500"
+              )}
+              title="Send"
+            >
+              <Send className="h-4 w-4" />
+            </button>
         </div>
       </div>
 
-      {/* Emoji picker overlay */}
-    {showEmojiPicker && (
-  <ChatEmojiPicker
-    onSelectEmoji={handleEmojiSelect}
-    onClose={() => setShowEmojiPicker(false)}
-  />
-)}
+      {showEmojiPicker && (
+        <ChatEmojiPicker
+          onSelectEmoji={handleEmojiSelect}
+          onClose={() => setShowEmojiPicker(false)}
+        />
+      )}
     </div>
   );
-
 }
 
-export { MessageInput }; // Named export
+export { MessageInput };

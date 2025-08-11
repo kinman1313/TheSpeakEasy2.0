@@ -10,6 +10,33 @@ import { MessageInput } from "@/components/MessageInput";
 import { type Message as MessageType } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+// Type for an optional unsubscribe function
+type UnsubscribeFn = (threadId: string, userId: string) => Promise<void> | void;
+
+// Narrowed shape of the service where unsubscribe may exist
+interface ThreadNotificationServiceWithOptionalUnsub {
+  subscribeToThread(threadId: string, userId: string): Promise<void> | void;
+  unsubscribeFromThread?: UnsubscribeFn;
+}
+
+// Type-safe helper to access optional unsubscribe
+const getUnsubscribeFn = (svc: unknown): UnsubscribeFn | undefined => {
+  const candidate = svc as Partial<ThreadNotificationServiceWithOptionalUnsub>;
+  return typeof candidate?.unsubscribeFromThread === "function"
+    ? candidate.unsubscribeFromThread
+    : undefined;
+};
+
+// Options passed when sending a message within a thread.
+interface SendMessageOptions {
+  replyToId?: string;
+  parentMessageId?: string;
+  metadata?: Record<string, unknown>;
+  attachments?: unknown[];
+  // Allow forward compatibility with additional option keys without using 'any'
+  [key: string]: unknown;
+}
+
 interface ThreadViewProps {
   threadId: string;
   parentMessage: MessageType;
@@ -20,7 +47,7 @@ interface ThreadViewProps {
     photoURL: string | null;
   };
   onClose: () => void;
-  onSendMessage: (text: string, options?: any) => void;
+  onSendMessage: (text: string, options?: SendMessageOptions) => void;
   onEditMessage?: (messageId: string, newText: string) => void;
   onDeleteMessage?: (messageId: string) => void;
   onReply?: (message: MessageType) => void;
@@ -55,28 +82,52 @@ export function ThreadView({
   useEffect(() => {
     if (!user || !threadId) return;
 
-    // subscribe to the thread; when the server pushes a notification, we set the flag
-    const unsubscribe = ThreadNotificationService.subscribeToThread(
-      threadId,
-      user.uid,
-      () => setIsSubscribed(true)
-    );
+    let cancelled = false;
+
+    (async () => {
+      try {
+        await ThreadNotificationService.subscribeToThread(threadId, user.uid);
+        if (!cancelled) {
+          setIsSubscribed(true);
+        }
+      } catch (err) {
+        console.error("Failed to subscribe to thread:", err);
+      }
+    })();
 
     return () => {
-      unsubscribe?.();
+      cancelled = true;
+      // Try optional unsubscribe API if available
+      const maybeUnsub = getUnsubscribeFn(ThreadNotificationService);
+      if (maybeUnsub) {
+        try {
+          maybeUnsub(threadId, user.uid);
+        } catch (e) {
+          console.error("Failed to unsubscribe from thread:", e);
+        }
+      }
     };
   }, [threadId, user]);
 
-  // toggle subscription status on click
+  // toggle subscription status on click (replaces missing toggleSubscription API)
   const toggleSubscription = async () => {
     if (!user) return;
-    // update the backend subscription status
-    await ThreadNotificationService.toggleSubscription(
-      threadId,
-      user.uid,
-      !isSubscribed
-    );
-    setIsSubscribed(!isSubscribed);
+    try {
+      if (isSubscribed) {
+        const maybeUnsub = getUnsubscribeFn(ThreadNotificationService);
+        if (maybeUnsub) {
+          await maybeUnsub(threadId, user.uid);
+        } else {
+          console.warn("unsubscribeFromThread not available on ThreadNotificationService");
+        }
+        setIsSubscribed(false);
+      } else {
+        await ThreadNotificationService.subscribeToThread(threadId, user.uid);
+        setIsSubscribed(true);
+      }
+    } catch (e) {
+      console.error("Failed to toggle thread subscription:", e);
+    }
   };
 
   return (

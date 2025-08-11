@@ -9,7 +9,7 @@ interface AudioVisualizerProps {
 
 export function AudioVisualizer({ stream, className }: AudioVisualizerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const animationRef = useRef<number>()
+  const animationRef = useRef<number | null>(null)
 
   useEffect(() => {
     if (!canvasRef.current) return
@@ -58,7 +58,7 @@ export function AudioVisualizer({ stream, className }: AudioVisualizerProps) {
     draw()
 
     return () => {
-      if (animationRef.current) {
+      if (animationRef.current !== null) {
         cancelAnimationFrame(animationRef.current)
       }
       source.disconnect()
