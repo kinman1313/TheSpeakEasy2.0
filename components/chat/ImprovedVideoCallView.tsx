@@ -31,7 +31,7 @@ export function ImprovedVideoCallView() {
   const [showControls, setShowControls] = useState(true)
   const [connectionQuality, setConnectionQuality] = useState<'excellent' | 'good' | 'poor' | 'lost'>('excellent')
   const { buttonPress, tap } = useHaptics()
-  const controlsTimeoutRef = useRef<NodeJS.Timeout>()
+  const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   // Auto-hide controls after 3 seconds
   useEffect(() => {

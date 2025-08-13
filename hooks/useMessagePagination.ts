@@ -1,11 +1,31 @@
 import { useState, useEffect, useCallback } from 'react';
-import { collection, query, orderBy, limit, startAfter, getDocs } from 'firebase/firestore';
+import {
+  collection,
+  query,
+  orderBy,
+  limit,
+  startAfter,
+  getDocs,
+  type QueryDocumentSnapshot,
+  type DocumentData,
+  type Firestore
+} from 'firebase/firestore';
 
-export const useMessagePagination = (db: any, roomId: string) => {
-  const [messages, setMessages] = useState([]);
-  const [lastDoc, setLastDoc] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [hasMore, setHasMore] = useState(true);
+export const useMessagePagination = (db: Firestore, roomId: string) => {
+
+interface Message { id: string /* add real fields */ }
+const [messages, setMessages] = useState<Message[]>([]);
+const [lastDoc, setLastDoc] =
+  useState<QueryDocumentSnapshot<DocumentData> | null>(null);
+const [loading, setLoading] = useState(false);
+const [hasMore, setHasMore] = useState(true);
+
+  useEffect(() => {
+    // reset when room changes
+    setMessages([]);
+    setLastDoc(null);
+    setHasMore(true);
+  }, [roomId]);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) return;

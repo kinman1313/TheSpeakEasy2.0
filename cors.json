@@ -3,6 +3,7 @@
         "origin": [
             "https://thespeakeasy.app",
             "https://www.thespeakeasy.app",
+            "https://*.onrender.com",
             "https://*.vercel.app",
             "http://localhost:3000"
         ],

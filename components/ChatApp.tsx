@@ -1082,19 +1082,24 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             ref={messagesContainerRef}
             className="absolute inset-0 overflow-y-auto custom-scrollbar overscroll-contain"
           >
-            {/* Pull-to-refresh indicator */}
-            <div
-              className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
-              style={refreshIndicatorStyle}
-            >
-              <div className={`w-8 h-8 rounded-full border-2 border-green-500 ${isRefreshing ? 'animate-spin border-t-transparent' : ''} ${isThresholdReached ? 'bg-green-500/20' : ''}`}>
-                {!isRefreshing && (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <div className="w-2 h-2 bg-green-500 rounded-full" />
-                  </div>
-                )}
-              </div>
-            </div>
+{/* Pull-to-refresh indicator */}
+<div
+  className="absolute top-0 left-1/2 transform -translate-x-1/2 -translate-y-full flex items-center justify-center refresh-indicator"
+  style={refreshIndicatorStyle}
+  aria-live="polite"
+>
+  <div
+    className={`w-8 h-8 rounded-full border-2 border-green-500 ${
+      isRefreshing ? 'animate-spin border-t-transparent' : ''
+    } ${isThresholdReached ? 'bg-green-500/20' : ''}`}
+  >
+    {!isRefreshing && (
+      <div className="w-full h-full flex items-center justify-center">
+        <div className="w-2 h-2 bg-green-500 rounded-full" />
+      </div>
+    )}
+  </div>
+</div>
 
             {/* Messages */}
             <div className="space-y-4 p-4">

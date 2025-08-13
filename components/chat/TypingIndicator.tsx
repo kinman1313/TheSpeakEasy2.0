@@ -25,7 +25,7 @@ export function TypingIndicator({ roomId, currentUserId, className }: TypingIndi
 
   if (typingUsers.length === 0) return null
 
-  const getTypingText = () => {
+  const getTypingText = (): string => {
     if (typingUsers.length === 1) {
       return `${typingUsers[0].userName} is typing`
     } else if (typingUsers.length === 2) {

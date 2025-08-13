@@ -51,7 +51,7 @@ export function useInfiniteScroll(callback: () => void) {
 // Hook for handling typing indicator debounce
 export function useTypingIndicator() {
   const [isTyping, setIsTyping] = useState(false)
-  const timeoutRef = useRef<NodeJS.Timeout>()
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleTyping = useCallback(() => {
     setIsTyping(true)

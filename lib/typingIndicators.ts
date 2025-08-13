@@ -6,6 +6,11 @@ const TYPING_TIMEOUT = 3000; // 3 seconds before removing typing indicator
 const MAX_RETRIES = 3;
 const RETRY_DELAY = 1000; // 1 second
 
+// Add: type guard to safely access error.code
+type FirebaseLikeError = { code: string; message?: string };
+const isFirebaseError = (err: unknown): err is FirebaseLikeError =>
+  typeof err === 'object' && err !== null && 'code' in err && typeof (err as any).code === 'string';
+
 export class TypingIndicatorService {
     private static typingTimeouts: Map<string, NodeJS.Timeout> = new Map();
     private static listeners: Map<string, any> = new Map();
@@ -20,8 +25,9 @@ export class TypingIndicatorService {
     ): Promise<T> {
         try {
             return await operation();
-        } catch (error: any) {
-            if (retries > 0 && error?.code !== 'PERMISSION_DENIED') {
+        } catch (error) {
+            // Use type guard; don't retry on permission errors
+            if (retries > 0 && (!isFirebaseError(error) || error.code !== 'PERMISSION_DENIED')) {
                 console.warn(`Operation failed, retrying in ${delay}ms. Retries left: ${retries}`);
                 await new Promise(resolve => setTimeout(resolve, delay));
                 return this.retryOperation(operation, retries - 1, delay * 2);
@@ -62,13 +68,13 @@ export class TypingIndicatorService {
 
             // Set new timeout to auto-remove typing indicator
             const timeout = setTimeout(() => {
-                this.stopTyping(userId, roomId);
+                TypingIndicatorService.stopTyping(userId, roomId);
                 this.typingTimeouts.delete(timeoutKey);
             }, TYPING_TIMEOUT);
 
             this.typingTimeouts.set(timeoutKey, timeout);
         } catch (error: any) {
-            if (error?.code === 'PERMISSION_DENIED') {
+            if (isFirebaseError(error) && error.code === 'PERMISSION_DENIED') {
                 console.warn('Permission denied for typing indicator. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error setting typing indicator:', error);
@@ -101,7 +107,7 @@ export class TypingIndicatorService {
                 this.typingTimeouts.delete(timeoutKey);
             }
         } catch (error: any) {
-            if (error?.code === 'PERMISSION_DENIED') {
+            if (isFirebaseError(error) && error.code === 'PERMISSION_DENIED') {
                 console.warn('Permission denied for removing typing indicator. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error removing typing indicator:', error);
@@ -158,7 +164,7 @@ export class TypingIndicatorService {
                 onTypingChange([]); // Return empty array on error
             }
         }, (error) => {
-            if (error?.code === 'PERMISSION_DENIED') {
+            if (isFirebaseError(error) && error.code === 'PERMISSION_DENIED') {
                 console.warn('Permission denied for listening to typing indicators. User may not be authenticated or database rules need updating.');
             } else {
                 console.error('Error listening to typing indicators:', error);
@@ -212,7 +218,7 @@ export class TypingIndicatorService {
         
         for (const roomId of commonRooms) {
             try {
-                await this.stopTyping(userId, roomId);
+                await TypingIndicatorService.stopTyping(userId, roomId);
             } catch (error) {
                 // Silently ignore errors during cleanup
                 console.warn(`Failed to cleanup typing indicator for room ${roomId}:`, error);
@@ -235,12 +241,12 @@ export class TypingIndicatorService {
             clearTimeout(timeout);
 
             // Start typing immediately
-            this.startTyping(userId, userName, roomId);
+            TypingIndicatorService.startTyping(userId, userName, roomId);
 
             // Stop typing after delay
             timeout = setTimeout(() => {
-                this.stopTyping(userId, roomId);
+                TypingIndicatorService.stopTyping(userId, roomId);
             }, TYPING_TIMEOUT);
         };
     })();
-} 
+}
