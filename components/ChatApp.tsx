@@ -1108,8 +1108,11 @@ export default function ChatApp({ enhanced = false }: ChatAppProps) {
             <button
               onClick={scrollToBottom}
               className="absolute bottom-20 right-4 glass-panel p-3 rounded-full shadow-lg hover:scale-105 transition-transform z-10"
+              aria-label="Scroll to latest messages"
+              title="Scroll to latest messages"
             >
-              <ChevronDown className="w-5 h-5 text-white" />
+              <ChevronDown className="w-5 h-5 text-white" aria-hidden="true" focusable="false" />
+              <span className="sr-only">Scroll to latest messages</span>
             </button>
           )}
         </main>
