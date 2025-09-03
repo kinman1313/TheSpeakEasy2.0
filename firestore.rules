@@ -1,4 +1,11 @@
-// Allow authenticated users to read and write
+// Firestore security rules with collection-specific access:
+// - Users: authenticated users may modify only their own user document.
+// - Rooms: authenticated users can read/create/update; only the owner can delete.
+// - Messages: authenticated users can read/create; updates allow sender or for reactions/read receipts; deletes by sender or recipient.
+// - Direct messages: authenticated users can read/create/update; deletion is disallowed.
+// - User settings: only the owner can read or write.
+// - Thread notifications & message expiration: authenticated read/create; updates/deletes only by the owner.
+// - Development fallback allows authenticated read/write on all documents.
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
